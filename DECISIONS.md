@@ -99,3 +99,9 @@ Roboto и RobotoMono (Apache 2.0) в `assets/fonts`, объявлены в pubsp
 `test/ux/harness.dart` рендерит экраны с демо‑магазином в реальных шрифтах (desktop 1440,
 tablet 1024, phone 390) в PNG; ошибки рендера сохраняются в `.errors.txt`. Каждый модуль имеет
 `test/features/<m>/ux_screens_test.dart`. Запуск: `SCREENSHOTS=1 flutter test test/ux`.
+
+## D-020 Официальные идентификаторы приложения (утверждено владельцем 2026-11-24)
+Название продукта — DreamPOS, компания — Dream Dev. Windows: CompanyName «Dream Dev»,
+ProductName «DreamPOS», данные в `%APPDATA%\Dream Dev\DreamPOS`. Android: `applicationId`
+и namespace `uz.dreamdev.dreampos`. Идентификатор Android после публикации в магазине
+не меняется — не трогать без новой записи в журнале решений.
