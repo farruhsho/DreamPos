@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets/widgets.dart';
+import '../../../l10n/l10n.dart';
 import '../backup_service.dart';
 import '../settings_logic.dart';
 import '../settings_providers.dart';
@@ -36,34 +37,36 @@ class _BackupSectionState extends ConsumerState<BackupSection> {
     if (!mounted) return;
     setState(() => _busy = false);
     _refresh();
-    if (made != null) showSuccess(context, 'Копия создана: ${made!.name} (${formatBytes(made!.size)})');
+    if (made != null) {
+      showSuccess(context, context.l10n.settingsBackupCreated(made!.name, formatBytes(made!.size, context.l10n)));
+    }
   }
 
   Future<void> _delete(BackupInfo b) async {
+    final l = context.l10n;
     final ok = await confirm(
       context,
-      title: 'Удалить копию?',
-      message:
-          '${b.name}\n${formatDateTime(b.date)} · ${formatBytes(b.size)}\n\n'
-          'Файл будет удалён с диска без возможности восстановления.',
-      ok: 'Удалить',
+      title: l.settingsBackupDeleteTitle,
+      message: l.settingsBackupDeleteMessage(b.name, formatDateTime(b.date), formatBytes(b.size, l)),
+      ok: l.commonDelete,
       destructive: true,
     );
     if (!ok || !mounted) return;
-    await runGuarded(context, () => _svc.delete(b, userId: currentUserId(ref)), success: 'Копия удалена');
+    await runGuarded(
+      context,
+      () => _svc.delete(b, userId: currentUserId(ref)),
+      success: context.l10n.settingsBackupDeleted,
+    );
     _refresh();
   }
 
   Future<void> _restore(BackupInfo b) async {
+    final l = context.l10n;
     final ok = await confirm(
       context,
-      title: 'Восстановить данные из копии?',
-      message:
-          'Копия от ${formatDateTime(b.date)} заменит ВСЕ текущие данные: товары, продажи, '
-          'клиентов, смены и настройки. Всё, что сделано после этой даты, пропадёт.\n\n'
-          'Перед восстановлением будет автоматически создана копия текущих данных.\n\n'
-          'Данные заменятся при следующем запуске программы.',
-      ok: 'Восстановить',
+      title: l.settingsRestoreTitle,
+      message: l.settingsRestoreMessage(formatDateTime(b.date)),
+      ok: l.settingsRestore,
       destructive: true,
     );
     if (!ok || !mounted) return;
@@ -80,15 +83,9 @@ class _BackupSectionState extends ConsumerState<BackupSection> {
         context: context,
         builder: (c) => AlertDialog(
           icon: const Icon(Icons.restart_alt, size: 36),
-          title: const Text('Перезапустите программу'),
-          content: const Text(
-            'Восстановление подготовлено.\n\n'
-            '1. Закройте DreamPOS на этом компьютере.\n'
-            '2. Запустите программу снова — данные будут заменены копией.\n'
-            '3. Войдите и проверьте товары и последние продажи.\n\n'
-            'До перезапуска не проводите продажи: они будут потеряны.',
-          ),
-          actions: [FilledButton(onPressed: () => Navigator.pop(c), child: const Text('Понятно'))],
+          title: Text(c.l10n.settingsRestartTitle),
+          content: Text(c.l10n.settingsRestartMessage),
+          actions: [FilledButton(onPressed: () => Navigator.pop(c), child: Text(c.l10n.settingsGotIt))],
         ),
       );
     }
@@ -98,7 +95,7 @@ class _BackupSectionState extends ConsumerState<BackupSection> {
     await runGuarded(
       context,
       () => _svc.cancelPendingRestore(userId: currentUserId(ref)),
-      success: 'Восстановление отменено',
+      success: context.l10n.settingsRestoreCancelled,
     );
     _refresh();
   }
@@ -111,19 +108,18 @@ class _BackupSectionState extends ConsumerState<BackupSection> {
     final last = lastIso == null ? null : DateTime.tryParse(lastIso)?.toLocal();
     final stale = last == null || DateTime.now().difference(last).inDays >= 7;
     final dirPath = ref.watch(_backupsDirProvider).value;
+    final l = context.l10n;
 
     return SectionView(
-      title: 'Резервное копирование',
-      description:
-          'Копия базы данных защищает от потери данных при поломке компьютера, вирусе или ошибке. '
-          'Храните копии также на флешке или в облаке.',
+      title: l.settingsSecBackup,
+      description: l.settingsBackupDesc,
       children: [
         if (pending)
           InfoBanner(
             icon: Icons.restart_alt,
             color: AppColors.warning,
-            text: 'Восстановление из копии подготовлено. Перезапустите программу, чтобы заменить данные.',
-            action: TextButton(onPressed: _cancelRestore, child: const Text('Отменить')),
+            text: l.settingsRestorePending,
+            action: TextButton(onPressed: _cancelRestore, child: Text(l.settingsCancelVerb)),
           ),
         Card(
           child: Padding(
@@ -142,9 +138,9 @@ class _BackupSectionState extends ConsumerState<BackupSection> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text('Последняя копия', style: Theme.of(context).textTheme.bodySmall),
+                        Text(l.settingsLastBackup, style: Theme.of(context).textTheme.bodySmall),
                         Text(
-                          last == null ? 'ещё не создавалась' : formatDateTime(last),
+                          last == null ? l.settingsNeverBackedUp : formatDateTime(last),
                           style: Theme.of(context).textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.w600,
                             color: stale ? AppColors.warning : null,
@@ -152,7 +148,7 @@ class _BackupSectionState extends ConsumerState<BackupSection> {
                         ),
                         if (stale)
                           Text(
-                            'Рекомендуем делать копию хотя бы раз в неделю',
+                            l.settingsBackupWeekly,
                             style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.warning),
                           ),
                       ],
@@ -165,37 +161,37 @@ class _BackupSectionState extends ConsumerState<BackupSection> {
                 icon: _busy
                     ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                     : const Icon(Icons.backup_outlined),
-                label: const Text('Создать копию сейчас'),
+                label: Text(l.settingsBackupCreateNow),
               ),
             ),
           ),
         ),
         TileCard(
           children: [
-            const SettingSwitch(
+            SettingSwitch(
               settingKey: SettingKeys.autoBackupDaily,
               icon: Icons.event_repeat,
-              title: 'Ежедневная автоматическая копия',
-              subtitle: 'Создаётся раз в сутки при запуске программы',
+              title: l.settingsAutoBackup,
+              subtitle: l.settingsAutoBackupHint,
             ),
             if (dirPath != null)
               ListTile(
                 leading: const Icon(Icons.folder_outlined),
-                title: const Text('Папка с копиями'),
+                title: Text(l.settingsBackupFolder),
                 subtitle: SelectableText(dirPath),
                 trailing: IconButton(
-                  tooltip: 'Копировать путь',
+                  tooltip: l.settingsCopyPath,
                   icon: const Icon(Icons.copy),
-                  onPressed: () => copyToClipboard(context, dirPath, message: 'Путь скопирован'),
+                  onPressed: () => copyToClipboard(context, dirPath, message: l.settingsPathCopied),
                 ),
               ),
           ],
         ),
         SectionCard(
-          title: 'Копии',
+          title: l.settingsBackups,
           trailing: IconButton(
             visualDensity: VisualDensity.compact,
-            tooltip: 'Обновить',
+            tooltip: l.settingsRefresh,
             onPressed: _refresh,
             icon: const Icon(Icons.refresh),
           ),
@@ -203,9 +199,9 @@ class _BackupSectionState extends ConsumerState<BackupSection> {
             value: backups,
             onRetry: _refresh,
             data: (list) => list.isEmpty
-                ? const Padding(
-                    padding: EdgeInsets.symmetric(vertical: Gap.m),
-                    child: Text('Копий пока нет. Нажмите «Создать копию сейчас».'),
+                ? Padding(
+                    padding: const EdgeInsets.symmetric(vertical: Gap.m),
+                    child: Text(l.settingsNoBackups),
                   )
                 : Column(
                     children: [
@@ -214,29 +210,29 @@ class _BackupSectionState extends ConsumerState<BackupSection> {
                           contentPadding: EdgeInsets.zero,
                           leading: const Icon(Icons.storage),
                           title: Text(formatDateTime(b.date)),
-                          subtitle: Text('${b.name} · ${formatBytes(b.size)}'),
+                          subtitle: Text('${b.name} · ${formatBytes(b.size, l)}'),
                           trailing: PopupMenuButton<String>(
-                            tooltip: 'Действия',
+                            tooltip: l.commonActions,
                             enabled: !_busy,
                             onSelected: (v) => switch (v) {
                               'restore' => _restore(b),
-                              'copy' => copyToClipboard(context, b.file.path, message: 'Путь скопирован'),
+                              'copy' => copyToClipboard(context, b.file.path, message: l.settingsPathCopied),
                               _ => _delete(b),
                             },
-                            itemBuilder: (_) => const [
+                            itemBuilder: (_) => [
                               PopupMenuItem(
                                 value: 'restore',
-                                child: ListTile(leading: Icon(Icons.restore), title: Text('Восстановить')),
+                                child: ListTile(leading: const Icon(Icons.restore), title: Text(l.settingsRestore)),
                               ),
                               PopupMenuItem(
                                 value: 'copy',
-                                child: ListTile(leading: Icon(Icons.copy), title: Text('Копировать путь')),
+                                child: ListTile(leading: const Icon(Icons.copy), title: Text(l.settingsCopyPath)),
                               ),
                               PopupMenuItem(
                                 value: 'delete',
                                 child: ListTile(
-                                  leading: Icon(Icons.delete_outline, color: AppColors.danger),
-                                  title: Text('Удалить'),
+                                  leading: const Icon(Icons.delete_outline, color: AppColors.danger),
+                                  title: Text(l.commonDelete),
                                 ),
                               ),
                             ],
@@ -246,11 +242,7 @@ class _BackupSectionState extends ConsumerState<BackupSection> {
                   ),
           ),
         ),
-        const InfoBanner(
-          text:
-              'Восстановление заменяет все данные программы содержимым копии и требует перезапуска. '
-              'Перед восстановлением автоматически создаётся копия текущих данных.',
-        ),
+        InfoBanner(text: l.settingsRestoreInfo),
       ],
     );
   }

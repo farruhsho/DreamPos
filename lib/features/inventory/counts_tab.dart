@@ -14,6 +14,7 @@ import '../../core/widgets/widgets.dart';
 import 'inventory_logic.dart';
 import 'inventory_pdf.dart';
 import 'stock_tab.dart' show InvChipBar;
+import '../../l10n/l10n.dart';
 
 Color countStatusColor(String s) => switch (s) {
   'draft' => AppColors.warning,
@@ -34,7 +35,7 @@ class _CountsTabState extends ConsumerState<CountsTab> {
   Future<void> _create(bool wide) async {
     final id = await showFormDialog<String>(
       context,
-      title: 'Новая инвентаризация',
+      title: context.l10n.invNewCount,
       width: 560,
       child: const _CreateCount(),
     );
@@ -49,7 +50,7 @@ class _CountsTabState extends ConsumerState<CountsTab> {
       Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => Scaffold(
-            appBar: AppBar(title: const Text('Инвентаризация')),
+            appBar: AppBar(title: Text(context.l10n.invCount)),
             body: Padding(
               padding: const EdgeInsets.all(Gap.m),
               child: CountEditor(countId: id),
@@ -78,10 +79,10 @@ class _CountsTabState extends ConsumerState<CountsTab> {
             const VerticalDivider(width: Gap.xl),
             Expanded(
               child: _selected == null
-                  ? const EmptyState(
+                  ? EmptyState(
                       icon: Icons.fact_check_outlined,
-                      title: 'Выберите инвентаризацию',
-                      message: 'или создайте новую, чтобы сверить фактические остатки с учётными',
+                      title: context.l10n.invSelectCount,
+                      message: context.l10n.invSelectCountMessage,
                     )
                   : CountEditor(key: ValueKey(_selected), countId: _selected!),
             ),
@@ -100,6 +101,7 @@ class _CountList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = context.l10n;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -110,7 +112,7 @@ class _CountList extends ConsumerWidget {
             final btn = FilledButton.icon(
               onPressed: onCreate,
               icon: const Icon(Icons.add),
-              label: const Text('Новая инвентаризация'),
+              label: Text(l.invNewCount),
             );
             return c.maxWidth > 560 ? Align(alignment: Alignment.centerLeft, child: btn) : btn;
           },
@@ -120,10 +122,10 @@ class _CountList extends ConsumerWidget {
           child: AsyncView(
             value: ref.watch(inventoryCountsProvider),
             data: (list) => list.isEmpty
-                ? const EmptyState(
+                ? EmptyState(
                     icon: Icons.fact_check_outlined,
-                    title: 'Инвентаризаций ещё не было',
-                    message: 'Регулярные пересчёты помогают вовремя находить недостачи',
+                    title: l.invNoCountsYet,
+                    message: l.invNoCountsMessage,
                   )
                 : ListView.separated(
                     itemCount: list.length,
@@ -132,14 +134,14 @@ class _CountList extends ConsumerWidget {
                       final c = list[i];
                       return ListTile(
                         selected: c.id == selected,
-                        title: Text('Инвентаризация №${c.number}'),
+                        title: Text(l.invCountTitle('${c.number}')),
                         subtitle: Text(
                           [formatDateTime(c.createdAt), if (c.note != null) c.note!].join(' · '),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
                         trailing: StatusChip(
-                          countStatusLabels[c.status] ?? c.status,
+                          countStatusLabelsOf(l)[c.status] ?? c.status,
                           color: countStatusColor(c.status),
                         ),
                         onTap: () => onOpen(c.id),
@@ -169,18 +171,18 @@ class _CreateCountState extends ConsumerState<_CreateCount> {
   bool _busy = false;
 
   Future<void> _addProduct() async {
-    final p = await pickProduct(context, title: 'Добавить товар в инвентаризацию');
+    final p = await pickProduct(context, title: context.l10n.invAddToCount);
     if (p != null && !_products.any((x) => x.id == p.id)) setState(() => _products.add(p));
   }
 
   Future<void> _submit() async {
     if (_busy) return;
     if (_scope == CountScope.category && _categoryId == null) {
-      showError(context, 'Выберите категорию');
+      showError(context, context.l10n.invSelectCategory);
       return;
     }
     if (_scope == CountScope.selected && _products.isEmpty) {
-      showError(context, 'Добавьте хотя бы один товар');
+      showError(context, context.l10n.invAddAtLeastOneProduct);
       return;
     }
     setState(() => _busy = true);
@@ -206,6 +208,7 @@ class _CreateCountState extends ConsumerState<_CreateCount> {
   @override
   Widget build(BuildContext context) {
     final cats = ref.watch(invCategoriesProvider).value ?? const <Category>[];
+    final l = context.l10n;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(Gap.xl),
       child: Column(
@@ -215,9 +218,9 @@ class _CreateCountState extends ConsumerState<_CreateCount> {
             // On phones the check icon squeezed «Все товары» into three lines.
             showSelectedIcon: !context.isCompact,
             segments: [
-              ButtonSegment(value: CountScope.all, label: Text(context.isCompact ? 'Все' : 'Все товары')),
-              const ButtonSegment(value: CountScope.category, label: Text('Категория')),
-              const ButtonSegment(value: CountScope.selected, label: Text('Выбранные')),
+              ButtonSegment(value: CountScope.all, label: Text(context.isCompact ? l.commonAll : l.invAllProducts)),
+              ButtonSegment(value: CountScope.category, label: Text(l.commonCategory)),
+              ButtonSegment(value: CountScope.selected, label: Text(l.invSelected)),
             ],
             selected: {_scope},
             onSelectionChanged: (s) => setState(() => _scope = s.first),
@@ -227,7 +230,7 @@ class _CreateCountState extends ConsumerState<_CreateCount> {
             DropdownButtonFormField<String>(
               initialValue: _categoryId,
               isExpanded: true,
-              decoration: const InputDecoration(labelText: 'Категория *'),
+              decoration: InputDecoration(labelText: l.invCategoryRequired),
               items: [for (final c in cats) DropdownMenuItem(value: c.id, child: Text(c.name))],
               onChanged: (v) => setState(() => _categoryId = v),
             ),
@@ -236,9 +239,9 @@ class _CreateCountState extends ConsumerState<_CreateCount> {
               ListTile(
                 dense: true,
                 title: Text(p.name),
-                subtitle: Text('остаток ${Qty.format(p.stockQty, p.unit)}'),
+                subtitle: Text(l.invStockAfter(Qty.format(p.stockQty, p.unit))),
                 trailing: IconButton(
-                  tooltip: 'Убрать',
+                  tooltip: l.invRemove,
                   icon: const Icon(Icons.close),
                   onPressed: () => setState(() => _products.remove(p)),
                 ),
@@ -246,23 +249,22 @@ class _CreateCountState extends ConsumerState<_CreateCount> {
             OutlinedButton.icon(
               onPressed: _addProduct,
               icon: const Icon(Icons.add),
-              label: const Text('Добавить товар'),
+              label: Text(l.invAddProduct),
             ),
           ],
           const SizedBox(height: Gap.m),
           TextField(
             controller: _note,
-            decoration: const InputDecoration(labelText: 'Комментарий', hintText: 'зона, ответственный'),
+            decoration: InputDecoration(labelText: l.commonComment, hintText: l.invCountNoteHint),
             onSubmitted: (_) => _submit(),
           ),
           const SizedBox(height: Gap.m),
           Text(
-            'Учётные остатки фиксируются в момент создания. Продажи во время пересчёта учитываются '
-            'при проведении: расхождение считается от текущего остатка.',
+            l.invCountCreateInfo,
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: Gap.l),
-          FilledButton(onPressed: _busy ? null : _submit, child: const Text('Создать')),
+          FilledButton(onPressed: _busy ? null : _submit, child: Text(l.commonCreate)),
         ],
       ),
     );
@@ -371,6 +373,7 @@ class _CountEditorState extends ConsumerState<CountEditor> {
 
   Future<void> _scanOne(String c) async {
     if (!mounted) return;
+    final l = context.l10n;
     final db = ref.read(databaseProvider);
     final items = await (db.select(
       db.inventoryCountItems,
@@ -385,7 +388,7 @@ class _CountEditorState extends ConsumerState<CountEditor> {
       final found = await findByCode(db, c);
       if (!mounted) return;
       if (found == null) {
-        showError(context, 'Товар «$c» не найден');
+        showError(context, l.invProductNotFound(c));
         return;
       }
       p = found;
@@ -393,17 +396,15 @@ class _CountEditorState extends ConsumerState<CountEditor> {
       if (it == null) {
         final add = await confirm(
           context,
-          title: 'Товара нет в ведомости',
-          message:
-              '«${found.name}» не входит в эту инвентаризацию. '
-              'Добавить и засчитать 1 ${Qty.unitLabel(found.unit)}?',
-          ok: 'Добавить',
+          title: l.invNotInSheetTitle,
+          message: l.invNotInSheetMessage(found.name, Qty.unitLabel(found.unit, l)),
+          ok: l.commonAdd,
         );
         if (!add || !mounted) return;
         await runGuarded(
           context,
           () => _repo.addCountItem(widget.countId, found, counted: 1),
-          success: '«${found.name}» добавлен: 1',
+          success: l.invAddedOne(found.name),
         );
         if (mounted) _scanFocus.requestFocus();
         return;
@@ -422,7 +423,7 @@ class _CountEditorState extends ConsumerState<CountEditor> {
         ..showSnackBar(
           SnackBar(
             duration: const Duration(milliseconds: 1200),
-            content: Text('${p?.name ?? 'Товар'}: ${Qty.format(next, unit)}'),
+            content: Text('${p?.name ?? l.commonProduct}: ${Qty.format(next, unit)}'),
           ),
         );
     }
@@ -433,45 +434,48 @@ class _CountEditorState extends ConsumerState<CountEditor> {
     await _flush();
     final lines = await _repo.loadLines(widget.countId);
     if (!mounted) return;
+    final l = context.l10n;
     final s = CountSummary.of(lines);
     if (s.counted == 0) {
-      showError(context, 'Не введено ни одного фактического количества');
+      showError(context, l.invNoCountedQty);
       return;
     }
     final canCost = ref.read(sessionProvider)?.can(Perm.viewCost) ?? false;
-    String money(int v) => canCost ? ' на ${Money.format(v)}' : '';
     final ok = await confirm(
       context,
-      title: 'Провести инвентаризацию №${count.number}?',
+      title: l.invCompleteTitle('${count.number}'),
       message: [
-        'Посчитано позиций: ${s.counted} из ${s.lines}.',
-        if (s.uncounted > 0) 'Не посчитано: ${s.uncounted} — их остатки не изменятся.',
-        'Излишки: ${s.surplusLines} поз.${money(s.surplusValue)}',
-        'Недостача: ${s.shortageLines} поз.${money(s.shortageValue)}',
-        if (canCost) 'Итог: ${Money.format(s.netValue)}',
-        if (s.changedSinceStart > 0)
-          '\nПо ${s.changedSinceStart} поз. остаток изменился после создания ведомости (продажи, приходы). '
-              'Расхождения рассчитаны от ТЕКУЩЕГО остатка.',
-        '\nОстатки будут приведены к фактическим. Действие необратимо.',
+        l.invCompleteCounted('${s.counted}', '${s.lines}'),
+        if (s.uncounted > 0) l.invCompleteUncounted('${s.uncounted}'),
+        canCost
+            ? l.invCompleteSurplusSum('${s.surplusLines}', Money.format(s.surplusValue))
+            : l.invCompleteSurplus('${s.surplusLines}'),
+        canCost
+            ? l.invCompleteShortageSum('${s.shortageLines}', Money.format(s.shortageValue))
+            : l.invCompleteShortage('${s.shortageLines}'),
+        if (canCost) l.invCompleteNet(Money.format(s.netValue)),
+        if (s.changedSinceStart > 0) '\n${l.invCompleteChanged('${s.changedSinceStart}')}',
+        '\n${l.invCompleteFinal}',
       ].join('\n'),
-      ok: 'Провести',
+      ok: l.invPost,
     );
     if (!ok || !mounted) return;
     setState(() => _busy = true);
     await runGuarded(
       context,
       () => _repo.completeCount(widget.countId, userId: ref.read(sessionProvider)?.user.id),
-      success: 'Инвентаризация №${count.number} проведена',
+      success: l.invCountCompletedToast('${count.number}'),
     );
     if (mounted) setState(() => _busy = false);
   }
 
   Future<void> _cancel(InventoryCount count) async {
+    final l = context.l10n;
     final ok = await confirm(
       context,
-      title: 'Отменить инвентаризацию №${count.number}?',
-      message: 'Введённые данные сохранятся в истории, остатки не изменятся.',
-      ok: 'Отменить инвентаризацию',
+      title: l.invCancelCountTitle('${count.number}'),
+      message: l.invCancelCountMessage,
+      ok: l.invCancelCount,
       destructive: true,
     );
     if (!ok || !mounted) return;
@@ -479,7 +483,7 @@ class _CountEditorState extends ConsumerState<CountEditor> {
     await runGuarded(
       context,
       () => _repo.cancelCount(widget.countId, userId: ref.read(sessionProvider)?.user.id),
-      success: 'Инвентаризация отменена',
+      success: l.invCountCancelledToast,
     );
   }
 
@@ -498,10 +502,11 @@ class _CountEditorState extends ConsumerState<CountEditor> {
     final itemsV = ref.watch(inventoryCountItemsProvider(widget.countId));
     final products = ref.watch(invProductMapProvider).value;
     final canCost = ref.watch(sessionProvider)?.can(Perm.viewCost) ?? false;
+    final l = context.l10n;
     return AsyncView(
       value: countV,
       data: (count) {
-        if (count == null) return const EmptyState(icon: Icons.search_off, title: 'Инвентаризация не найдена');
+        if (count == null) return EmptyState(icon: Icons.search_off, title: l.invCountNotFound);
         return AsyncView(
           value: itemsV,
           data: (items) {
@@ -544,10 +549,7 @@ class _CountEditorState extends ConsumerState<CountEditor> {
                         const Icon(Icons.info_outline, color: AppColors.warning),
                         const SizedBox(width: Gap.s),
                         Expanded(
-                          child: Text(
-                            'По ${s.changedSinceStart} поз. учётный остаток изменился после создания ведомости '
-                            '(продажи/приходы). Расхождение считается от текущего остатка.',
-                          ),
+                          child: Text(l.invChangedWarning('${s.changedSinceStart}')),
                         ),
                       ],
                     ),
@@ -568,23 +570,23 @@ class _CountEditorState extends ConsumerState<CountEditor> {
                               controller: _scan,
                               focusNode: _scanFocus,
                               autofocus: true,
-                              decoration: const InputDecoration(
-                                labelText: 'Скан: +1 к факту',
-                                prefixIcon: Icon(Icons.qr_code_scanner),
+                              decoration: InputDecoration(
+                                labelText: l.invScanPlusOne,
+                                prefixIcon: const Icon(Icons.qr_code_scanner),
                               ),
                               onSubmitted: _onScan,
                             ),
                           ),
                         SizedBox(
                           width: fieldW,
-                          child: SearchField(hint: 'Поиск в ведомости', onChanged: (v) => setState(() => _q = v)),
+                          child: SearchField(hint: l.invSearchInSheet, onChanged: (v) => setState(() => _q = v)),
                         ),
                         InvChipBar(
                           children: [
                             for (final (f, label) in [
-                              (_LineFilter.all, 'Все (${s.lines})'),
-                              if (draft) (_LineFilter.uncounted, 'Не посчитано (${s.uncounted})'),
-                              (_LineFilter.diff, 'Расхождения'),
+                              (_LineFilter.all, l.invFilterAllCount('${s.lines}')),
+                              if (draft) (_LineFilter.uncounted, l.invFilterUncounted('${s.uncounted}')),
+                              (_LineFilter.diff, l.invDiscrepancies),
                             ])
                               ChoiceChip(
                                 label: Text(label),
@@ -601,7 +603,7 @@ class _CountEditorState extends ConsumerState<CountEditor> {
                 if (shown.isNotEmpty) _columnsHeader(draft),
                 Expanded(
                   child: shown.isEmpty
-                      ? const EmptyState(icon: Icons.checklist, title: 'Нет строк по фильтру')
+                      ? EmptyState(icon: Icons.checklist, title: l.invNoLinesForFilter)
                       : ListView.separated(
                           itemCount: shown.length,
                           separatorBuilder: (_, _) => const Divider(),
@@ -618,22 +620,23 @@ class _CountEditorState extends ConsumerState<CountEditor> {
 
   Widget _header(InventoryCount count, CountSummary s, bool canCost, bool draft) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final users = ref.watch(invUserNamesProvider).value ?? const {};
     final title = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Flexible(child: Text('Инвентаризация №${count.number}', style: t.textTheme.titleLarge)),
+            Flexible(child: Text(l.invCountTitle('${count.number}'), style: t.textTheme.titleLarge)),
             const SizedBox(width: Gap.s),
-            StatusChip(countStatusLabels[count.status] ?? count.status, color: countStatusColor(count.status)),
+            StatusChip(countStatusLabelsOf(l)[count.status] ?? count.status, color: countStatusColor(count.status)),
           ],
         ),
         Text(
           [
-            'создана ${formatDateTime(count.createdAt)}',
+            l.invCreatedAt(formatDateTime(count.createdAt)),
             if (users[count.userId] != null) users[count.userId]!,
-            if (count.completedAt != null) 'проведена ${formatDateTime(count.completedAt!)}',
+            if (count.completedAt != null) l.invCompletedAt(formatDateTime(count.completedAt!)),
             if (count.note != null) count.note!,
           ].join(' · '),
           style: t.textTheme.bodySmall,
@@ -643,31 +646,31 @@ class _CountEditorState extends ConsumerState<CountEditor> {
           spacing: Gap.s,
           runSpacing: Gap.xs,
           children: [
-            StatusChip('Посчитано ${s.counted}/${s.lines}', color: AppColors.info),
+            StatusChip(l.invCountedChip('${s.counted}', '${s.lines}'), color: AppColors.info),
             if (draft) ...[
               StatusChip(
-                'Излишки ${s.surplusLines}${canCost ? ' · ${Money.format(s.surplusValue)}' : ''}',
+                '${l.invSurplusChip('${s.surplusLines}')}${canCost ? ' · ${Money.format(s.surplusValue)}' : ''}',
                 color: AppColors.success,
               ),
               StatusChip(
-                'Недостача ${s.shortageLines}${canCost ? ' · ${Money.format(s.shortageValue)}' : ''}',
+                '${l.invShortageChip('${s.shortageLines}')}${canCost ? ' · ${Money.format(s.shortageValue)}' : ''}',
                 color: AppColors.danger,
               ),
             ],
-            if (_pending.isNotEmpty) const StatusChip('Сохранение…', color: AppColors.warning),
+            if (_pending.isNotEmpty) StatusChip(l.invSaving, color: AppColors.warning),
           ],
         ),
       ],
     );
     Future<void> save() async {
       await _flush();
-      if (mounted) showSuccess(context, 'Черновик сохранён');
+      if (mounted) showSuccess(context, l.invDraftSaved);
     }
 
     final complete = FilledButton.icon(
       onPressed: _busy ? null : () => _complete(count),
       icon: const Icon(Icons.task_alt),
-      label: const Text('Провести'),
+      label: Text(l.invPost),
     );
     final actions = Wrap(
       spacing: Gap.s,
@@ -676,18 +679,18 @@ class _CountEditorState extends ConsumerState<CountEditor> {
         OutlinedButton.icon(
           onPressed: () => _print(count),
           icon: const Icon(Icons.print_outlined),
-          label: const Text('Бланк'),
+          label: Text(l.invBlank),
         ),
         if (draft) ...[
           OutlinedButton(
             onPressed: _busy ? null : () => _cancel(count),
             style: OutlinedButton.styleFrom(foregroundColor: AppColors.danger),
-            child: const Text('Отменить'),
+            child: Text(l.invCancelShort),
           ),
           OutlinedButton.icon(
             onPressed: _busy ? null : save,
             icon: const Icon(Icons.save_outlined),
-            label: const Text('Сохранить'),
+            label: Text(l.commonSave),
           ),
           complete,
         ],
@@ -697,15 +700,15 @@ class _CountEditorState extends ConsumerState<CountEditor> {
     // count sheet keeps most of the screen.
     final compactActions = Row(
       children: [
-        IconButton.outlined(tooltip: 'Бланк', onPressed: () => _print(count), icon: const Icon(Icons.print_outlined)),
+        IconButton.outlined(tooltip: l.invBlank, onPressed: () => _print(count), icon: const Icon(Icons.print_outlined)),
         if (draft) ...[
           IconButton.outlined(
-            tooltip: 'Сохранить',
+            tooltip: l.commonSave,
             onPressed: _busy ? null : save,
             icon: const Icon(Icons.save_outlined),
           ),
           IconButton.outlined(
-            tooltip: 'Отменить',
+            tooltip: l.invCancelShort,
             color: AppColors.danger,
             onPressed: _busy ? null : () => _cancel(count),
             icon: const Icon(Icons.block),
@@ -748,6 +751,7 @@ class _CountEditorState extends ConsumerState<CountEditor> {
   Widget _columnsHeader(bool draft) {
     final t = Theme.of(context);
     final st = t.textTheme.labelMedium?.copyWith(color: t.colorScheme.onSurfaceVariant);
+    final l = context.l10n;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: Gap.s, vertical: Gap.xs),
       decoration: BoxDecoration(
@@ -755,16 +759,16 @@ class _CountEditorState extends ConsumerState<CountEditor> {
       ),
       child: Row(
         children: [
-          Expanded(child: Text(context.isCompact ? 'Товар' : 'Товар · учётный остаток', style: st)),
+          Expanded(child: Text(context.isCompact ? l.commonProduct : l.invProductBookStock, style: st)),
           const SizedBox(width: Gap.s),
           SizedBox(
             width: draft ? _factW : 90,
-            child: Text('Факт', textAlign: TextAlign.right, style: st),
+            child: Text(l.invFact, textAlign: TextAlign.right, style: st),
           ),
           const SizedBox(width: Gap.s),
           SizedBox(
             width: _diffW,
-            child: Text('Разница', textAlign: TextAlign.right, style: st),
+            child: Text(l.invDiff, textAlign: TextAlign.right, style: st),
           ),
         ],
       ),
@@ -773,13 +777,14 @@ class _CountEditorState extends ConsumerState<CountEditor> {
 
   Widget _lineRow(CountLine l, bool draft, bool canCost, Map<String, double> posted) {
     final t = Theme.of(context);
+    final tr = context.l10n;
     final it = l.item;
     final diff = draft ? l.diff : posted[it.productId];
     final diffColor = diff == null || diff == 0 ? null : (diff > 0 ? AppColors.success : AppColors.danger);
     final sub = [
       // Quantities first: on phones the barcode is what gets ellipsized.
-      'учёт ${Qty.format(it.expectedQty, l.unit)}',
-      if (draft && l.stockChanged) 'сейчас ${Qty.format(l.currentQty, l.unit)}',
+      tr.invBookShort(Qty.format(it.expectedQty, l.unit)),
+      if (draft && l.stockChanged) tr.invNowShort(Qty.format(l.currentQty, l.unit)),
       if (l.product?.barcode != null) l.product!.barcode!,
     ].join(' · ');
     final diffText = diff == null
@@ -807,7 +812,7 @@ class _CountEditorState extends ConsumerState<CountEditor> {
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               textAlign: TextAlign.right,
               decoration: InputDecoration(
-                hintText: context.isCompact ? null : 'факт',
+                hintText: context.isCompact ? null : tr.invFactHint,
                 suffixText: Qty.unitLabel(l.unit),
                 errorText: _invalid(it, l.unit),
               ),
@@ -818,7 +823,7 @@ class _CountEditorState extends ConsumerState<CountEditor> {
         : SizedBox(
             width: 90,
             child: Text(
-              it.countedQty == null ? 'не считали' : Qty.format(it.countedQty!, l.unit),
+              it.countedQty == null ? tr.invNotCounted : Qty.format(it.countedQty!, l.unit),
               textAlign: TextAlign.right,
             ),
           );
@@ -862,7 +867,7 @@ class _CountEditorState extends ConsumerState<CountEditor> {
     final text = _ctl[it.id]?.text.trim() ?? '';
     if (text.isEmpty) return null;
     final q = QtyField.parse(text);
-    if (q == null) return 'число?';
-    return validateQty(q, unit, allowZero: true) == null ? null : 'неверно';
+    if (q == null) return context.l10n.invNumberQ;
+    return validateQty(q, unit, allowZero: true) == null ? null : context.l10n.invInvalidShort;
   }
 }

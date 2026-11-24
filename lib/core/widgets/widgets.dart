@@ -8,9 +8,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/errors.dart';
+import '../../l10n/l10n.dart';
 import '../money.dart';
 import '../theme.dart';
 
+export 'language_picker.dart';
 export 'pin_pad.dart';
 
 /// Standard page: title bar + optional actions + body with max width.
@@ -116,12 +118,12 @@ class ErrorView extends StatelessWidget {
   @override
   Widget build(BuildContext context) => EmptyState(
         icon: Icons.error_outline,
-        title: 'Что-то пошло не так',
+        title: context.l10n.commonSomethingWentWrong,
         message: errorText(error),
         action: onRetry == null
             ? null
             : OutlinedButton.icon(
-                onPressed: onRetry, icon: const Icon(Icons.refresh), label: const Text('Повторить')),
+                onPressed: onRetry, icon: const Icon(Icons.refresh), label: Text(context.l10n.commonRetry)),
       );
 }
 
@@ -151,10 +153,11 @@ String errorText(Object e) {
   if (e is BusinessException) return e.message;
   final s = e.toString();
   if (s.contains('UNIQUE constraint failed')) {
-    if (s.contains('barcode')) return 'Товар с таким штрихкодом уже существует';
-    if (s.contains('card_number')) return 'Карта с таким номером уже есть';
-    if (s.contains('code')) return 'Такой код уже существует';
-    return 'Такая запись уже существует';
+    final l = L.current;
+    if (s.contains('barcode')) return l.coreDuplicateBarcode;
+    if (s.contains('card_number')) return l.coreDuplicateCard;
+    if (s.contains('code')) return l.coreDuplicateCode;
+    return l.coreDuplicateRecord;
   }
   return s.replaceFirst('Exception: ', '');
 }
@@ -204,8 +207,8 @@ Future<bool> runGuarded(BuildContext context, Future<void> Function() action,
 Future<bool> confirm(BuildContext context,
     {required String title,
     String? message,
-    String ok = 'Подтвердить',
-    String cancel = 'Отмена',
+    String? ok,
+    String? cancel,
     bool destructive = false}) async {
   final r = await showDialog<bool>(
     context: context,
@@ -213,13 +216,13 @@ Future<bool> confirm(BuildContext context,
       title: Text(title),
       content: message == null ? null : Text(message),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(c, false), child: Text(cancel)),
+        TextButton(onPressed: () => Navigator.pop(c, false), child: Text(cancel ?? c.l10n.commonCancel)),
         FilledButton(
           style: destructive
               ? FilledButton.styleFrom(backgroundColor: AppColors.danger)
               : null,
           onPressed: () => Navigator.pop(c, true),
-          child: Text(ok),
+          child: Text(ok ?? c.l10n.commonConfirm),
         ),
       ],
     ),
@@ -244,7 +247,7 @@ Future<String?> promptText(BuildContext context,
             controller: ctl,
             autofocus: true,
             decoration: InputDecoration(labelText: label),
-            validator: (v) => required && (v == null || v.trim().isEmpty) ? 'Обязательное поле' : null,
+            validator: (v) => required && (v == null || v.trim().isEmpty) ? c.l10n.commonRequired : null,
             onFieldSubmitted: (_) {
               if (key.currentState!.validate()) Navigator.pop(c, ctl.text.trim());
             },
@@ -252,12 +255,12 @@ Future<String?> promptText(BuildContext context,
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(c), child: const Text('Отмена')),
+        TextButton(onPressed: () => Navigator.pop(c), child: Text(c.l10n.commonCancel)),
         FilledButton(
             onPressed: () {
               if (key.currentState!.validate()) Navigator.pop(c, ctl.text.trim());
             },
-            child: const Text('OK')),
+            child: Text(c.l10n.commonOk)),
       ],
     ),
   );
@@ -329,10 +332,11 @@ class _MoneyFieldState extends State<MoneyField> {
       onFieldSubmitted: (v) => widget.onSubmitted?.call(Money.parse(v)),
       validator: (v) {
         final parsed = (v == null || v.trim().isEmpty) ? null : Money.parse(v);
-        if (widget.required && (v == null || v.trim().isEmpty)) return 'Обязательное поле';
-        if (v != null && v.trim().isNotEmpty && parsed == null) return 'Неверная сумма';
-        if (parsed != null && parsed < 0) return 'Не может быть отрицательной';
-        if (!widget.allowZero && parsed == 0) return 'Должна быть больше нуля';
+        final l = context.l10n;
+        if (widget.required && (v == null || v.trim().isEmpty)) return l.commonRequired;
+        if (v != null && v.trim().isNotEmpty && parsed == null) return l.commonInvalidAmount;
+        if (parsed != null && parsed < 0) return l.commonCannotBeNegative;
+        if (!widget.allowZero && parsed == 0) return l.commonAmountMustBePositive;
         return widget.validator?.call(parsed);
       },
     );
@@ -344,7 +348,7 @@ class QtyField extends StatelessWidget {
   const QtyField({
     super.key,
     required this.controller,
-    this.label = 'Количество',
+    this.label,
     this.unit,
     this.allowZero = false,
     this.autofocus = false,
@@ -352,7 +356,9 @@ class QtyField extends StatelessWidget {
   });
 
   final TextEditingController controller;
-  final String label;
+
+  /// Defaults to «Количество» in the UI language.
+  final String? label;
   final String? unit;
   final bool allowZero;
   final bool autofocus;
@@ -367,14 +373,16 @@ class QtyField extends StatelessWidget {
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
         decoration: InputDecoration(
-            labelText: label, suffixText: unit == null ? null : Qty.unitLabel(unit!)),
+            labelText: label ?? context.l10n.commonQty,
+            suffixText: unit == null ? null : Qty.unitLabel(unit!, context.l10n)),
         onFieldSubmitted: onSubmitted,
         validator: (v) {
           final q = parse(v ?? '');
-          if (q == null) return 'Введите число';
-          if (q < 0 || (!allowZero && q == 0)) return 'Должно быть больше нуля';
+          final l = context.l10n;
+          if (q == null) return l.commonEnterNumber;
+          if (q < 0 || (!allowZero && q == 0)) return l.commonMustBePositive;
           if (unit != null && !Qty.isFractional(unit!) && q != q.roundToDouble()) {
-            return 'Только целое число';
+            return l.commonIntegerOnly;
           }
           return null;
         },
@@ -386,7 +394,7 @@ class SearchField extends StatefulWidget {
   const SearchField({
     super.key,
     required this.onChanged,
-    this.hint = 'Поиск',
+    this.hint,
     this.autofocus = false,
     this.controller,
     this.focusNode,
@@ -395,7 +403,9 @@ class SearchField extends StatefulWidget {
   });
 
   final ValueChanged<String> onChanged;
-  final String hint;
+
+  /// Defaults to «Поиск» in the UI language.
+  final String? hint;
   final bool autofocus;
   final TextEditingController? controller;
   final FocusNode? focusNode;
@@ -423,14 +433,14 @@ class _SearchFieldState extends State<SearchField> {
         focusNode: widget.focusNode,
         autofocus: widget.autofocus,
         decoration: InputDecoration(
-          hintText: widget.hint,
+          hintText: widget.hint ?? context.l10n.commonSearch,
           prefixIcon: const Icon(Icons.search),
           suffixIcon: ListenableBuilder(
             listenable: _c,
             builder: (_, _) => _c.text.isEmpty
                 ? const SizedBox.shrink()
                 : IconButton(
-                    tooltip: 'Очистить',
+                    tooltip: context.l10n.commonClear,
                     icon: const Icon(Icons.close),
                     onPressed: () {
                       _c.clear();
@@ -533,6 +543,9 @@ class StatusChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(label,
+          maxLines: 1,
+          softWrap: false,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(color: c, fontSize: 12, fontWeight: FontWeight.w600)),
     );
   }
@@ -599,7 +612,7 @@ Future<T?> showFormDialog<T>(BuildContext context,
             padding: const EdgeInsets.fromLTRB(Gap.xl, Gap.l, Gap.s, 0),
             child: Row(children: [
               Expanded(child: Text(title, style: Theme.of(c).textTheme.titleLarge)),
-              IconButton(onPressed: () => Navigator.pop(c), icon: const Icon(Icons.close), tooltip: 'Закрыть'),
+              IconButton(onPressed: () => Navigator.pop(c), icon: const Icon(Icons.close), tooltip: c.l10n.commonClose),
             ]),
           ),
           Flexible(child: child),
@@ -631,6 +644,10 @@ class MoneyGroupingFormatter extends TextInputFormatter {
 }
 
 /// Russian plural: pluralRu(5, 'товар', 'товара', 'товаров') -> 'товаров'.
+///
+/// Deprecated for UI text: use ICU plural keys instead, e.g.
+/// `context.l10n.commonReceiptsCount(n)` (-> «5 чеков» / «5 ta chek» / «5 receipts»).
+/// Kept for existing callers and tests until every module is migrated.
 String pluralRu(int n, String one, String few, String many) {
   final m10 = n.abs() % 10, m100 = n.abs() % 100;
   if (m10 == 1 && m100 != 11) return one;

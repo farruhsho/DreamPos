@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
+import '../../l10n/l10n.dart';
 import 'claim_detail.dart';
 import 'claim_form.dart';
 import 'warranty_act.dart';
@@ -55,9 +56,9 @@ class _WarrantyScreenState extends ConsumerState<WarrantyScreen> {
     }
     final print = await confirm(
       context,
-      title: 'Заявка №${claim.number} принята',
-      message: 'Распечатать акт приёма для подписи клиента?',
-      ok: 'Печать акта',
+      title: context.l10n.warrantyClaimAccepted('${claim.number}'),
+      message: context.l10n.warrantyPrintActQuestion,
+      ok: context.l10n.warrantyPrintAct,
     );
     if (!print || !mounted) return;
     final db = ref.read(databaseProvider);
@@ -81,6 +82,7 @@ class _WarrantyScreenState extends ConsumerState<WarrantyScreen> {
     final async = ref.watch(claimsProvider(_filter));
     if (async.hasValue) _last = async.value;
     final wide = context.isWide;
+    final l = context.l10n;
     // no claims at all: one centred empty state instead of a pointless split
     final nothingYet =
         (_last?.isEmpty ?? false) && _filter.query.isEmpty && _filter.group == ClaimGroup.all && _selected == null;
@@ -92,7 +94,7 @@ class _WarrantyScreenState extends ConsumerState<WarrantyScreen> {
           padding: const EdgeInsets.fromLTRB(Gap.l, Gap.l, Gap.l, Gap.s),
           child: SearchField(
             autofocus: wide,
-            hint: wide ? 'Номер заявки или чека, клиент, серийный номер, товар' : 'Заявка, чек, клиент, S/N, товар',
+            hint: wide ? l.warrantySearchHintWide : l.warrantySearchHint,
             onChanged: (v) => setState(() => _filter = _filter.copyWith(query: v)),
           ),
         ),
@@ -105,7 +107,7 @@ class _WarrantyScreenState extends ConsumerState<WarrantyScreen> {
                 Padding(
                   padding: const EdgeInsets.only(right: Gap.s),
                   child: ChoiceChip(
-                    label: Text(g.label),
+                    label: Text(g.labelIn(l)),
                     selected: _filter.group == g,
                     onSelected: (_) => setState(() => _filter = _filter.copyWith(group: g)),
                   ),
@@ -120,12 +122,12 @@ class _WarrantyScreenState extends ConsumerState<WarrantyScreen> {
     );
 
     return PageScaffold(
-      title: 'Гарантия',
-      subtitle: 'Гарантийные и сервисные заявки',
+      title: l.warrantyTitle,
+      subtitle: l.warrantySubtitle,
       padding: EdgeInsets.zero,
       actions: [
         if (wide)
-          FilledButton.icon(onPressed: () => _create(), icon: const Icon(Icons.add), label: const Text('Новая заявка')),
+          FilledButton.icon(onPressed: () => _create(), icon: const Icon(Icons.add), label: Text(l.warrantyNewClaim)),
       ],
       // the empty state already carries the "new claim" button
       fab: wide || nothingYet
@@ -133,7 +135,7 @@ class _WarrantyScreenState extends ConsumerState<WarrantyScreen> {
           : FloatingActionButton.extended(
               onPressed: () => _create(),
               icon: const Icon(Icons.add),
-              label: const Text('Заявка'),
+              label: Text(l.warrantyClaimFab),
             ),
       // no claims at all: nothing to search or filter, just the empty state
       body: nothingYet
@@ -148,10 +150,10 @@ class _WarrantyScreenState extends ConsumerState<WarrantyScreen> {
                 Expanded(
                   flex: 6,
                   child: _selected == null
-                      ? const EmptyState(
+                      ? EmptyState(
                           icon: Icons.touch_app_outlined,
-                          title: 'Выберите заявку',
-                          message: 'Карточка заявки, смена статуса и печать акта',
+                          title: l.warrantySelectClaim,
+                          message: l.warrantySelectClaimHint,
                         )
                       : ClaimDetailView(key: ValueKey(_selected), claimId: _selected!),
                 ),
@@ -170,18 +172,17 @@ class _WarrantyScreenState extends ConsumerState<WarrantyScreen> {
     }
     if (rows.isEmpty) {
       final filtered = _filter.query.isNotEmpty || _filter.group != ClaimGroup.all;
+      final l = context.l10n;
       return EmptyState(
         icon: Icons.verified_user_outlined,
-        title: filtered ? 'Ничего не найдено' : 'Заявок пока нет',
-        message: filtered
-            ? 'Измените поиск или выберите другой статус'
-            : 'Примите товар на гарантию по номеру чека или вручную',
+        title: filtered ? l.commonNothingFound : l.warrantyEmptyTitle,
+        message: filtered ? l.warrantyEmptyFiltered : l.warrantyEmptyHint,
         action: filtered
             ? null
             : FilledButton.icon(
                 onPressed: () => _create(),
                 icon: const Icon(Icons.add),
-                label: const Text('Новая заявка'),
+                label: Text(l.warrantyNewClaim),
               ),
       );
     }
@@ -199,7 +200,7 @@ class _WarrantyScreenState extends ConsumerState<WarrantyScreen> {
                 onPressed: () =>
                     setState(() => _filter = _filter.copyWith(limit: _filter.limit + ClaimsFilter.pageSize)),
                 icon: const Icon(Icons.expand_more),
-                label: const Text('Показать ещё'),
+                label: Text(context.l10n.warrantyShowMore),
               ),
             ),
           );
@@ -219,6 +220,7 @@ class _ClaimTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final c = row.claim;
     final color = warrantyStatusColor(c.status);
     final days = DateTime.now().difference(c.createdAt).inDays;
@@ -232,7 +234,7 @@ class _ClaimTile extends StatelessWidget {
         child: Icon(Icons.verified_user_outlined, color: color, size: 20),
       ),
       title: Text(
-        '№${c.number} · ${row.productName ?? 'товар не указан'}',
+        '№${c.number} · ${row.productName ?? l.warrantyNoProduct}',
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
         style: const TextStyle(fontWeight: FontWeight.w600),
@@ -242,7 +244,7 @@ class _ClaimTile extends StatelessWidget {
           formatDate(c.createdAt),
           ?row.customerName,
           if (c.serialNumber != null) 'S/N ${c.serialNumber}',
-          if (row.saleNumber != null) 'чек №${row.saleNumber}',
+          if (row.saleNumber != null) l.warrantyReceiptShort('${row.saleNumber}'),
           c.problem,
         ].join(' · '),
         maxLines: 2,
@@ -252,11 +254,11 @@ class _ClaimTile extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          StatusChip(warrantyStatusLabel(c.status), color: color),
+          StatusChip(warrantyStatusLabel(c.status, l), color: color),
           if (overdue)
             Padding(
               padding: const EdgeInsets.only(top: 2),
-              child: Text('$days дн.', style: const TextStyle(color: AppColors.danger, fontSize: 12)),
+              child: Text(l.warrantyDaysShort('$days'), style: const TextStyle(color: AppColors.danger, fontSize: 12)),
             ),
         ],
       ),

@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:dreampos/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -7,17 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../ux/harness.dart';
 
-const _sections = [
-  'store',
-  'currency',
-  'sales',
-  'loyalty',
-  'devices',
-  'appearance',
-  'backup',
-  'data',
-  'about',
-];
+const _sections = ['store', 'currency', 'sales', 'loyalty', 'devices', 'appearance', 'backup', 'data', 'about'];
 
 void main() {
   testWidgets('settings ux screens', skip: !screenshotsEnabled, (tester) async {
@@ -30,6 +21,8 @@ void main() {
       (_) async => tmp.path,
     );
     final h = await UxHarness.start(tester);
+    // Finders use the run's language (SCREENSHOTS_LOCALE), ru by default.
+    final l = L.of(h.locale);
     Future<void> tap(Finder f) async {
       await tester.ensureVisible(f.first);
       await h.settle(2);
@@ -37,8 +30,7 @@ void main() {
       await h.settle();
     }
 
-    void hideSnack() =>
-        ScaffoldMessenger.of(tester.element(find.byType(Scaffold).first)).removeCurrentSnackBar();
+    void hideSnack() => ScaffoldMessenger.of(tester.element(find.byType(Scaffold).first)).removeCurrentSnackBar();
 
     Future<void> scroll(double dy) async {
       final sz = uxSizes[h.sizeName]!;
@@ -54,7 +46,7 @@ void main() {
         if (s == 'backup' || s == 'about') await h.settle(10); // file IO
         await h.shot('settings_$s');
         if (s == 'backup' && size == 'desktop') {
-          await tap(find.text('Создать копию сейчас'));
+          await tap(find.text(l.settingsBackupCreateNow));
           await h.settle(10);
           await h.shot('settings_backup_created');
           hideSnack();
@@ -67,13 +59,13 @@ void main() {
           await h.shot('settings_${s}_bottom');
         }
         if (s == 'devices' && size == 'desktop') {
-          final add = find.text('Добавить');
+          final add = find.text(l.commonAdd);
           if (add.evaluate().isNotEmpty) {
             await scroll(3000);
             await h.settle();
             await tap(add);
             await h.shot('settings_devices_add_dialog');
-            final cancel = find.text('Отмена');
+            final cancel = find.text(l.commonCancel);
             if (cancel.evaluate().isNotEmpty) await tap(cancel);
           }
         }
@@ -83,7 +75,7 @@ void main() {
       await tester.enterText(find.byType(TextFormField).first, 'Магазин «Ташкент Маркет» 2');
       await h.settle();
       await h.shot('settings_store_dirty');
-      await tap(find.text('Отменить'));
+      await tap(find.text(l.settingsCancelVerb));
     }
 
     h.setSize('phone');
@@ -94,23 +86,18 @@ void main() {
       if (s == 'backup' || s == 'about') await h.settle(10);
       await h.shot('settings_$s');
       if (s == 'devices') {
-        await tap(find.text('Добавить'));
+        await tap(find.text(l.commonAdd));
         await h.shot('settings_devices_add_dialog');
-        await tap(find.text('Отмена'));
+        await tap(find.text(l.commonCancel));
       }
       if (s == 'backup') {
-        await tap(find.text('Создать копию сейчас'));
+        await tap(find.text(l.settingsBackupCreateNow));
         await h.settle(10);
         hideSnack();
         await h.settle();
         await h.shot('settings_backup_created');
       }
-      if (s == 'store' ||
-          s == 'devices' ||
-          s == 'sales' ||
-          s == 'currency' ||
-          s == 'backup' ||
-          s == 'about') {
+      if (s == 'store' || s == 'devices' || s == 'sales' || s == 'currency' || s == 'backup' || s == 'about') {
         await scroll(-2500);
         await h.settle();
         await h.shot('settings_${s}_bottom');
@@ -121,7 +108,7 @@ void main() {
         await tester.enterText(find.byType(TextFormField).first, 'Магазин 2');
         await h.settle();
         await h.shot('settings_store_dirty');
-        await tap(find.text('Отменить'));
+        await tap(find.text(l.settingsCancelVerb));
       }
       await Navigator.of(tester.element(find.byType(Scaffold).last)).maybePop();
       await h.settle();

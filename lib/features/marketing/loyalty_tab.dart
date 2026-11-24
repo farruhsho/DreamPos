@@ -7,6 +7,7 @@ import '../../core/permissions.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
+import '../../l10n/l10n.dart';
 import 'marketing_repo.dart';
 
 /// Read-only overview of the bonus program; editing lives in Settings.
@@ -16,6 +17,7 @@ class LoyaltyTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final settings = ref.watch(settingsProvider);
     final stats = ref.watch(loyaltyStatsProvider);
     final canSettings = ref.watch(sessionProvider)!.can(Perm.manageSettings);
@@ -39,9 +41,9 @@ class LoyaltyTab extends ConsumerWidget {
                   padding: const EdgeInsets.all(Gap.l),
                   children: [
                     SectionCard(
-                      title: 'Бонусная программа',
+                      title: l.mktLoyaltyProgram,
                       trailing: StatusChip(
-                        enabled ? 'Включена' : 'Выключена',
+                        enabled ? l.mktLoyaltyOn : l.mktLoyaltyOff,
                         color: enabled ? AppColors.success : AppColors.warning,
                       ),
                       child: Column(
@@ -50,25 +52,25 @@ class LoyaltyTab extends ConsumerWidget {
                           _kv(
                             t,
                             narrowKv,
-                            'Начисление',
-                            '${pct(earn)}% от оплаченной суммы (без учёта оплаты бонусами)',
+                            l.mktLoyaltyEarn,
+                            l.mktLoyaltyEarnValue(pct(earn)),
                           ),
-                          _kv(t, narrowKv, 'Оплата бонусами', 'до ${pct(redeem)}% суммы чека'),
-                          _kv(t, narrowKv, 'Курс', '1 бонус = ${Money.format(Money.currency.factor)}'),
+                          _kv(t, narrowKv, l.mktLoyaltyRedeem, l.mktLoyaltyRedeemValue(pct(redeem))),
+                          _kv(t, narrowKv, l.mktLoyaltyRate, l.mktLoyaltyRateValue(Money.format(Money.currency.factor))),
                           const SizedBox(height: Gap.s),
                           Text(
-                            'Бонусы начисляются автоматически при продаже клиенту и списываются пропорционально при возврате.',
+                            l.mktLoyaltyNote,
                             style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant),
                           ),
                           const SizedBox(height: Gap.m),
                           Align(
                             alignment: Alignment.centerLeft,
                             child: Tooltip(
-                              message: canSettings ? 'Открыть настройки' : 'Нет права изменять настройки',
+                              message: canSettings ? l.mktOpenSettings : l.mktNoSettingsRight,
                               child: OutlinedButton.icon(
                                 onPressed: canSettings ? () => context.go('/settings') : null,
                                 icon: const Icon(Icons.settings_outlined),
-                                label: const Text('Изменить в настройках'),
+                                label: Text(l.mktEditInSettings),
                               ),
                             ),
                           ),
@@ -88,30 +90,30 @@ class LoyaltyTab extends ConsumerWidget {
                           final icons = box.maxWidth >= 480;
                           final cards = [
                             StatCard(
-                              label: icons ? 'Бонусные обязательства' : 'Обязательства',
+                              label: icons ? l.mktStatLiability : l.mktStatLiabilityShort,
                               value: Money.format(st.liability),
-                              hint: 'у ${st.holders} клиентов',
+                              hint: l.mktStatHolders('${st.holders}'),
                               icon: icons ? Icons.account_balance_outlined : null,
                               color: AppColors.warning,
                             ),
                             StatCard(
-                              label: icons ? 'Начислено за 30 дней' : 'Начислено',
-                              hint: icons ? null : 'за 30 дней',
+                              label: icons ? l.mktStatEarned30 : l.mktStatEarned,
+                              hint: icons ? null : l.mktStat30Days,
                               value: Money.format(st.earned30),
                               icon: icons ? Icons.add_circle_outline : null,
                               color: AppColors.success,
                             ),
                             StatCard(
-                              label: icons ? 'Списано за 30 дней' : 'Списано',
-                              hint: icons ? null : 'за 30 дней',
+                              label: icons ? l.mktStatSpent30 : l.mktStatSpent,
+                              hint: icons ? null : l.mktStat30Days,
                               value: Money.format(st.spent30),
                               icon: icons ? Icons.remove_circle_outline : null,
                               color: AppColors.info,
                             ),
                             StatCard(
-                              label: icons ? 'Корректировки за 30 дней' : 'Корректировки',
+                              label: icons ? l.mktStatAdjusted30 : l.mktStatAdjusted,
                               value: Money.format(st.adjusted30),
-                              hint: icons ? 'вручную и при возвратах' : 'за 30 дней',
+                              hint: icons ? l.mktStatAdjustedHint : l.mktStat30Days,
                               icon: icons ? Icons.tune : null,
                             ),
                           ];

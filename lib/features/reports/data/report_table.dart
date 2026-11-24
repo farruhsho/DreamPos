@@ -12,6 +12,7 @@ import 'package:pdf/widgets.dart' as pw;
 import '../../../core/money.dart';
 import '../../../core/printing/pdf_fonts.dart';
 import '../../../core/widgets/widgets.dart' show formatDateTime;
+import '../../../l10n/l10n.dart';
 
 class RCol {
   const RCol(this.title, {this.numeric = false, this.tooltip});
@@ -27,7 +28,7 @@ class RCell {
   factory RCell.money(int minor) => RCell(Money.format(minor),
       sort: minor, csv: Money.toInput(minor).replaceAll('.', ','));
   factory RCell.integer(int v) => RCell('$v', sort: v, csv: '$v');
-  factory RCell.qty(double v, [String? unit]) => RCell(Qty.format(v, unit),
+  factory RCell.qty(double v, [String? unit, AppLocalizations? l]) => RCell(Qty.format(v, unit, l),
       sort: v, csv: Qty.format(v));
   factory RCell.percent(double v, {int digits = 1}) {
     final s = v.toStringAsFixed(digits).replaceAll('.', ',');
@@ -90,17 +91,17 @@ class RTable {
 
   Future<Uint8List> toPdf({String? storeName}) async {
     final theme = await PdfFonts.theme();
-    final doc = pw.Document(theme: theme, title: title);
+    final doc = pw.Document(theme: theme, title: L.printable(title));
     final wide = columns.length > 5;
     doc.addPage(pw.MultiPage(
       pageFormat: wide ? PdfPageFormat.a4.landscape : PdfPageFormat.a4,
       margin: const pw.EdgeInsets.all(28),
       header: (ctx) => pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
         if (storeName != null && storeName.isNotEmpty)
-          pw.Text(storeName, style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
-        pw.Text(title, style: pw.TextStyle(fontSize: 15, fontWeight: pw.FontWeight.bold)),
+          pw.Text(L.printable(storeName), style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
+        pw.Text(L.printable(title), style: pw.TextStyle(fontSize: 15, fontWeight: pw.FontWeight.bold)),
         if (subtitle != null)
-          pw.Text(subtitle!, style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700)),
+          pw.Text(L.printable(subtitle!), style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700)),
         pw.SizedBox(height: 8),
       ]),
       footer: (ctx) => pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
@@ -111,10 +112,10 @@ class RTable {
       ]),
       build: (ctx) => [
         pw.TableHelper.fromTextArray(
-          headers: [for (final c in columns) c.title],
+          headers: [for (final c in columns) L.printable(c.title)],
           data: [
-            for (final r in rows) [for (final c in r) c.text],
-            if (totals != null) [for (final c in totals!) c.text],
+            for (final r in rows) [for (final c in r) L.printable(c.text)],
+            if (totals != null) [for (final c in totals!) L.printable(c.text)],
           ],
           headerStyle: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
           cellStyle: const pw.TextStyle(fontSize: 8.5),
@@ -143,10 +144,10 @@ class RTable {
   }
 }
 
-/// Folder for exported reports: `Documents/DreamPOS/Отчёты`.
+/// Folder for exported reports: `Documents/DreamPOS/<localized "Reports">`.
 Future<Directory> reportsDirectory() async {
   final docs = await getApplicationDocumentsDirectory();
-  final dir = Directory(p.join(docs.path, 'DreamPOS', 'Отчёты'));
+  final dir = Directory(p.join(docs.path, 'DreamPOS', L.current.repExportFolder));
   if (!await dir.exists()) await dir.create(recursive: true);
   return dir;
 }

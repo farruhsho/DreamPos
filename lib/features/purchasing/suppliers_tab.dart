@@ -11,6 +11,7 @@ import 'orders_tab.dart';
 import 'purchasing_logic.dart';
 import 'supplier_dialogs.dart';
 import 'supplier_ledger.dart';
+import '../../l10n/l10n.dart';
 
 /// «Поставщики»: directory, balances, payments and order history.
 class SuppliersTab extends ConsumerStatefulWidget {
@@ -31,7 +32,7 @@ class _SuppliersTabState extends ConsumerState<SuppliersTab> {
       Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => Scaffold(
-            appBar: AppBar(title: const Text('Поставщик')),
+            appBar: AppBar(title: Text(context.l10n.commonSupplier)),
             body: Padding(
               padding: const EdgeInsets.all(Gap.m),
               child: SupplierDetail(supplierId: id),
@@ -49,6 +50,7 @@ class _SuppliersTabState extends ConsumerState<SuppliersTab> {
 
   @override
   Widget build(BuildContext context) {
+    final l = context.l10n;
     return LayoutBuilder(
       builder: (context, c) {
         final wide = c.maxWidth >= 1000;
@@ -72,13 +74,13 @@ class _SuppliersTabState extends ConsumerState<SuppliersTab> {
                 Row(
                   children: [
                     Expanded(
-                      child: SearchField(hint: 'Поиск', onChanged: (v) => setState(() => _q = v)),
+                      child: SearchField(hint: l.commonSearch, onChanged: (v) => setState(() => _q = v)),
                     ),
                     const SizedBox(width: Gap.s),
                     FilledButton.icon(
                       onPressed: () => _create(wide),
                       icon: const Icon(Icons.add),
-                      label: const Text('Поставщик'),
+                      label: Text(l.commonSupplier),
                     ),
                   ],
                 ),
@@ -90,12 +92,12 @@ class _SuppliersTabState extends ConsumerState<SuppliersTab> {
                   runSpacing: Gap.xs,
                   children: [
                     FilterChip(
-                      label: const Text('Только с долгом'),
+                      label: Text(l.purDebtOnly),
                       selected: _debtOnly,
                       onSelected: (v) => setState(() => _debtOnly = v),
                     ),
                     Text(
-                      'Мы должны: ${Money.format(totalDebt)}',
+                      l.purWeOwe(Money.format(totalDebt)),
                       style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.danger),
                     ),
                   ],
@@ -105,15 +107,15 @@ class _SuppliersTabState extends ConsumerState<SuppliersTab> {
                   child: all.isEmpty
                       ? EmptyState(
                           icon: Icons.local_shipping_outlined,
-                          title: 'Поставщиков пока нет',
-                          message: 'Добавьте поставщиков, чтобы вести заказы и учитывать долги',
+                          title: l.purNoSuppliers,
+                          message: l.purNoSuppliersMessage,
                           action: FilledButton(
                             onPressed: () => _create(wide),
-                            child: const Text('Добавить поставщика'),
+                            child: Text(l.purAddSupplier),
                           ),
                         )
                       : shown.isEmpty
-                      ? const EmptyState(icon: Icons.search_off, title: 'Ничего не найдено')
+                      ? EmptyState(icon: Icons.search_off, title: l.commonNothingFound)
                       : ListView.separated(
                           itemCount: shown.length,
                           separatorBuilder: (_, _) => const Divider(),
@@ -146,7 +148,7 @@ class _SuppliersTabState extends ConsumerState<SuppliersTab> {
             const VerticalDivider(width: Gap.xl),
             Expanded(
               child: _selected == null
-                  ? const EmptyState(icon: Icons.storefront_outlined, title: 'Выберите поставщика')
+                  ? EmptyState(icon: Icons.storefront_outlined, title: l.purSelectSupplier)
                   : SupplierDetail(
                       key: ValueKey(_selected),
                       supplierId: _selected!,
@@ -166,8 +168,9 @@ class _BalanceText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final muted = t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant);
-    if (balance == 0) return Text('нет долга', style: muted);
+    if (balance == 0) return Text(l.purNoDebt, style: muted);
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.end,
@@ -179,7 +182,7 @@ class _BalanceText extends StatelessWidget {
             color: balance > 0 ? AppColors.danger : AppColors.success,
           ),
         ),
-        Text(balance > 0 ? 'наш долг' : 'аванс', style: muted),
+        Text(balance > 0 ? l.purOurDebtLower : l.purAdvanceLower, style: muted),
       ],
     );
   }
@@ -191,18 +194,19 @@ class SupplierDetail extends ConsumerWidget {
   final VoidCallback? onDeleted;
 
   Future<void> _delete(BuildContext context, WidgetRef ref, Supplier s) async {
+    final l = context.l10n;
     final ok = await confirm(
       context,
-      title: 'Удалить поставщика «${s.name}»?',
-      message: 'Поставщик будет скрыт из списков. История заказов и оплат сохранится.',
-      ok: 'Удалить',
+      title: l.purDeleteSupplierTitle(s.name),
+      message: l.purDeleteSupplierMessage,
+      ok: l.commonDelete,
       destructive: true,
     );
     if (!ok || !context.mounted) return;
     final done = await runGuarded(
       context,
       () => ref.read(purchasingRepoProvider).deleteSupplier(s.id, userId: ref.read(sessionProvider)?.user.id),
-      success: 'Поставщик удалён',
+      success: l.purSupplierDeleted,
     );
     if (done) {
       onDeleted?.call();
@@ -213,16 +217,17 @@ class SupplierDetail extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = Theme.of(context);
+    final l = context.l10n;
     return AsyncView(
       value: ref.watch(purSupplierProvider(supplierId)),
       data: (s) {
         if (s == null || s.deletedAt != null) {
-          return const EmptyState(icon: Icons.search_off, title: 'Поставщик не найден или удалён');
+          return EmptyState(icon: Icons.search_off, title: l.purSupplierNotFound);
         }
         final info = [
           if (s.contactPerson != null) (Icons.person_outline, s.contactPerson!),
           if (s.phone != null) (Icons.phone_outlined, s.phone!),
-          if (s.taxId != null) (Icons.badge_outlined, 'ИНН ${s.taxId}'),
+          if (s.taxId != null) (Icons.badge_outlined, l.purTaxIdValue(s.taxId!)),
           if (s.address != null) (Icons.place_outlined, s.address!),
           if (s.note != null) (Icons.notes, s.note!),
         ];
@@ -232,12 +237,12 @@ class SupplierDetail extends ConsumerWidget {
             children: [
               Expanded(child: Text(s.name, style: t.textTheme.headlineSmall)),
               IconButton(
-                tooltip: 'Изменить',
+                tooltip: l.commonEdit,
                 onPressed: () => showSupplierForm(context, supplier: s),
                 icon: const Icon(Icons.edit_outlined),
               ),
               IconButton(
-                tooltip: 'Удалить',
+                tooltip: l.commonDelete,
                 onPressed: () => _delete(context, ref, s),
                 icon: const Icon(Icons.delete_outline, color: AppColors.danger),
               ),
@@ -258,7 +263,7 @@ class SupplierDetail extends ConsumerWidget {
           Builder(
             builder: (context) {
               final debt = StatCard(
-                label: s.balance >= 0 ? 'Наш долг поставщику' : 'Аванс у поставщика',
+                label: s.balance >= 0 ? l.purOurDebtToSupplier : l.purAdvanceWithSupplier,
                 value: Money.format(s.balance.abs()),
                 icon: Icons.account_balance_wallet_outlined,
                 color: s.balance > 0 ? AppColors.danger : AppColors.success,
@@ -266,7 +271,7 @@ class SupplierDetail extends ConsumerWidget {
               final pay = FilledButton.icon(
                 onPressed: () => showSupplierPaymentDialog(context, s),
                 icon: const Icon(Icons.payments_outlined),
-                label: const Text('Оплатить'),
+                label: Text(l.purPay),
               );
               final order = OutlinedButton.icon(
                 onPressed: () async {
@@ -274,7 +279,7 @@ class SupplierDetail extends ConsumerWidget {
                   if (id != null && context.mounted) pushOrderPage(context, id);
                 },
                 icon: const Icon(Icons.add_shopping_cart),
-                label: const Text('Новый заказ'),
+                label: Text(l.purNewOrder),
               );
               // Phones: full-width balance card and two equal buttons
               // instead of a ragged wrap.
@@ -308,13 +313,13 @@ class SupplierDetail extends ConsumerWidget {
           ),
           const SizedBox(height: Gap.m),
         ];
-        const tabBar = TabBar(
+        final tabBar = TabBar(
           isScrollable: true,
           tabAlignment: TabAlignment.start,
           tabs: [
-            Tab(text: 'Взаиморасчёты'),
-            Tab(text: 'Заказы'),
-            Tab(text: 'Оплаты'),
+            Tab(text: l.purTabLedger),
+            Tab(text: l.purTabOrders),
+            Tab(text: l.purTabPayments),
           ],
         );
         final views = TabBarView(
@@ -366,12 +371,13 @@ class _Payments extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final canCash = ref.watch(sessionProvider)?.can(Perm.cashInOut) ?? false;
     return AsyncView(
       value: ref.watch(purSupplierPaymentsProvider(supplierId)),
       onRetry: () => ref.invalidate(purSupplierPaymentsProvider(supplierId)),
       data: (list) => list.isEmpty
-          ? const EmptyState(icon: Icons.payments_outlined, title: 'Оплат ещё не было')
+          ? EmptyState(icon: Icons.payments_outlined, title: l.purNoPaymentsYet)
           : ListView.separated(
               itemCount: list.length,
               separatorBuilder: (_, _) => const Divider(),
@@ -399,21 +405,21 @@ class _Payments extends ConsumerWidget {
                           decoration: cancelled ? TextDecoration.lineThrough : null,
                         ),
                       ),
-                      if (cancelled) const StatusChip('Отменена', color: AppColors.danger),
+                      if (cancelled) StatusChip(l.purCancelledFem, color: AppColors.danger),
                     ],
                   ),
                   subtitle: Text(
                     [
-                      [formatDateTime(p.createdAt), paymentMethodLabels[p.method] ?? p.method, ?p.note].join(' · '),
+                      [formatDateTime(p.createdAt), paymentMethodLabelsOf(l)[p.method] ?? p.method, ?p.note].join(' · '),
                       if (cancelled)
-                        'Отменена ${formatDateTime(p.cancelledAt!)}'
-                            '${p.cancelReason == null ? '' : ': ${p.cancelReason}'}',
+                        l.purCancelledAt(formatDateTime(p.cancelledAt!)) +
+                            (p.cancelReason == null ? '' : ': ${p.cancelReason}'),
                     ].join('\n'),
                   ),
                   trailing: cancelled
                       ? null
                       : IconButton(
-                          tooltip: allowed ? 'Отменить оплату' : noCashPermissionText,
+                          tooltip: allowed ? l.purCancelPayment : l.purNoCashPermission,
                           onPressed: allowed ? () => cancelSupplierPaymentFlow(context, ref, p) : null,
                           icon: const Icon(Icons.undo, color: AppColors.danger),
                         ),
@@ -429,18 +435,19 @@ class _Orders extends ConsumerWidget {
   final String supplierId;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = context.l10n;
     final partly = ref.watch(purPartlyReceivedOrderIdsProvider).value ?? const <String>{};
     return AsyncView(
       value: ref.watch(purSupplierOrdersProvider(supplierId)),
       data: (list) => list.isEmpty
-          ? const EmptyState(icon: Icons.receipt_long_outlined, title: 'Заказов ещё не было')
+          ? EmptyState(icon: Icons.receipt_long_outlined, title: l.purNoOrdersYet)
           : ListView.separated(
               itemCount: list.length,
               separatorBuilder: (_, _) => const Divider(),
               itemBuilder: (_, i) {
                 final o = list[i];
                 return ListTile(
-                  title: Text('Заказ №${o.number}'),
+                  title: Text(l.purOrderNumber('${o.number}')),
                   subtitle: Text(formatDate(o.createdAt)),
                   // Amount right-aligned next to the status, like other lists.
                   trailing: Row(

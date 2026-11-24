@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/widgets/widgets.dart';
+import '../../l10n/l10n.dart';
 import 'report_providers.dart';
 import 'tabs/forecast_tab.dart';
 import 'tabs/insights_tab.dart';
@@ -22,20 +23,22 @@ class ReportsScreen extends ConsumerStatefulWidget {
 
 class _ReportTab {
   const _ReportTab(this.label, this.icon, this.usesPeriod, this.builder);
-  final String label;
+  final String Function(AppLocalizations l) label;
   final IconData icon;
   final bool usesPeriod;
   final Widget Function() builder;
 }
 
+final _forecastTab = _ReportTab((l) => l.repTabForecast, Icons.timeline, false, () => const ForecastTab());
+
 final _tabs = <_ReportTab>[
-  _ReportTab('Продажи', Icons.show_chart, true, () => const SalesTab()),
-  _ReportTab('Товары', Icons.inventory_2_outlined, true, () => const ProductsTab()),
-  _ReportTab('Сотрудники', Icons.badge_outlined, true, () => const StaffTab()),
-  _ReportTab('Оплаты', Icons.payments_outlined, true, () => const PaymentsTab()),
-  _ReportTab('Склад', Icons.warehouse_outlined, true, () => const StockTab()),
-  _ReportTab('Прогноз спроса', Icons.timeline, false, () => const ForecastTab()),
-  _ReportTab('AI-аналитика', Icons.auto_awesome_outlined, false, () => const InsightsTab()),
+  _ReportTab((l) => l.repTabSales, Icons.show_chart, true, () => const SalesTab()),
+  _ReportTab((l) => l.commonProducts, Icons.inventory_2_outlined, true, () => const ProductsTab()),
+  _ReportTab((l) => l.repTabStaff, Icons.badge_outlined, true, () => const StaffTab()),
+  _ReportTab((l) => l.repTabPayments, Icons.payments_outlined, true, () => const PaymentsTab()),
+  _ReportTab((l) => l.repTabStock, Icons.warehouse_outlined, true, () => const StockTab()),
+  _forecastTab,
+  _ReportTab((l) => l.repTabInsights, Icons.auto_awesome_outlined, false, () => const InsightsTab()),
 ];
 
 class _ReportsScreenState extends ConsumerState<ReportsScreen> with SingleTickerProviderStateMixin {
@@ -52,17 +55,18 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> with SingleTicker
 
   @override
   Widget build(BuildContext context) {
+    final l = context.l10n;
     final period = ref.watch(reportPeriodProvider);
     final tab = _tabs[_tc.index];
     // keep the app-bar subtitle on one line on phones
     final compact = MediaQuery.sizeOf(context).width < 600;
     return PageScaffold(
-      title: 'Отчёты',
+      title: l.repTitle,
       subtitle: tab.usesPeriod
-          ? (compact ? period.rangeLabel : period.label)
-          : tab.label == 'Прогноз спроса'
-              ? 'По продажам за последние 28 дней'
-              : 'Последние 30 дней',
+          ? (compact ? period.rangeLabel : period.labelIn(l))
+          : identical(tab, _forecastTab)
+              ? l.repForecastSubtitle
+              : l.repLast30Days,
       padding: EdgeInsets.zero,
       actions: [if (tab.usesPeriod) const PeriodButton()],
       bottom: TabBar(
@@ -73,7 +77,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> with SingleTicker
           for (final t in _tabs) Tab(height: 44, icon: null, child: Row(mainAxisSize: MainAxisSize.min, children: [
                 Icon(t.icon, size: 18),
                 const SizedBox(width: 6),
-                Text(t.label),
+                Text(t.label(l)),
               ])),
         ],
       ),

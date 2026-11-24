@@ -11,10 +11,13 @@ import '../../core/printing/pdf_fonts.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
+import '../../domain/services/sale_service.dart' show paymentMethodLabel;
+import '../../l10n/l10n.dart';
 import 'customer_logic.dart';
 import 'customer_repo.dart';
 
-const debtPaymentMethods = {'cash': 'Наличные', 'card': 'Карта', 'transfer': 'Перевод'};
+/// Methods accepted for a debt payment (labels: [paymentMethodLabel]).
+const debtPaymentMethods = ['cash', 'card', 'transfer'];
 
 /// Result of an accepted debt payment (for the receipt).
 class DebtPaymentInfo {
@@ -39,9 +42,9 @@ class DebtPaymentInfo {
 
 Future<void> showPayDebtDialog(BuildContext context, Customer customer) async {
   final res = await showFormDialog<(DebtPaymentInfo, bool)>(context,
-      title: 'Принять оплату долга', width: 480, child: _PayDebtForm(customer: customer));
+      title: context.l10n.custAcceptDebtPayment, width: 480, child: _PayDebtForm(customer: customer));
   if (res == null || !context.mounted) return;
-  showSuccess(context, 'Оплата ${Money.format(res.$1.amount)} принята');
+  showSuccess(context, context.l10n.custPaymentAccepted(Money.format(res.$1.amount)));
   if (res.$2) {
     final store = ProviderScope.containerOf(context).read(settingProvider('store_name')) ?? 'DreamPOS';
     await runGuarded(context, () => printDebtReceipt(res.$1, store: store));
@@ -114,6 +117,7 @@ class _PayDebtFormState extends ConsumerState<_PayDebtForm> {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final l = context.l10n;
     // Live debt: another cashier may have accepted a payment meanwhile.
     final live = ref.watch(customerProvider(widget.customer.id)).value ?? widget.customer;
     final debt = live.debtBalance;
@@ -127,7 +131,7 @@ class _PayDebtFormState extends ConsumerState<_PayDebtForm> {
           Text(live.name, style: t.textTheme.titleMedium),
           const SizedBox(height: Gap.xs),
           Text.rich(TextSpan(children: [
-            const TextSpan(text: 'Текущий долг: '),
+            TextSpan(text: '${l.custCurrentDebt} '),
             TextSpan(
                 text: Money.format(debt),
                 style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.w700)),
@@ -135,12 +139,12 @@ class _PayDebtFormState extends ConsumerState<_PayDebtForm> {
           const SizedBox(height: Gap.l),
           LayoutBuilder(builder: (context, box) {
             final field = MoneyField(
-              label: 'Сумма оплаты *',
+              label: l.custPayAmount,
               controller: _amount,
               autofocus: true,
               required: true,
               allowZero: false,
-              validator: (v) => v != null && v > debt ? 'Не больше долга (${Money.format(debt)})' : null,
+              validator: (v) => v != null && v > debt ? l.custNotMoreThanDebt(Money.format(debt)) : null,
               onSubmitted: (_) => _submit(debt),
             );
             void fill() => setState(() => _amount.text = Money.toInput(debt));
@@ -155,7 +159,7 @@ class _PayDebtFormState extends ConsumerState<_PayDebtForm> {
                   child: TextButton.icon(
                     onPressed: fill,
                     icon: const Icon(Icons.done_all, size: 18),
-                    label: Text('Вся сумма: ${Money.format(debt)}'),
+                    label: Text(l.custFullAmountValue(Money.format(debt))),
                   ),
                 ),
               ]);
@@ -165,12 +169,12 @@ class _PayDebtFormState extends ConsumerState<_PayDebtForm> {
               const SizedBox(width: Gap.s),
               Padding(
                 padding: const EdgeInsets.only(top: 2),
-                child: OutlinedButton(onPressed: fill, child: const Text('Вся сумма')),
+                child: OutlinedButton(onPressed: fill, child: Text(l.custFullAmount)),
               ),
             ]);
           }),
           const SizedBox(height: Gap.l),
-          Text('Способ оплаты', style: t.textTheme.labelLarge),
+          Text(l.commonPaymentMethod, style: t.textTheme.labelLarge),
           const SizedBox(height: Gap.s),
           // On phones (dialog content < 380px) three segments with icons do
           // not fit: drop the icons, keep one full-width control.
@@ -180,13 +184,13 @@ class _PayDebtFormState extends ConsumerState<_PayDebtForm> {
               child: SegmentedButton<String>(
                 showSelectedIcon: box.maxWidth >= 380,
                 segments: [
-                  for (final e in debtPaymentMethods.entries)
+                  for (final m in debtPaymentMethods)
                     ButtonSegment(
-                        value: e.key,
-                        label: Text(e.value, maxLines: 1, softWrap: false),
+                        value: m,
+                        label: Text(paymentMethodLabel(m, l), maxLines: 1, softWrap: false),
                         icon: box.maxWidth < 380
                             ? null
-                            : Icon(switch (e.key) {
+                            : Icon(switch (m) {
                                 'cash' => Icons.payments_outlined,
                                 'card' => Icons.credit_card,
                                 _ => Icons.swap_horiz,
@@ -199,31 +203,30 @@ class _PayDebtFormState extends ConsumerState<_PayDebtForm> {
           ),
           if (noShiftForCash) ...[
             const SizedBox(height: Gap.s),
-            const Text('Смена закрыта: для приёма наличных откройте смену или выберите другой способ.',
-                style: TextStyle(color: AppColors.danger)),
+            Text(l.custShiftClosedCash, style: const TextStyle(color: AppColors.danger)),
           ] else if (_method == 'cash' && shift != null) ...[
             const SizedBox(height: Gap.s),
-            Text('Наличные будут учтены в кассе смены №${shift.number}',
+            Text(l.custCashToShift('${shift.number}'),
                 style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant)),
           ],
           const SizedBox(height: Gap.l),
           TextFormField(
             controller: _note,
-            decoration: const InputDecoration(labelText: 'Комментарий'),
+            decoration: InputDecoration(labelText: l.commonComment),
             onFieldSubmitted: (_) => _submit(debt),
           ),
           CheckboxListTile(
             value: _print,
             contentPadding: EdgeInsets.zero,
             controlAffinity: ListTileControlAffinity.leading,
-            title: const Text('Распечатать квитанцию'),
+            title: Text(l.custPrintSlip),
             onChanged: (v) => setState(() => _print = v ?? false),
           ),
           const SizedBox(height: Gap.s),
           FilledButton.icon(
             onPressed: _busy || noShiftForCash || debt <= 0 ? null : () => _submit(debt),
             icon: const Icon(Icons.check),
-            label: const Text('Принять оплату'),
+            label: Text(l.custAcceptPayment),
           ),
         ]),
       ),
@@ -231,15 +234,18 @@ class _PayDebtFormState extends ConsumerState<_PayDebtForm> {
   }
 }
 
-/// 80mm receipt for a debt payment.
-Future<pw.Document> buildDebtReceiptPdf(DebtPaymentInfo p, {required String store}) async {
+/// 80mm receipt for a debt payment, in the receipt language ([L.receipt])
+/// unless [l] is given.
+Future<pw.Document> buildDebtReceiptPdf(DebtPaymentInfo p, {required String store, AppLocalizations? l}) async {
+  final tr = l ?? L.receipt;
+  String pr(String s) => L.printable(s);
   final font = await PdfFonts.mono();
   final bold = await PdfFonts.monoBold();
   final doc = pw.Document();
   final s = pw.TextStyle(font: font, fontSize: 8);
   final b = pw.TextStyle(font: bold, fontSize: 9);
-  pw.Widget row(String l, String r, {bool strong = false}) => pw.Row(children: [
-        pw.Expanded(child: pw.Text(l, style: strong ? b : s)),
+  pw.Widget row(String left, String r, {bool strong = false}) => pw.Row(children: [
+        pw.Expanded(child: pw.Text(pr(left), style: strong ? b : s)),
         pw.Text(r, style: strong ? b : s),
       ]);
   doc.addPage(pw.Page(
@@ -247,21 +253,21 @@ Future<pw.Document> buildDebtReceiptPdf(DebtPaymentInfo p, {required String stor
     build: (_) => pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
       pw.Center(child: pw.Text(store, style: b)),
       pw.SizedBox(height: 4),
-      pw.Center(child: pw.Text('КВИТАНЦИЯ', style: b)),
-      pw.Center(child: pw.Text('об оплате долга', style: s)),
+      pw.Center(child: pw.Text(pr(tr.custPdfSlipTitle), style: b)),
+      pw.Center(child: pw.Text(pr(tr.custPdfSlipSubtitle), style: s)),
       pw.SizedBox(height: 6),
-      row('Дата', formatDateTime(p.at)),
-      row('Клиент', p.customerName),
-      row('Кассир', p.cashier),
+      row(tr.commonDate, formatDateTime(p.at)),
+      row(tr.commonCustomer, p.customerName),
+      row(tr.commonCashier, p.cashier),
       pw.Divider(),
-      row('Долг до оплаты', Money.format(p.debtBefore)),
-      row('Оплачено (${debtPaymentMethods[p.method] ?? p.method})', Money.format(p.amount), strong: true),
-      row('Остаток долга', Money.format(p.debtAfter), strong: true),
+      row(tr.custPdfDebtBefore, Money.format(p.debtBefore)),
+      row(tr.custPdfPaid(paymentMethodLabel(p.method, tr)), Money.format(p.amount), strong: true),
+      row(tr.custPdfDebtAfter, Money.format(p.debtAfter), strong: true),
       pw.Divider(),
       pw.SizedBox(height: 12),
-      pw.Text('Подпись клиента: ____________', style: s),
+      pw.Text(pr(tr.custPdfSignature), style: s),
       pw.SizedBox(height: 8),
-      pw.Center(child: pw.Text('Спасибо!', style: s)),
+      pw.Center(child: pw.Text(pr(tr.custThanks), style: s)),
     ]),
   ));
   return doc;
@@ -269,14 +275,14 @@ Future<pw.Document> buildDebtReceiptPdf(DebtPaymentInfo p, {required String stor
 
 Future<void> printDebtReceipt(DebtPaymentInfo p, {required String store}) async {
   final doc = await buildDebtReceiptPdf(p, store: store);
-  await Printing.layoutPdf(name: 'Квитанция ${p.customerName}', onLayout: (_) => doc.save());
+  await Printing.layoutPdf(name: L.receipt.custPdfJobName(p.customerName), onLayout: (_) => doc.save());
 }
 
 // ------------------------------------------------------------------ bonus
 
 Future<bool> showBonusAdjustDialog(BuildContext context, Customer customer) async {
   final ok = await showFormDialog<bool>(context,
-      title: 'Корректировка бонусов', width: 460, child: _BonusForm(customer: customer));
+      title: context.l10n.custLedgerBonusAdjust, width: 460, child: _BonusForm(customer: customer));
   return ok ?? false;
 }
 
@@ -322,7 +328,9 @@ class _BonusFormState extends ConsumerState<_BonusForm> {
           await repo.markBalanceChanged(widget.customer.id);
         } catch (_) {}
       },
-      success: _add ? 'Начислено ${Money.format(amount)}' : 'Списано ${Money.format(amount)}',
+      success: _add
+          ? context.l10n.custBonusAdded(Money.format(amount))
+          : context.l10n.custBonusRemoved(Money.format(amount)),
     );
     if (!mounted) return;
     if (ok) {
@@ -336,42 +344,42 @@ class _BonusFormState extends ConsumerState<_BonusForm> {
   Widget build(BuildContext context) {
     final live = ref.watch(customerProvider(widget.customer.id)).value ?? widget.customer;
     final balance = live.bonusBalance;
+    final l = context.l10n;
     return Form(
       key: _form,
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(Gap.xl, Gap.m, Gap.xl, Gap.l),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text('${live.name} · баланс ${Money.format(balance)}'),
+          Text(l.custBonusHeader(live.name, Money.format(balance))),
           const SizedBox(height: Gap.l),
           SegmentedButton<bool>(
-            segments: const [
-              ButtonSegment(value: true, label: Text('Начислить'), icon: Icon(Icons.add)),
-              ButtonSegment(value: false, label: Text('Списать'), icon: Icon(Icons.remove)),
+            segments: [
+              ButtonSegment(value: true, label: Text(l.custBonusAdd), icon: const Icon(Icons.add)),
+              ButtonSegment(value: false, label: Text(l.custBonusRemove), icon: const Icon(Icons.remove)),
             ],
             selected: {_add},
             onSelectionChanged: (s) => setState(() => _add = s.first),
           ),
           const SizedBox(height: Gap.l),
           MoneyField(
-            label: 'Сумма бонусов *',
+            label: l.custBonusAmount,
             controller: _amount,
             autofocus: true,
             required: true,
             allowZero: false,
             validator: (v) =>
-                !_add && v != null && v > balance ? 'На балансе только ${Money.format(balance)}' : null,
+                !_add && v != null && v > balance ? l.custBonusOnlyOnBalance(Money.format(balance)) : null,
             onSubmitted: (_) => _submit(balance),
           ),
           const SizedBox(height: Gap.m),
           TextFormField(
             controller: _reason,
-            decoration: const InputDecoration(
-                labelText: 'Причина *', hintText: 'Например: компенсация за задержку заказа'),
-            validator: (v) => (v ?? '').trim().length < 3 ? 'Укажите причину корректировки' : null,
+            decoration: InputDecoration(labelText: l.custReasonRequired, hintText: l.custReasonHint),
+            validator: (v) => (v ?? '').trim().length < 3 ? l.custReasonError : null,
             onFieldSubmitted: (_) => _submit(balance),
           ),
           const SizedBox(height: Gap.l),
-          FilledButton(onPressed: _busy ? null : () => _submit(balance), child: const Text('Применить')),
+          FilledButton(onPressed: _busy ? null : () => _submit(balance), child: Text(l.commonApply)),
         ]),
       ),
     );
@@ -381,7 +389,7 @@ class _BonusFormState extends ConsumerState<_BonusForm> {
 // ------------------------------------------------------------------ reminder
 
 Future<void> showDebtReminderDialog(BuildContext context, WidgetRef ref, Customer c) async {
-  final store = ref.read(settingProvider('store_name')) ?? 'наш магазин';
+  final store = ref.read(settingProvider('store_name')) ?? L.receipt.custOurStore;
   final storePhone = ref.read(settingProvider('store_phone'));
   final repo = ref.read(customerRepoProvider);
   final charges = await repo.debtCharges(customerId: c.id);
@@ -397,7 +405,7 @@ Future<void> showDebtReminderDialog(BuildContext context, WidgetRef ref, Custome
   if (!context.mounted) return;
   await showFormDialog<void>(
     context,
-    title: 'Напоминание о долге',
+    title: context.l10n.custReminderTitle,
     width: 520,
     child: _ReminderForm(text: text, phone: c.phone),
   );
@@ -424,21 +432,22 @@ class _ReminderFormState extends State<_ReminderForm> {
 
   Future<void> _copyPhone(String phone) async {
     await Clipboard.setData(ClipboardData(text: phone));
-    if (mounted) showSuccess(context, 'Телефон скопирован');
+    if (mounted) showSuccess(context, context.l10n.custPhoneCopied);
   }
 
   Future<void> _copyText() async {
     if (_ctl.text.trim().isEmpty) {
-      showError(context, 'Текст напоминания пуст');
+      showError(context, context.l10n.custReminderEmpty);
       return;
     }
     // Capture the messenger first: the dialog context is gone after pop.
     final messenger = ScaffoldMessenger.maybeOf(context);
+    final copied = context.l10n.custReminderCopied;
     await Clipboard.setData(ClipboardData(text: _ctl.text));
     if (!mounted) return;
     Navigator.pop(context);
-    messenger?.showSnackBar(const SnackBar(
-      content: Text('Текст напоминания скопирован'),
+    messenger?.showSnackBar(SnackBar(
+      content: Text(copied),
       backgroundColor: AppColors.success,
     ));
   }
@@ -446,14 +455,15 @@ class _ReminderFormState extends State<_ReminderForm> {
   @override
   Widget build(BuildContext context) {
     final phone = widget.phone;
+    final l = context.l10n;
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(Gap.xl, Gap.m, Gap.xl, Gap.l),
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        if (phone != null) Text('Телефон: $phone', style: Theme.of(context).textTheme.bodyMedium),
+        if (phone != null) Text(l.custPhoneValue(phone), style: Theme.of(context).textTheme.bodyMedium),
         const SizedBox(height: Gap.s),
         TextField(controller: _ctl, minLines: 4, maxLines: 8, autofocus: true),
         const SizedBox(height: Gap.s),
-        Text('Отправьте текст в мессенджере или SMS со своего телефона.',
+        Text(l.custReminderSendHint,
             style: Theme.of(context).textTheme.bodySmall),
         const SizedBox(height: Gap.l),
         Wrap(alignment: WrapAlignment.end, spacing: Gap.s, runSpacing: Gap.s, children: [
@@ -461,12 +471,12 @@ class _ReminderFormState extends State<_ReminderForm> {
             OutlinedButton.icon(
               onPressed: () => _copyPhone(phone),
               icon: const Icon(Icons.phone),
-              label: const Text('Копировать телефон'),
+              label: Text(l.custCopyPhone),
             ),
           FilledButton.icon(
             onPressed: _copyText,
             icon: const Icon(Icons.copy),
-            label: const Text('Копировать текст'),
+            label: Text(l.custCopyText),
           ),
         ]),
       ]),

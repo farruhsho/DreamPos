@@ -6,6 +6,7 @@ import '../../../core/permissions.dart';
 import '../../../core/providers.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets/widgets.dart';
+import '../../../l10n/l10n.dart';
 import '../data/report_queries.dart';
 import '../data/report_table.dart';
 import '../report_providers.dart';
@@ -17,6 +18,7 @@ class StockTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = context.l10n;
     final period = ref.watch(reportPeriodProvider);
     final withCost = ref.watch(sessionProvider)?.can(Perm.viewCost) ?? false;
     final value = ref.watch(stockValueProvider);
@@ -31,14 +33,14 @@ class StockTab extends ConsumerWidget {
           final retail = list.fold<int>(0, (s, r) => s + r.retailValue);
           final items = list.fold<int>(0, (s, r) => s + r.items);
           final table = RTable(
-            title: 'Остатки по категориям (на сейчас)',
+            title: l.repStockByCategory,
             columns: [
-              const RCol('Категория'),
-              const RCol('Позиций', numeric: true),
-              const RCol('Кол-во', numeric: true),
-              if (withCost) const RCol('По себестоимости', numeric: true),
-              const RCol('По рознице', numeric: true),
-              if (withCost) const RCol('Потенц. прибыль', numeric: true),
+              RCol(l.commonCategory),
+              RCol(l.repColPositions, numeric: true),
+              RCol(l.repColQty, numeric: true),
+              if (withCost) RCol(l.repColAtCost, numeric: true),
+              RCol(l.repColAtRetail, numeric: true),
+              if (withCost) RCol(l.repColPotentialProfit, numeric: true),
             ],
             rows: [
               for (final r in list)
@@ -54,7 +56,7 @@ class StockTab extends ConsumerWidget {
             totals: list.isEmpty
                 ? null
                 : [
-                    const RCell('Итого'),
+                    RCell(l.commonTotal),
                     RCell.integer(items),
                     RCell.qty(list.fold<double>(0, (s, r) => s + r.qty)),
                     if (withCost) RCell.money(cost),
@@ -65,40 +67,40 @@ class StockTab extends ConsumerWidget {
           return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             ResponsiveGrid(minTile: 160, maxColumns: 4, children: [
               KpiTile(
-                  label: 'Позиций в наличии',
+                  label: l.repPositionsInStock,
                   value: '$items',
                   icon: Icons.inventory_2_outlined,
-                  hint: 'категорий: ${list.length}'),
+                  hint: l.repCategoriesCount('${list.length}')),
               if (withCost)
                 KpiTile(
-                  label: 'Склад по себестоимости',
+                  label: l.repStockAtCost,
                   value: Money.format(cost),
                   icon: Icons.account_balance_wallet_outlined,
                   color: AppColors.info,
-                  tooltip: 'Сколько денег вложено в товар на складе',
-                  hint: 'вложено в товар',
+                  tooltip: l.repStockAtCostTooltip,
+                  hint: l.repStockAtCostHint,
                 ),
               KpiTile(
-                  label: 'Склад по розничным ценам',
+                  label: l.repStockAtRetail,
                   value: Money.format(retail),
                   icon: Icons.sell_outlined,
-                  hint: 'если продать всё по текущим ценам'),
+                  hint: l.repStockAtRetailHint),
               if (withCost)
                 KpiTile(
-                  label: 'Потенциальная прибыль',
+                  label: l.repPotentialProfit,
                   value: Money.format(retail - cost),
                   icon: Icons.trending_up,
                   color: AppColors.success,
                   hint: retail == 0
                       ? null
-                      : 'наценка в среднем ${cost == 0 ? '—' : '${((retail - cost) * 100 / cost).toStringAsFixed(0)}%'}',
+                      : l.repAvgMarkup(cost == 0 ? '—' : '${((retail - cost) * 100 / cost).toStringAsFixed(0)}%'),
                 ),
             ]),
             const SizedBox(height: Gap.m),
             ReportTableCard(
                 table: table,
                 initialSort: 3,
-                emptyText: 'На складе нет товаров с положительным остатком'),
+                emptyText: l.repNoStock),
           ]);
         },
       ),
@@ -107,20 +109,20 @@ class StockTab extends ConsumerWidget {
         value: dead,
         data: (list) {
           final table = RTable(
-            title: 'Неликвид: нет продаж $deadStockDays дней',
+            title: l.repDeadStockTitle('$deadStockDays'),
             columns: [
-              const RCol('Товар'),
-              const RCol('Остаток', numeric: true),
-              if (withCost) const RCol('Заморожено', numeric: true),
-              const RCol('Последняя продажа'),
+              RCol(l.commonProduct),
+              RCol(l.commonStock, numeric: true),
+              if (withCost) RCol(l.repColFrozen, numeric: true),
+              RCol(l.repColLastSale),
             ],
             rows: [
               for (final r in list)
                 [
                   RCell(r.name),
-                  RCell.qty(r.qty, r.unit),
+                  RCell.qty(r.qty, r.unit, l),
                   if (withCost) RCell.money(r.value),
-                  RCell(r.lastSale == null ? 'не продавался' : formatDate(r.lastSale!),
+                  RCell(r.lastSale == null ? l.repNeverSold : formatDate(r.lastSale!),
                       sort: r.lastSale?.millisecondsSinceEpoch ?? 0),
                 ],
             ],
@@ -128,12 +130,11 @@ class StockTab extends ConsumerWidget {
           return ReportTableCard(
             table: table,
             initialSort: withCost ? 2 : 1,
-            emptyText: 'Отлично — неликвидных товаров нет',
+            emptyText: l.repNoDeadStock,
             header: Padding(
               padding: const EdgeInsets.only(bottom: Gap.s),
               child: Text(
-                'Товары с остатком, которые не продавались $deadStockDays дней. '
-                'Сделайте уценку, акцию или верните поставщику.',
+                l.repDeadStockHint('$deadStockDays'),
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
@@ -146,13 +147,13 @@ class StockTab extends ConsumerWidget {
         value: writeOffs,
         data: (list) => ReportTableCard(
           table: RTable(
-            title: 'Списания по причинам',
-            subtitle: period.label,
+            title: l.repWriteOffsByReason,
+            subtitle: period.labelIn(l),
             columns: [
-              const RCol('Причина'),
-              const RCol('Операций', numeric: true),
-              const RCol('Кол-во', numeric: true),
-              if (withCost) const RCol('Себестоимость', numeric: true),
+              RCol(l.commonReason),
+              RCol(l.repColOperations, numeric: true),
+              RCol(l.repColQty, numeric: true),
+              if (withCost) RCol(l.commonCost, numeric: true),
             ],
             rows: [
               for (final r in list)
@@ -166,14 +167,14 @@ class StockTab extends ConsumerWidget {
             totals: list.isEmpty
                 ? null
                 : [
-                    const RCell('Итого'),
+                    RCell(l.commonTotal),
                     RCell.integer(list.fold(0, (s, r) => s + r.count)),
                     RCell.qty(list.fold<double>(0, (s, r) => s + r.qty)),
                     if (withCost) RCell.money(list.fold(0, (s, r) => s + r.cost)),
                   ],
           ),
           initialSort: withCost ? 3 : 1,
-          emptyText: 'Списаний за период нет',
+          emptyText: l.repNoWriteOffs,
         ),
       ),
     ]);

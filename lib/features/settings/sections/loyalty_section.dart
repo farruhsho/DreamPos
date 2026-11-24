@@ -5,6 +5,7 @@ import '../../../core/money.dart';
 import '../../../core/providers.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets/widgets.dart';
+import '../../../l10n/l10n.dart';
 import '../settings_logic.dart';
 import '../settings_widgets.dart';
 
@@ -35,46 +36,38 @@ class _LoyaltySectionState extends ConsumerState<LoyaltySection> with SettingsFo
     final earn = parsePercent(ctl(SettingKeys.loyaltyEarnPercent).text);
     final redeem = parsePercent(ctl(SettingKeys.loyaltyMaxRedeemPercent).text);
     final valid = earn != null && redeem != null && earn >= 0 && earn <= 100 && redeem >= 0 && redeem <= 100;
+    final l = context.l10n;
 
     return buildForm(
-      title: 'Лояльность',
-      description:
-          'Бонусная программа: клиент получает бонусы с покупок и оплачивает ими часть '
-          'следующих покупок. 1 бонус = 1 единица валюты.',
+      title: l.settingsSecLoyalty,
+      description: l.settingsLoyaltyDesc,
       children: [
         TileCard(
           children: [
-            const SettingSwitch(
+            SettingSwitch(
               settingKey: SettingKeys.loyaltyEnabled,
               icon: Icons.loyalty_outlined,
-              title: 'Бонусная программа включена',
-              subtitle: 'Бонусы начисляются только покупателям, выбранным в чеке',
+              title: l.settingsLoyaltyEnabled,
+              subtitle: l.settingsLoyaltyEnabledHint,
             ),
           ],
         ),
         SectionCard(
-          title: 'Правила',
+          title: l.settingsRules,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (!enabled) ...[
-                const InfoBanner(
-                  text:
-                      'Программа выключена: бонусы не начисляются и не списываются. '
-                      'Накопленные балансы клиентов сохраняются.',
-                ),
-                const SizedBox(height: Gap.m),
-              ],
+              if (!enabled) ...[InfoBanner(text: l.settingsLoyaltyOff), const SizedBox(height: Gap.m)],
               LayoutBuilder(
                 builder: (context, c) {
                   final earnField = TextFormField(
                     controller: ctl(SettingKeys.loyaltyEarnPercent),
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                      labelText: 'Начислять с покупки',
+                    decoration: InputDecoration(
+                      labelText: l.settingsEarnLabel,
                       suffixText: '%',
                       helperMaxLines: 3,
-                      helperText: 'От 0 до 100',
+                      helperText: l.settingsPercentRangeHelper,
                     ),
                     validator: (v) => validatePercent(v),
                     onFieldSubmitted: (_) => save(),
@@ -82,11 +75,11 @@ class _LoyaltySectionState extends ConsumerState<LoyaltySection> with SettingsFo
                   final redeemField = TextFormField(
                     controller: ctl(SettingKeys.loyaltyMaxRedeemPercent),
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                      labelText: 'Оплата бонусами, не больше',
-                      suffixText: '% чека',
+                    decoration: InputDecoration(
+                      labelText: l.settingsRedeemLabel,
+                      suffixText: l.settingsRedeemSuffix,
                       helperMaxLines: 3,
-                      helperText: 'От 0 до 100',
+                      helperText: l.settingsPercentRangeHelper,
                     ),
                     validator: (v) => validatePercent(v),
                     onFieldSubmitted: (_) => save(),
@@ -114,16 +107,10 @@ class _LoyaltySectionState extends ConsumerState<LoyaltySection> with SettingsFo
               InfoBanner(
                 icon: Icons.calculate_outlined,
                 color: valid ? AppColors.success : AppColors.warning,
-                text: valid
-                    ? loyaltyExample(earn, redeem, Money.currency)
-                    : 'Введите проценты от 0 до 100, чтобы увидеть пример.',
+                text: valid ? loyaltyExample(earn, redeem, Money.currency, l) : l.settingsLoyaltyEnterPercents,
               ),
               const SizedBox(height: Gap.s),
-              Text(
-                'При возврате товара начисленные за него бонусы списываются пропорционально. '
-                'Новые проценты действуют для следующих продаж; прошлые чеки не пересчитываются.',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
+              Text(l.settingsLoyaltyReturnInfo, style: Theme.of(context).textTheme.bodySmall),
             ],
           ),
         ),

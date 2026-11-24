@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
+import '../../l10n/l10n.dart';
 import 'current_shift_view.dart';
 import 'shift_history_view.dart';
 
@@ -13,19 +14,20 @@ class ShiftsView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = context.l10n;
     final shift = ref.watch(currentShiftProvider).value;
     return DefaultTabController(
       length: 2,
       child: PageScaffold(
-        title: 'Смена',
-        subtitle: shift == null ? 'Смена закрыта' : 'Смена №${shift.number} открыта',
+        title: l.commonShift,
+        subtitle: shift == null ? l.shiftClosed : l.shiftNumberOpen('${shift.number}'),
         padding: EdgeInsets.zero,
-        bottom: const TabBar(
+        bottom: TabBar(
           isScrollable: true,
           tabAlignment: TabAlignment.start,
           tabs: [
-            Tab(icon: Icon(Icons.point_of_sale_outlined), text: 'Текущая смена'),
-            Tab(icon: Icon(Icons.history), text: 'История смен'),
+            Tab(icon: const Icon(Icons.point_of_sale_outlined), text: l.shiftTabCurrent),
+            Tab(icon: const Icon(Icons.history), text: l.shiftTabHistory),
           ],
         ),
         body: const TabBarView(

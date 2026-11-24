@@ -12,6 +12,7 @@ import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
 import 'inventory_logic.dart';
 import 'inventory_pdf.dart';
+import '../../l10n/l10n.dart';
 
 /// Opens the goods receipt document (dialog on desktop, full screen on phone).
 Future<void> showReceiptDocument(BuildContext context, String receiptId) {
@@ -20,7 +21,7 @@ Future<void> showReceiptDocument(BuildContext context, String receiptId) {
       MaterialPageRoute(
         fullscreenDialog: true,
         builder: (_) => Scaffold(
-          appBar: AppBar(title: const Text('Документ прихода')),
+          appBar: AppBar(title: Text(context.l10n.invReceiptDocTitle)),
           body: SafeArea(
             child: ReceiptDocumentView(receiptId: receiptId, fullPage: true),
           ),
@@ -30,7 +31,7 @@ Future<void> showReceiptDocument(BuildContext context, String receiptId) {
   }
   return showFormDialog<void>(
     context,
-    title: 'Документ прихода',
+    title: context.l10n.invReceiptDocTitle,
     width: 960,
     child: ReceiptDocumentView(receiptId: receiptId),
   );
@@ -38,6 +39,7 @@ Future<void> showReceiptDocument(BuildContext context, String receiptId) {
 
 /// Success toast after posting a receipt, with an action opening the document.
 void showReceiptPosted(BuildContext context, PostedReceipt r, {String? details}) {
+  final l = context.l10n;
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
     ..showSnackBar(
@@ -46,14 +48,18 @@ void showReceiptPosted(BuildContext context, PostedReceipt r, {String? details})
           children: [
             const Icon(Icons.check_circle, color: Colors.white),
             const SizedBox(width: Gap.m),
-            Expanded(child: Text('Приход №${r.number} проведён${details == null ? '' : ' · $details'}')),
+            Expanded(
+              child: Text(
+                details == null ? l.invReceiptPostedToast('${r.number}') : l.invReceiptPostedToastDetails('${r.number}', details),
+              ),
+            ),
           ],
         ),
         backgroundColor: AppColors.success,
         persist: false,
         duration: const Duration(seconds: 6),
         action: SnackBarAction(
-          label: 'Открыть',
+          label: l.commonOpen,
           textColor: Colors.white,
           onPressed: () {
             if (context.mounted) showReceiptDocument(context, r.id);
@@ -71,7 +77,7 @@ class ReceiptStatusChip extends StatelessWidget {
   final String status;
   @override
   Widget build(BuildContext context) =>
-      StatusChip(receiptStatusLabels[status] ?? status, color: receiptStatusColor(status));
+      StatusChip(receiptStatusLabelsOf(context.l10n)[status] ?? status, color: receiptStatusColor(status));
 }
 
 /// Asks for a mandatory reversal reason. Returns null when cancelled.
@@ -104,10 +110,11 @@ class _ReverseDialogState extends State<_ReverseDialog> {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final r = widget.r;
     return AlertDialog(
       icon: const Icon(Icons.undo, color: AppColors.danger),
-      title: Text('Сторнировать приход №${r.number}?'),
+      title: Text(l.invReverseTitle('${r.number}')),
       content: SizedBox(
         width: 420,
         child: Form(
@@ -118,12 +125,10 @@ class _ReverseDialogState extends State<_ReverseDialog> {
             children: [
               Text(
                 [
-                  'Остатки товаров уменьшатся на количество из документа, себестоимость будет '
-                      'пересчитана. Розничные цены, изменённые этим приходом, вернутся к прежним, '
-                      'если их не меняли позже.',
+                  l.invReverseInfo,
                   if (widget.supplierName != null && r.total != 0)
-                    'Долг перед поставщиком ${widget.supplierName} уменьшится на ${Money.format(r.total)}.',
-                  'Отменить сторно нельзя.',
+                    l.invReverseSupplierDebt(widget.supplierName!, Money.format(r.total)),
+                  l.invReverseIrreversible,
                 ].join('\n\n'),
                 style: t.textTheme.bodyMedium,
               ),
@@ -132,8 +137,8 @@ class _ReverseDialogState extends State<_ReverseDialog> {
                 controller: _reason,
                 autofocus: true,
                 maxLength: 200,
-                decoration: const InputDecoration(labelText: 'Причина сторно *'),
-                validator: (v) => (v ?? '').trim().isEmpty ? 'Укажите причину сторно' : null,
+                decoration: InputDecoration(labelText: l.invReverseReasonLabel),
+                validator: (v) => (v ?? '').trim().isEmpty ? l.invReverseReasonRequired : null,
                 onFieldSubmitted: (_) => _submit(),
               ),
             ],
@@ -141,11 +146,11 @@ class _ReverseDialogState extends State<_ReverseDialog> {
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')),
+        TextButton(onPressed: () => Navigator.pop(context), child: Text(l.commonCancel)),
         FilledButton(
           style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
           onPressed: _submit,
-          child: const Text('Сторнировать'),
+          child: Text(l.invReverse),
         ),
       ],
     );
@@ -182,10 +187,10 @@ class _ReceiptDocumentViewState extends ConsumerState<ReceiptDocumentView> {
       data: (r) {
         if (r == null) {
           return _boxed(
-            const EmptyState(
+            EmptyState(
               icon: Icons.search_off,
-              title: 'Документ не найден',
-              message: 'Возможно, он был удалён или ещё не синхронизирован',
+              title: context.l10n.invDocNotFound,
+              message: context.l10n.invDocNotFoundMessage,
             ),
           );
         }
@@ -203,12 +208,13 @@ class _ReceiptDocumentViewState extends ConsumerState<ReceiptDocumentView> {
 
   Widget _content(GoodsReceipt r, List<GoodsReceiptItem> items) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final products = ref.watch(invProductMapProvider).value ?? const <String, Product>{};
     final suppliers = ref.watch(invSupplierNamesProvider).value ?? const <String, String>{};
     final users = ref.watch(invUserNamesProvider).value ?? const <String, String>{};
     final orderNumber = r.orderId == null ? null : ref.watch(invOrderNumberProvider(r.orderId!)).value;
     final lines = receiptDocLines(items, products);
-    final supplierName = r.supplierId == null ? null : suppliers[r.supplierId] ?? 'Удалённый поставщик';
+    final supplierName = r.supplierId == null ? null : suppliers[r.supplierId] ?? l.invDeletedSupplier;
     final author = r.userId == null ? null : users[r.userId];
     final reversedBy = r.reversedBy == null ? null : users[r.reversedBy];
     final reversed = r.status == ReceiptStatus.reversed;
@@ -219,12 +225,15 @@ class _ReceiptDocumentViewState extends ConsumerState<ReceiptDocumentView> {
       spacing: Gap.xl,
       runSpacing: Gap.m,
       children: [
-        _Info('Дата', formatDateTime(r.createdAt)),
-        _Info('Поставщик', supplierName ?? 'Без поставщика'),
-        _Info('Накладная поставщика', r.supplierInvoice ?? '—'),
-        _Info('Источник', orderNumber != null ? 'Заказ №$orderNumber' : (r.orderId != null ? 'Заказ' : 'Ручной приход')),
-        if (author != null) _Info('Принял', author),
-        if (r.note != null && r.note!.isNotEmpty) _Info('Комментарий', r.note!, wide: true),
+        _Info(l.commonDate, formatDateTime(r.createdAt)),
+        _Info(l.commonSupplier, supplierName ?? l.invNoSupplier),
+        _Info(l.invSupplierInvoice, r.supplierInvoice ?? '—'),
+        _Info(
+          l.invSource,
+          orderNumber != null ? l.invOrderRef('$orderNumber') : (r.orderId != null ? l.invOrder : l.invManualReceipt),
+        ),
+        if (author != null) _Info(l.invAcceptedBy, author),
+        if (r.note != null && r.note!.isNotEmpty) _Info(l.commonComment, r.note!, wide: true),
       ],
     );
 
@@ -233,7 +242,7 @@ class _ReceiptDocumentViewState extends ConsumerState<ReceiptDocumentView> {
       children: [
         Expanded(
           child: Text(
-            'Приход №${r.number}',
+            l.invReceiptRef('${r.number}'),
             style: t.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.w700,
               decoration: reversed ? TextDecoration.lineThrough : null,
@@ -264,13 +273,13 @@ class _ReceiptDocumentViewState extends ConsumerState<ReceiptDocumentView> {
                     children: [
                       Text(
                         [
-                          'Сторнирован',
+                          l.invReceiptReversed,
                           if (r.reversedAt != null) formatDateTime(r.reversedAt!),
                           ?reversedBy,
                         ].join(' · '),
                         style: t.textTheme.titleSmall?.copyWith(color: AppColors.danger, fontWeight: FontWeight.w700),
                       ),
-                      if (r.reverseReason != null) Text('Причина: ${r.reverseReason}'),
+                      if (r.reverseReason != null) Text(l.invReasonLine(r.reverseReason!)),
                     ],
                   ),
                 ),
@@ -287,11 +296,11 @@ class _ReceiptDocumentViewState extends ConsumerState<ReceiptDocumentView> {
       runSpacing: Gap.xs,
       children: [
         Text(
-          'Позиций: ${lines.length} · количество ${Qty.format(qtyTotal)}',
+          l.invTotalsLine('${lines.length}', Qty.format(qtyTotal)),
           style: t.textTheme.bodyMedium?.copyWith(color: t.colorScheme.onSurfaceVariant),
         ),
         Text(
-          'Итого: ${Money.format(r.total)}',
+          l.invTotalLine(Money.format(r.total)),
           style: t.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
         ),
       ],
@@ -306,12 +315,12 @@ class _ReceiptDocumentViewState extends ConsumerState<ReceiptDocumentView> {
         info,
         if (reversal != null) ...[const SizedBox(height: Gap.m), reversal],
         const SizedBox(height: Gap.l),
-        Text('Позиции', style: t.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
+        Text(l.invPositionsTitle, style: t.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
         const SizedBox(height: Gap.s),
         if (lines.isEmpty)
-          const Padding(
-            padding: EdgeInsets.all(Gap.l),
-            child: Text('В документе нет позиций'),
+          Padding(
+            padding: const EdgeInsets.all(Gap.l),
+            child: Text(l.invNoLinesInDoc),
           )
         else
           LayoutBuilder(
@@ -329,7 +338,7 @@ class _ReceiptDocumentViewState extends ConsumerState<ReceiptDocumentView> {
       icon: _printing
           ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
           : const Icon(Icons.print_outlined),
-      label: const Text('Печать'),
+      label: Text(l.commonPrint),
     );
     final reverseBtn = canReverse
         ? FilledButton.icon(
@@ -342,7 +351,7 @@ class _ReceiptDocumentViewState extends ConsumerState<ReceiptDocumentView> {
                     child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                   )
                 : const Icon(Icons.undo),
-            label: const Text('Сторнировать'),
+            label: Text(l.invReverse),
           )
         : null;
     final actions = Padding(
@@ -414,7 +423,7 @@ class _ReceiptDocumentViewState extends ConsumerState<ReceiptDocumentView> {
       () => ref
           .read(inventoryRepoProvider)
           .reverseReceipt(r.id, reason: reason, userId: ref.read(sessionProvider)?.user.id),
-      success: 'Приход №${r.number} сторнирован',
+      success: context.l10n.invReversedToast('${r.number}'),
     );
     if (mounted) setState(() => _busy = false);
   }
@@ -443,8 +452,10 @@ class _Info extends StatelessWidget {
   }
 }
 
-String _priceText(ReceiptDocLine l) => l.priceChanged
-    ? '${Money.format(l.item.newPrice!)}${l.item.oldPrice == null ? '' : ' (было ${Money.format(l.item.oldPrice!)})'}'
+String _priceText(ReceiptDocLine l, AppLocalizations t) => l.priceChanged
+    ? (l.item.oldPrice == null
+          ? Money.format(l.item.newPrice!)
+          : t.invPriceWas(Money.format(l.item.newPrice!), Money.format(l.item.oldPrice!)))
     : '—';
 
 /// Fixed numeric columns of [_LinesTable] (32+100+120+130+200) plus row
@@ -460,6 +471,7 @@ class _LinesTable extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = Theme.of(context);
     final head = t.textTheme.labelMedium?.copyWith(color: t.colorScheme.onSurfaceVariant, fontWeight: FontWeight.w600);
+    final l = context.l10n;
     Widget row(List<Widget> cells, {Color? color}) => Container(
       color: color,
       padding: const EdgeInsets.symmetric(horizontal: Gap.m, vertical: Gap.s),
@@ -474,12 +486,12 @@ class _LinesTable extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           row(color: t.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5), [
-            SizedBox(width: 32, child: Text('№', style: head)),
-            Expanded(child: Text('Товар', style: head)),
-            num('Кол-во', 100, style: head),
-            num('Цена закупки', 120, style: head),
-            num('Сумма', 130, style: head),
-            num('Новая розн. цена', 200, style: head),
+            SizedBox(width: 32, child: Text(l.invNoHeader, style: head)),
+            Expanded(child: Text(l.commonProduct, style: head)),
+            num(l.invQtyShort, 100, style: head),
+            num(l.invPurchasePrice, 120, style: head),
+            num(l.commonAmount, 130, style: head),
+            num(l.invNewRetailPrice, 200, style: head),
           ]),
           for (var i = 0; i < lines.length; i++) ...[
             const Divider(height: 1),
@@ -503,7 +515,7 @@ class _LinesTable extends StatelessWidget {
                     ),
                     if (lines[i].priceChanged && lines[i].item.oldPrice != null)
                       Text(
-                        'было ${Money.format(lines[i].item.oldPrice!)}',
+                        l.invWasPrice(Money.format(lines[i].item.oldPrice!)),
                         textAlign: TextAlign.right,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -552,7 +564,7 @@ class _LinesCards extends StatelessWidget {
                       Text(Money.format(lines[i].total), style: const TextStyle(fontWeight: FontWeight.w700)),
                     ],
                   ),
-                  if (lines[i].priceChanged) Text('Розничная цена: ${_priceText(lines[i])}', style: sub),
+                  if (lines[i].priceChanged) Text(context.l10n.invRetailPriceLine(_priceText(lines[i], context.l10n)), style: sub),
                 ],
               ),
             ),

@@ -8,6 +8,9 @@
 //   await h.finish();
 //
 // Output dir: env SCREENSHOTS_DIR (default build/screens). Size: h.setSize(...).
+// Language: env SCREENSHOTS_LOCALE = ru (default) | uz | ky | en; for a non-ru
+// locale file names get a `_<lang>` suffix (desktop_pos_uz.png).
+//   SCREENSHOTS=1 SCREENSHOTS_LOCALE=ky flutter test test/ux/screenshots_test.dart
 // Overflow/render errors are collected into <name>.errors.txt next to the PNG
 // and returned by shot(), so a test can assert there are none.
 import 'dart:io';
@@ -22,6 +25,7 @@ import 'package:dreampos/core/providers.dart';
 import 'package:dreampos/domain/services/auth_service.dart';
 import 'package:dreampos/domain/services/sale_service.dart';
 import 'package:dreampos/domain/services/shift_service.dart';
+import 'package:dreampos/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -33,6 +37,9 @@ import '../helpers.dart';
 
 /// Screenshot tests run only with env SCREENSHOTS=1.
 final bool screenshotsEnabled = Platform.environment['SCREENSHOTS'] == '1';
+
+/// UI language of the screenshots: env SCREENSHOTS_LOCALE (default ru).
+final String screenshotsLocale = L.normalize(Platform.environment['SCREENSHOTS_LOCALE']);
 
 const uxSizes = {
   'desktop': Size(1440, 900),
@@ -62,25 +69,34 @@ Future<void> loadUxFonts() async {
 }
 
 class UxHarness {
-  UxHarness._(this.tester, this.db, this.container, this.owner, this.dir);
+  UxHarness._(this.tester, this.db, this.container, this.owner, this.dir, this.locale);
 
   final WidgetTester tester;
   final AppDatabase db;
   final ProviderContainer container;
   final User owner;
   final Directory dir;
+
+  /// UI language code of this run (ru/uz/ky/en).
+  final String locale;
   final _key = GlobalKey();
   String sizeName = 'desktop';
 
-  static Future<UxHarness> start(WidgetTester tester, {String size = 'desktop'}) async {
+  /// [locale] defaults to [screenshotsLocale] (env SCREENSHOTS_LOCALE, else ru).
+  static Future<UxHarness> start(WidgetTester tester, {String size = 'desktop', String? locale}) async {
     await tester.runAsync(loadUxFonts);
-    SharedPreferences.setMockInitialValues({});
+    final lang = L.normalize(locale ?? screenshotsLocale);
+    L.reset(); // seed data and services start in ru like a real first run
+    SharedPreferences.setMockInitialValues({'ui_locale': lang});
     final db = memoryDb();
     final owner = (await tester.runAsync(() => seedDemoStore(db)))!;
-    final container = ProviderContainer(overrides: [databaseProvider.overrideWithValue(db)]);
+    final container = ProviderContainer(overrides: [
+      databaseProvider.overrideWithValue(db),
+      uiLocaleProvider.overrideWith(() => UiLocaleNotifier(lang)),
+    ]);
     final dir = Directory(Platform.environment['SCREENSHOTS_DIR'] ?? 'build/screens')
       ..createSync(recursive: true);
-    final h = UxHarness._(tester, db, container, owner, dir);
+    final h = UxHarness._(tester, db, container, owner, dir, lang);
     h.setSize(size);
     container.read(sessionProvider.notifier).login(owner);
     await tester.pumpWidget(RepaintBoundary(
@@ -111,9 +127,11 @@ class UxHarness {
     await settle(8);
   }
 
-  /// Saves `<dir>/<size>_<name>.png`; returns collected render errors.
+  /// Saves `<dir>/<size>_<name>.png` (`<size>_<name>_<lang>.png` when the
+  /// locale is not ru); returns collected render errors.
   Future<List<String>> shot(String name) async {
-    final file = '${dir.path}/${sizeName}_$name.png';
+    final suffix = locale == 'ru' ? '' : '_$locale';
+    final file = '${dir.path}/${sizeName}_$name$suffix.png';
     await tester.runAsync(() async {
       final boundary = _key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
       final img = await boundary.toImage(pixelRatio: 1);
@@ -140,6 +158,7 @@ class UxHarness {
     await tester.pump(const Duration(seconds: 2));
     tester.view.resetPhysicalSize();
     tester.view.resetDevicePixelRatio();
+    L.reset();
   }
 }
 

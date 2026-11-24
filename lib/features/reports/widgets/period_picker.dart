@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme.dart';
+import '../../../l10n/l10n.dart';
 import '../data/period.dart';
 import '../report_providers.dart';
 
@@ -12,13 +13,14 @@ class PeriodButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = context.l10n;
     final period = ref.watch(reportPeriodProvider);
     final compact = MediaQuery.sizeOf(context).width < 600;
     return MenuAnchor(
       builder: (context, ctl, _) => compact
           ? IconButton(
               key: const ValueKey('period-button'),
-              tooltip: 'Период: ${period.label}',
+              tooltip: l.repPeriodTooltip(period.labelIn(l)),
               icon: const Icon(Icons.date_range),
               onPressed: () => ctl.isOpen ? ctl.close() : ctl.open(),
             )
@@ -26,7 +28,7 @@ class PeriodButton extends ConsumerWidget {
               key: const ValueKey('period-button'),
               onPressed: () => ctl.isOpen ? ctl.close() : ctl.open(),
               icon: const Icon(Icons.date_range, size: 18),
-              label: Text(period.label),
+              label: Text(period.labelIn(l)),
               style: OutlinedButton.styleFrom(minimumSize: const Size(0, 40)),
             ),
       menuChildren: [
@@ -45,7 +47,7 @@ class PeriodButton extends ConsumerWidget {
             },
             child: Padding(
               padding: const EdgeInsets.only(right: Gap.l),
-              child: Text(p == PeriodPreset.custom ? 'Произвольный…' : p.label),
+              child: Text(p == PeriodPreset.custom ? l.repPeriodCustomMenu : p.labelIn(l)),
             ),
           ),
       ],
@@ -54,6 +56,7 @@ class PeriodButton extends ConsumerWidget {
 }
 
 Future<void> pickCustomPeriod(BuildContext context, WidgetRef ref) async {
+  final l = context.l10n;
   final cur = ref.read(reportPeriodProvider);
   final now = DateTime.now();
   final last = cur.end.subtract(const Duration(seconds: 1));
@@ -65,12 +68,12 @@ Future<void> pickCustomPeriod(BuildContext context, WidgetRef ref) async {
       start: cur.start.isAfter(now) ? now : cur.start,
       end: last.isAfter(now) ? now : last,
     ),
-    helpText: 'Выберите период',
-    saveText: 'Применить',
-    cancelText: 'Отмена',
-    confirmText: 'Применить',
-    fieldStartLabelText: 'С',
-    fieldEndLabelText: 'По',
+    helpText: l.repPickPeriod,
+    saveText: l.commonApply,
+    cancelText: l.commonCancel,
+    confirmText: l.commonApply,
+    fieldStartLabelText: l.repFrom,
+    fieldEndLabelText: l.repTo,
   );
   if (r != null) ref.read(reportPeriodProvider.notifier).set(ReportPeriod.days(r.start, r.end));
 }

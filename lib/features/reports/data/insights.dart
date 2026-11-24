@@ -1,5 +1,5 @@
 // Offline, rule-based "AI analytics": turns aggregated figures into
-// plain-Russian insight cards. Every rule is explainable (the explanation
+// plain-language insight cards. Every rule is explainable (the explanation
 // states the numbers and the threshold), so the owner can trust it.
 import 'dart:math' as math;
 
@@ -7,6 +7,7 @@ import 'package:drift/drift.dart';
 
 import '../../../core/db/database.dart';
 import '../../../core/money.dart';
+import '../../../l10n/l10n.dart';
 import 'analytics.dart';
 import 'period.dart';
 import 'report_queries.dart';
@@ -73,68 +74,29 @@ class InsightData {
 
 String _pct(double v) => '${v.abs().toStringAsFixed(v.abs() >= 10 ? 0 : 1).replaceAll('.', ',')}%';
 
-String _days(int n) {
-  final m10 = n % 10, m100 = n % 100;
-  final w = (m10 == 1 && m100 != 11)
-      ? 'день'
-      : (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14))
-          ? 'дня'
-          : 'дней';
-  return '$n $w';
-}
-
-String _items(int n) {
-  final m10 = n % 10, m100 = n % 100;
-  final w = (m10 == 1 && m100 != 11)
-      ? 'товар'
-      : (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14))
-          ? 'товара'
-          : 'товаров';
-  return '$n $w';
-}
-
-String _returns(int n) {
-  final m10 = n % 10, m100 = n % 100;
-  final w = (m10 == 1 && m100 != 11)
-      ? 'возврат'
-      : (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14))
-          ? 'возврата'
-          : 'возвратов';
-  return '$n $w';
-}
-
-String _clients(int n) {
-  final m10 = n % 10, m100 = n % 100;
-  final w = (m10 == 1 && m100 != 11)
-      ? 'клиент'
-      : (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14))
-          ? 'клиента'
-          : 'клиентов';
-  return '$n $w';
-}
-
 /// Runs all rules. [withCost] = user may see cost/profit (Perm.viewCost).
-List<Insight> buildInsights(InsightData d, {bool withCost = true}) {
+/// Texts use [l] (default: the UI language, [L.current]).
+List<Insight> buildInsights(InsightData d, {bool withCost = true, AppLocalizations? l}) {
+  final t = l ?? L.current;
   final out = <Insight>[];
 
   // 1. Revenue trend week over week.
   if (d.prevWeek.net > 0 && d.week.net > 0) {
     final ch = (d.week.net - d.prevWeek.net) * 100 / d.prevWeek.net;
-    final expl = 'За последние 7 дней: ${Money.format(d.week.net)}, '
-        'за 7 дней до этого: ${Money.format(d.prevWeek.net)} (чистая выручка с учётом возвратов).';
+    final expl = t.repInsWeekExpl(Money.format(d.week.net), Money.format(d.prevWeek.net));
     if (ch >= 10) {
       out.add(Insight(
           id: 'revenue_up',
           severity: InsightSeverity.positive,
-          title: 'Выручка за неделю выросла на ${_pct(ch)}',
-          explanation: '$expl Отличный результат — проверьте, хватит ли остатков ходовых товаров.'));
+          title: t.repInsRevenueUpTitle(_pct(ch)),
+          explanation: t.repInsRevenueUpExpl(expl)));
     } else if (ch <= -10) {
       out.add(Insight(
           id: 'revenue_down',
           severity: InsightSeverity.warning,
-          title: 'Выручка за неделю упала на ${_pct(ch)}',
-          explanation: '$expl Проверьте наличие ходовых товаров и запустите акцию.',
-          action: 'Запустить акцию',
+          title: t.repInsRevenueDownTitle(_pct(ch)),
+          explanation: t.repInsRevenueDownExpl(expl),
+          action: t.repInsActLaunchPromo,
           route: '/marketing'));
     }
   }
@@ -142,16 +104,15 @@ List<Insight> buildInsights(InsightData d, {bool withCost = true}) {
   // 2. Stockouts and stockout risk.
   final outWithDemand = d.forecasts.where((f) => f.hasDemand && f.outOfStock).toList();
   if (outWithDemand.isNotEmpty) {
-    final names = outWithDemand.take(3).map((f) => '«${f.row.name}»').join(', ');
+    final names = outWithDemand.take(3).map((f) => t.repInsQuoted(f.row.name)).join(', ');
     out.add(Insight(
         id: 'out_of_stock',
         severity: InsightSeverity.critical,
         title: outWithDemand.length == 1
-            ? 'Закончился ходовой товар ${outWithDemand.first.row.name}'
-            : '${_items(outWithDemand.length)} с продажами закончились',
-        explanation: '$names — остаток 0, а за последние 4 недели их покупали. '
-            'Каждый день без товара — потерянная выручка.',
-        action: 'Заказать у поставщика',
+            ? t.repInsOutOfStockOne(outWithDemand.first.row.name)
+            : t.repInsOutOfStockMany(t.commonProductsCount(outWithDemand.length)),
+        explanation: t.repInsOutOfStockExpl(names),
+        action: t.repInsActOrderSupplier,
         route: '/purchasing'));
   }
   final soon = d.forecasts
@@ -163,11 +124,14 @@ List<Insight> buildInsights(InsightData d, {bool withCost = true}) {
     out.add(Insight(
         id: 'stockout_${f.row.id}',
         severity: days <= 3 ? InsightSeverity.critical : InsightSeverity.warning,
-        title: 'Товар ${f.row.name} закончится через ${_days(days)}',
-        explanation: 'Остаток ${Qty.format(f.row.stock, f.row.unit)}, продаётся в среднем '
-            '${Qty.format(f.avgDaily, f.row.unit)} в день (за ${_days(f.windowDays)}). '
-            'Рекомендуем заказать ${Qty.format(f.reorderQty, f.row.unit)} на ${_days(f.horizonDays)}.',
-        action: 'Оформить закупку',
+        title: t.repInsStockoutTitle(f.row.name, t.commonDaysCount(days)),
+        explanation: t.repInsStockoutExpl(
+            Qty.format(f.row.stock, f.row.unit, t),
+            Qty.format(f.avgDaily, f.row.unit, t),
+            t.commonDaysCount(f.windowDays),
+            Qty.format(f.reorderQty, f.row.unit, t),
+            t.commonDaysCount(f.horizonDays)),
+        action: t.repInsActPurchase,
         route: '/purchasing'));
   }
   if (soon.length > 3) {
@@ -175,10 +139,10 @@ List<Insight> buildInsights(InsightData d, {bool withCost = true}) {
         id: 'stockout_more',
         severity: InsightSeverity.warning,
         title: soon.length - 3 == 1
-            ? 'Ещё 1 товар закончится в течение недели'
-            : 'Ещё ${_items(soon.length - 3)} закончатся в течение недели',
-        explanation: 'См. вкладку «Прогноз спроса» — там рекомендуемое количество к заказу.',
-        action: 'Оформить закупку',
+            ? t.repInsStockoutMoreOne
+            : t.repInsStockoutMoreMany(t.commonProductsCount(soon.length - 3)),
+        explanation: t.repInsStockoutMoreExpl,
+        action: t.repInsActPurchase,
         route: '/purchasing'));
   }
 
@@ -194,10 +158,10 @@ List<Insight> buildInsights(InsightData d, {bool withCost = true}) {
         out.add(Insight(
             id: 'category_profit',
             severity: InsightSeverity.info,
-            title: 'Категория «${top.name}» даёт ${_pct(share)} прибыли',
-            explanation: 'За 30 дней: ${Money.format(top.profit)} из ${Money.format(totalProfit)} '
-                'валовой прибыли. Держите эту категорию в наличии и на видном месте.',
-            action: 'Открыть товары',
+            title: t.repInsCategoryTitle(top.name, _pct(share)),
+            explanation:
+                t.repInsCategoryExpl(Money.format(top.profit), Money.format(totalProfit)),
+            action: t.repInsActOpenProducts,
             route: '/products'));
       }
     }
@@ -214,13 +178,10 @@ List<Insight> buildInsights(InsightData d, {bool withCost = true}) {
       out.add(Insight(
           id: 'margin_${p.id}',
           severity: loss ? InsightSeverity.critical : InsightSeverity.warning,
-          title: loss
-              ? 'Товар ${p.name} продаётся в убыток'
-              : 'Маржа товара ${p.name} ниже 5%',
-          explanation: 'За 30 дней: выручка ${Money.format(p.revenue)}, себестоимость '
-              '${Money.format(p.cost)}, маржа ${p.marginPct.toStringAsFixed(1).replaceAll('.', ',')}%. '
-              'Поднимите цену или пересмотрите закупочную цену и скидки.',
-          action: 'Изменить цену',
+          title: loss ? t.repInsLossTitle(p.name) : t.repInsLowMarginTitle(p.name),
+          explanation: t.repInsMarginExpl(Money.format(p.revenue), Money.format(p.cost),
+              p.marginPct.toStringAsFixed(1).replaceAll('.', ',')),
+          action: t.repInsActChangePrice,
           route: '/products'));
     }
   }
@@ -230,10 +191,9 @@ List<Insight> buildInsights(InsightData d, {bool withCost = true}) {
     out.add(Insight(
         id: 'inactive_customers',
         severity: InsightSeverity.info,
-        title: '${_clients(d.inactiveCustomers)} не приходили 60 дней — запустите акцию',
-        explanation: 'Эти клиенты раньше покупали, но не возвращались больше 60 дней. '
-            'Персональная скидка или бонусы часто возвращают 10–20% из них.',
-        action: 'Создать акцию',
+        title: t.repInsInactiveTitle(t.commonCustomersCount(d.inactiveCustomers)),
+        explanation: t.repInsInactiveExpl,
+        action: t.repInsActCreatePromo,
         route: '/marketing'));
   }
 
@@ -242,11 +202,10 @@ List<Insight> buildInsights(InsightData d, {bool withCost = true}) {
     out.add(Insight(
         id: 'discounts',
         severity: InsightSeverity.warning,
-        title: 'Скидки съели ${_pct(d.month.discountPct)} выручки',
-        explanation: 'За 30 дней скидки составили ${Money.format(d.month.discounts)} '
-            'от ${Money.format(d.month.subtotal)} до скидок. Проверьте акции и ручные скидки кассиров '
-            '(вкладка «Сотрудники»).',
-        action: 'Проверить акции',
+        title: t.repInsDiscountsTitle(_pct(d.month.discountPct)),
+        explanation:
+            t.repInsDiscountsExpl(Money.format(d.month.discounts), Money.format(d.month.subtotal)),
+        action: t.repInsActCheckPromos,
         route: '/marketing'));
   }
 
@@ -255,10 +214,10 @@ List<Insight> buildInsights(InsightData d, {bool withCost = true}) {
     out.add(Insight(
         id: 'returns',
         severity: InsightSeverity.warning,
-        title: 'Возвраты — ${_pct(d.month.returnsPct)} от продаж',
-        explanation: 'За 30 дней ${_returns(d.month.returnsCount)} на ${Money.format(d.month.returnsTotal)}. '
-            'Норма для розницы — до 3–5%. Проверьте качество товара и причины возвратов.',
-        action: 'Открыть чеки',
+        title: t.repInsReturnsTitle(_pct(d.month.returnsPct)),
+        explanation: t.repInsReturnsExpl(
+            t.commonReturnsCount(d.month.returnsCount), Money.format(d.month.returnsTotal)),
+        action: t.repInsActOpenReceipts,
         route: '/sales'));
   }
 
@@ -282,10 +241,9 @@ List<Insight> buildInsights(InsightData d, {bool withCost = true}) {
       out.add(Insight(
           id: 'peak_hours',
           severity: InsightSeverity.info,
-          title: 'Пиковые часы $best–${best + 2} — поставьте второго кассира',
-          explanation: 'С $best:00 до ${best + 2}:00 приходится ${_pct(share)} всех чеков за 30 дней. '
-              'Второй кассир в это время сократит очереди и потерянные продажи.',
-          action: 'Сотрудники',
+          title: t.repInsPeakTitle('$best', '${best + 2}'),
+          explanation: t.repInsPeakExpl('$best', '${best + 2}', _pct(share)),
+          action: t.repInsActStaff,
           route: '/staff'));
     }
   }
@@ -296,12 +254,9 @@ List<Insight> buildInsights(InsightData d, {bool withCost = true}) {
     out.add(Insight(
         id: 'dead_stock',
         severity: InsightSeverity.warning,
-        title: '${_items(d.deadStock.length)} не продавались 60 дней',
-        explanation: withCost
-            ? 'В них заморожено ${Money.format(frozen)} по себестоимости. '
-                'Сделайте уценку или акцию, чтобы освободить деньги.'
-            : 'Сделайте уценку или акцию, чтобы освободить деньги и место на полке.',
-        action: 'Открыть склад',
+        title: t.repInsDeadTitle(t.commonProductsCount(d.deadStock.length)),
+        explanation: withCost ? t.repInsDeadExplCost(Money.format(frozen)) : t.repInsDeadExpl,
+        action: t.repInsActOpenInventory,
         route: '/inventory'));
   }
 
@@ -310,10 +265,9 @@ List<Insight> buildInsights(InsightData d, {bool withCost = true}) {
     out.add(Insight(
         id: 'overdue_debts',
         severity: InsightSeverity.warning,
-        title: 'Просроченные долги: ${_clients(d.overdueDebtors)}',
-        explanation: 'Просрочено ${Money.format(d.overdueDebt)} — срок оплаты этих долгов прошёл. '
-            'Напомните клиентам и не продавайте им в долг до погашения.',
-        action: 'Открыть клиентов',
+        title: t.repInsOverdueTitle(t.commonCustomersCount(d.overdueDebtors)),
+        explanation: t.repInsOverdueExpl(Money.format(d.overdueDebt)),
+        action: t.repInsActOpenCustomers,
         route: '/customers'));
   }
 
@@ -325,10 +279,9 @@ List<Insight> buildInsights(InsightData d, {bool withCost = true}) {
     out.add(Insight(
         id: 'top_product',
         severity: InsightSeverity.positive,
-        title: 'Хит недели — ${top.name}',
-        explanation: 'Выручка ${Money.format(top.revenue)} за 7 дней '
-            '(${_pct(top.revenue * 100 / total)} всех продаж). Следите, чтобы он не заканчивался.',
-        action: 'Проверить остатки',
+        title: t.repInsTopTitle(top.name),
+        explanation: t.repInsTopExpl(Money.format(top.revenue), _pct(top.revenue * 100 / total)),
+        action: t.repInsActCheckStock,
         route: '/inventory'));
   }
 

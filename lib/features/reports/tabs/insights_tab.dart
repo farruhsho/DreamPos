@@ -8,6 +8,7 @@ import '../../../core/permissions.dart';
 import '../../../core/providers.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets/widgets.dart';
+import '../../../l10n/l10n.dart';
 import '../data/insights.dart';
 import '../report_providers.dart';
 import '../widgets/kpi.dart';
@@ -19,18 +20,22 @@ bool canOpenRoute(Session? s, String route) {
   return item == null || s.can(item.perm);
 }
 
-({Color color, IconData icon, String label}) severityStyle(InsightSeverity s) => switch (s) {
-      InsightSeverity.critical => (color: AppColors.danger, icon: Icons.error_outline, label: 'Срочно'),
-      InsightSeverity.warning => (color: AppColors.warning, icon: Icons.warning_amber_rounded, label: 'Внимание'),
-      InsightSeverity.info => (color: AppColors.info, icon: Icons.lightbulb_outline, label: 'Совет'),
-      InsightSeverity.positive => (color: AppColors.success, icon: Icons.thumb_up_alt_outlined, label: 'Хорошо'),
-    };
+({Color color, IconData icon, String label}) severityStyle(InsightSeverity s, [AppLocalizations? l]) {
+  final t = l ?? L.current;
+  return switch (s) {
+    InsightSeverity.critical => (color: AppColors.danger, icon: Icons.error_outline, label: t.repSevCritical),
+    InsightSeverity.warning => (color: AppColors.warning, icon: Icons.warning_amber_rounded, label: t.repSevWarning),
+    InsightSeverity.info => (color: AppColors.info, icon: Icons.lightbulb_outline, label: t.repSevInfo),
+    InsightSeverity.positive => (color: AppColors.success, icon: Icons.thumb_up_alt_outlined, label: t.repSevPositive),
+  };
+}
 
 class InsightsTab extends ConsumerWidget {
   const InsightsTab({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = context.l10n;
     final data = ref.watch(insightsDataProvider);
     final session = ref.watch(sessionProvider);
     final withCost = session?.can(Perm.viewCost) ?? false;
@@ -39,7 +44,7 @@ class InsightsTab extends ConsumerWidget {
       value: data,
       onRetry: () => ref.invalidate(insightsDataProvider),
       data: (d) {
-        final list = buildInsights(d, withCost: withCost);
+        final list = buildInsights(d, withCost: withCost, l: l);
         return ListView(padding: const EdgeInsets.all(Gap.l), children: [
           LayoutBuilder(builder: (context, c) {
             final intro = Row(children: [
@@ -47,8 +52,7 @@ class InsightsTab extends ConsumerWidget {
               const SizedBox(width: Gap.s),
               Expanded(
                 child: Text(
-                  'Подсказки по вашим данным за последние 30 дней. Считаются на этом устройстве, '
-                  'без интернета; каждая объясняет, откуда взялись цифры.',
+                  l.repInsightsIntro,
                   style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant),
                 ),
               ),
@@ -56,7 +60,7 @@ class InsightsTab extends ConsumerWidget {
             final refresh = OutlinedButton.icon(
               onPressed: () => ref.invalidate(insightsDataProvider),
               icon: const Icon(Icons.refresh, size: 18),
-              label: const Text('Обновить'),
+              label: Text(l.repRefresh),
               style: OutlinedButton.styleFrom(minimumSize: const Size(0, 40)),
             );
             // wide: refresh button at the right edge; phone: under the text
@@ -71,11 +75,10 @@ class InsightsTab extends ConsumerWidget {
           }),
           const SizedBox(height: Gap.m),
           if (list.isEmpty)
-            const EmptyState(
+            EmptyState(
               icon: Icons.auto_awesome,
-              title: 'Пока нечего подсказать',
-              message: 'Подсказки появятся, когда накопятся продажи хотя бы за неделю. '
-                  'Проблем с остатками, долгами и маржой не найдено.',
+              title: l.repInsightsEmptyTitle,
+              message: l.repInsightsEmptyMessage,
             )
           else
             ResponsiveGrid(minTile: 340, maxColumns: 3, children: [
@@ -96,7 +99,7 @@ class InsightCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
-    final st = severityStyle(insight.severity);
+    final st = severityStyle(insight.severity, context.l10n);
     return Card(
       key: ValueKey('insight-${insight.id}'),
       clipBehavior: Clip.antiAlias,

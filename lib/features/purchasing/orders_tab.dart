@@ -14,6 +14,7 @@ import '../inventory/receipt_document.dart';
 import 'po_pdf.dart';
 import 'purchasing_logic.dart';
 import 'supplier_dialogs.dart';
+import '../../l10n/l10n.dart';
 
 Color poStatusColor(String s) => switch (s) {
   'draft' => AppColors.warning,
@@ -30,7 +31,7 @@ StatusChip poStatusChip(String s) => StatusChip(poStatusLabels[s] ?? s, color: p
 Future<String?> showPoEditor(BuildContext context, {PurchaseOrder? order, String? supplierId}) =>
     showFormDialog<String>(
       context,
-      title: order == null ? 'Новый заказ поставщику' : 'Заказ №${order.number}',
+      title: order == null ? context.l10n.purNewPo : context.l10n.purOrderNumber('${order.number}'),
       width: 960,
       child: PoEditor(order: order, supplierId: supplierId),
     );
@@ -41,7 +42,7 @@ void pushOrderPage(BuildContext context, String orderId) {
   Navigator.of(context).push(
     MaterialPageRoute<void>(
       builder: (_) => Scaffold(
-        appBar: AppBar(title: const Text('Заказ поставщику')),
+        appBar: AppBar(title: Text(context.l10n.purPoShort)),
         body: Padding(
           padding: const EdgeInsets.all(Gap.m),
           child: OrderDetail(orderId: orderId),
@@ -73,8 +74,10 @@ class _OrdersTabState extends ConsumerState<OrdersTab> {
 
   @override
   Widget build(BuildContext context) {
+    final l = context.l10n;
     final names = ref.watch(purSupplierNamesProvider).value ?? const {};
     final partly = ref.watch(purPartlyReceivedOrderIdsProvider).value ?? const <String>{};
+    final statusLabels = poStatusLabelsOf(l);
     String shownStatus(PurchaseOrder o) => poDisplayStatus(o.status, anyReceived: partly.contains(o.id));
     return LayoutBuilder(
       builder: (context, c) {
@@ -85,13 +88,13 @@ class _OrdersTabState extends ConsumerState<OrdersTab> {
             Row(
               children: [
                 Expanded(
-                  child: SearchField(hint: 'Поиск заказа', onChanged: (v) => setState(() => _q = v)),
+                  child: SearchField(hint: l.purSearchOrder, onChanged: (v) => setState(() => _q = v)),
                 ),
                 const SizedBox(width: Gap.s),
                 FilledButton.icon(
                   onPressed: () => _create(wide),
                   icon: const Icon(Icons.add),
-                  label: const Text('Заказ'),
+                  label: Text(l.purOrderButton),
                 ),
               ],
             ),
@@ -99,16 +102,16 @@ class _OrdersTabState extends ConsumerState<OrdersTab> {
             _ChipBar(
               children: [
                 ChoiceChip(
-                  label: const Text('Активные'),
+                  label: Text(l.purActive),
                   selected: !_all && _status == null,
                   onSelected: (_) => setState(() {
                     _all = false;
                     _status = null;
                   }),
                 ),
-                for (final s in poStatusLabels.keys)
+                for (final s in statusLabels.keys)
                   ChoiceChip(
-                    label: Text(poStatusLabels[s]!),
+                    label: Text(statusLabels[s]!),
                     selected: _status == s,
                     onSelected: (_) => setState(() {
                       _all = false;
@@ -116,7 +119,7 @@ class _OrdersTabState extends ConsumerState<OrdersTab> {
                     }),
                   ),
                 ChoiceChip(
-                  label: const Text('Все'),
+                  label: Text(l.commonAll),
                   selected: _all,
                   onSelected: (_) => setState(() {
                     _all = true;
@@ -143,12 +146,12 @@ class _OrdersTabState extends ConsumerState<OrdersTab> {
                   if (orders.isEmpty) {
                     return EmptyState(
                       icon: Icons.local_shipping_outlined,
-                      title: 'Заказов поставщикам пока нет',
-                      message: 'Создайте заказ вручную или воспользуйтесь вкладкой «Автозаказ»',
-                      action: FilledButton(onPressed: () => _create(wide), child: const Text('Создать заказ')),
+                      title: l.purNoOrders,
+                      message: l.purNoOrdersMessage,
+                      action: FilledButton(onPressed: () => _create(wide), child: Text(l.purCreateOrder)),
                     );
                   }
-                  if (shown.isEmpty) return const EmptyState(icon: Icons.search_off, title: 'Нет заказов по фильтру');
+                  if (shown.isEmpty) return EmptyState(icon: Icons.search_off, title: l.purNoOrdersForFilter);
                   return ListView.separated(
                     itemCount: shown.length,
                     separatorBuilder: (_, _) => const Divider(),
@@ -157,7 +160,7 @@ class _OrdersTabState extends ConsumerState<OrdersTab> {
                       return ListTile(
                         selected: wide && o.id == _selected,
                         title: Text(
-                          '№${o.number} · ${names[o.supplierId] ?? '—'}',
+                          l.purOrderListTitle('${o.number}', names[o.supplierId] ?? '—'),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -165,7 +168,7 @@ class _OrdersTabState extends ConsumerState<OrdersTab> {
                           [
                             formatDate(o.createdAt),
                             Money.format(o.total),
-                            if (o.expectedAt != null && o.status == 'ordered') 'ожидается ${formatDate(o.expectedAt!)}',
+                            if (o.expectedAt != null && o.status == 'ordered') l.purExpectedOn(formatDate(o.expectedAt!)),
                           ].join(' · '),
                         ),
                         trailing: poStatusChip(shownStatus(o)),
@@ -186,10 +189,10 @@ class _OrdersTabState extends ConsumerState<OrdersTab> {
             const VerticalDivider(width: Gap.xl),
             Expanded(
               child: _selected == null
-                  ? const EmptyState(
+                  ? EmptyState(
                       icon: Icons.receipt_long_outlined,
-                      title: 'Выберите заказ',
-                      message: 'Откройте заказ из списка слева или создайте новый',
+                      title: l.purSelectOrder,
+                      message: l.purSelectOrderMessage,
                     )
                   : OrderDetail(key: ValueKey(_selected), orderId: _selected!),
             ),
@@ -209,12 +212,13 @@ class OrderDetail extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final canCost = ref.watch(sessionProvider)?.can(Perm.viewCost) ?? false;
     final products = ref.watch(purProductMapProvider).value ?? const {};
     return AsyncView(
       value: ref.watch(purOrderProvider(orderId)),
       data: (o) {
-        if (o == null) return const EmptyState(icon: Icons.search_off, title: 'Заказ не найден');
+        if (o == null) return EmptyState(icon: Icons.search_off, title: l.purOrderNotFound);
         final sup = ref.watch(purSupplierProvider(o.supplierId)).value;
         return AsyncView(
           value: ref.watch(purOrderItemsProvider(orderId)),
@@ -236,10 +240,10 @@ class OrderDetail extends ConsumerWidget {
                       () => ref
                           .read(purchasingRepoProvider)
                           .markOrdered(o.id, userId: ref.read(sessionProvider)?.user.id),
-                      success: 'Заказ №${o.number} отправлен поставщику',
+                      success: l.purOrderSent('${o.number}'),
                     ),
                     icon: const Icon(Icons.send_outlined),
-                    label: const Text('Отметить заказанным'),
+                    label: Text(l.purMarkOrdered),
                   )
                 : null;
             // A draft's next step is «Отметить заказанным»; receiving stays
@@ -251,12 +255,12 @@ class OrderDetail extends ConsumerWidget {
                     onPressed: () => showReceiveDialog(context, o),
                     icon: const Icon(Icons.move_to_inbox),
                     // Shares a phone row with «Изменить»: keep it one line.
-                    label: Text(context.isCompact ? 'Принять' : 'Принять товар'),
+                    label: Text(context.isCompact ? l.purReceiveShort : l.purReceiveGoods),
                   )
                 : FilledButton.icon(
                     onPressed: () => showReceiveDialog(context, o),
                     icon: const Icon(Icons.move_to_inbox),
-                    label: const Text('Принять товар'),
+                    label: Text(l.purReceiveGoods),
                   );
             final primary = markOrdered ?? receive;
             final secondary = <Widget>[
@@ -264,7 +268,7 @@ class OrderDetail extends ConsumerWidget {
                 OutlinedButton.icon(
                   onPressed: () => showPoEditor(context, order: o),
                   icon: const Icon(Icons.edit_outlined),
-                  label: const Text('Изменить'),
+                  label: Text(l.commonEdit),
                 ),
               if (receive != null && receive != primary) receive,
               if (sup != null && o.status != 'cancelled' && !draft)
@@ -276,11 +280,11 @@ class OrderDetail extends ConsumerWidget {
                     suggested: receivedEst - o.paid > 0 ? receivedEst - o.paid : null,
                   ),
                   icon: const Icon(Icons.payments_outlined),
-                  label: const Text('Оплатить'),
+                  label: Text(l.purPay),
                 ),
             ];
             final menu = PopupMenuButton<String>(
-              tooltip: 'Ещё',
+              tooltip: l.commonMore,
               onSelected: (a) async {
                 final db = ref.read(databaseProvider);
                 switch (a) {
@@ -293,20 +297,20 @@ class OrderDetail extends ConsumerWidget {
                 }
               },
               itemBuilder: (_) => [
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: 'print',
-                  child: ListTile(leading: Icon(Icons.print_outlined), title: Text('Печать')),
+                  child: ListTile(leading: const Icon(Icons.print_outlined), title: Text(l.commonPrint)),
                 ),
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: 'share',
-                  child: ListTile(leading: Icon(Icons.share_outlined), title: Text('Отправить PDF')),
+                  child: ListTile(leading: const Icon(Icons.share_outlined), title: Text(l.purActShare)),
                 ),
                 if (o.status == 'draft' || o.status == 'ordered')
                   PopupMenuItem(
                     value: 'cancel',
                     child: ListTile(
                       leading: const Icon(Icons.block, color: AppColors.danger),
-                      title: Text(items.any((i) => i.receivedQty > 0) ? 'Закрыть без остатка' : 'Отменить заказ'),
+                      title: Text(items.any((i) => i.receivedQty > 0) ? l.purCloseWithoutRest : l.purCancelOrder),
                     ),
                   ),
               ],
@@ -347,7 +351,7 @@ class OrderDetail extends ConsumerWidget {
                         children: [
                           Row(
                             children: [
-                              Flexible(child: Text('Заказ №${o.number}', style: t.textTheme.headlineSmall)),
+                              Flexible(child: Text(l.purOrderNumber('${o.number}'), style: t.textTheme.headlineSmall)),
                               const SizedBox(width: Gap.s),
                               poStatusChip(shownStatus),
                             ],
@@ -355,9 +359,9 @@ class OrderDetail extends ConsumerWidget {
                           Text(sup?.name ?? '—', style: t.textTheme.titleMedium),
                           Text(
                             [
-                              'создан ${formatDateTime(o.createdAt)}',
-                              if (o.expectedAt != null) 'ожидается ${formatDate(o.expectedAt!)}',
-                              if (o.receivedAt != null) 'получен ${formatDateTime(o.receivedAt!)}',
+                              l.purCreatedOn(formatDateTime(o.createdAt)),
+                              if (o.expectedAt != null) l.purExpectedOn(formatDate(o.expectedAt!)),
+                              if (o.receivedAt != null) l.purReceivedOn(formatDateTime(o.receivedAt!)),
                             ].join(' · '),
                             style: t.textTheme.bodySmall,
                           ),
@@ -374,9 +378,9 @@ class OrderDetail extends ConsumerWidget {
                     spacing: Gap.m,
                     runSpacing: Gap.s,
                     children: [
-                      StatusChip('Сумма заказа ${Money.format(ordered)}', color: AppColors.info),
-                      StatusChip('Получено на сумму ${Money.format(receivedEst)}', color: AppColors.success),
-                      StatusChip('Оплачено ${Money.format(o.paid)}', color: AppColors.warning),
+                      StatusChip(l.purOrderAmount(Money.format(ordered)), color: AppColors.info),
+                      StatusChip(l.purReceivedAmount(Money.format(receivedEst)), color: AppColors.success),
+                      StatusChip(l.purPaidAmount(Money.format(o.paid)), color: AppColors.warning),
                     ],
                   ),
                 if (o.note != null)
@@ -393,7 +397,7 @@ class OrderDetail extends ConsumerWidget {
                         _ItemRow(it: items[i], p: products[items[i].productId], canCost: canCost),
                       ],
                       if (items.isEmpty)
-                        const Padding(padding: EdgeInsets.all(Gap.l), child: Text('Позиции не добавлены')),
+                        Padding(padding: const EdgeInsets.all(Gap.l), child: Text(l.purNoLinesAdded)),
                     ],
                   ),
                 ),
@@ -408,10 +412,11 @@ class OrderDetail extends ConsumerWidget {
 
   Future<void> _cancel(BuildContext context, WidgetRef ref, PurchaseOrder o, List<PurchaseOrderItem> items) async {
     final partial = items.any((i) => i.receivedQty > 0);
+    final l = context.l10n;
     final reason = await promptText(
       context,
-      title: partial ? 'Закрыть заказ №${o.number} без остатка?' : 'Отменить заказ №${o.number}?',
-      label: 'Причина',
+      title: partial ? l.purCloseOrderTitle('${o.number}') : l.purCancelOrderTitle('${o.number}'),
+      label: l.commonReason,
       required: false,
     );
     if (reason == null || !context.mounted) return;
@@ -420,7 +425,7 @@ class OrderDetail extends ConsumerWidget {
       () => ref
           .read(purchasingRepoProvider)
           .cancelOrder(o.id, userId: ref.read(sessionProvider)?.user.id, reason: reason),
-      success: partial ? 'Заказ закрыт' : 'Заказ отменён',
+      success: partial ? l.purOrderClosed : l.purOrderCancelled,
     );
   }
 }
@@ -435,13 +440,13 @@ class OrderReceipts extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final muted = t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant);
     final async = ref.watch(purOrderReceiptsProvider(orderId));
     return SectionCard(
-      title: 'Приходы по заказу',
+      title: l.purOrderReceipts,
       subtitle: switch (async) {
-        AsyncData(:final value) when value.isNotEmpty =>
-          '${value.length} ${pluralRu(value.length, 'документ', 'документа', 'документов')}',
+        AsyncData(:final value) when value.isNotEmpty => l.commonDocumentsCount(value.length),
         _ => null,
       },
       child: switch (async) {
@@ -449,7 +454,7 @@ class OrderReceipts extends ConsumerWidget {
           error: error,
           onRetry: () => ref.invalidate(purOrderReceiptsProvider(orderId)),
         ),
-        AsyncData(:final value) when value.isEmpty => Text('Товар по заказу ещё не принимали', style: muted),
+        AsyncData(:final value) when value.isEmpty => Text(l.purNoReceiptsYet, style: muted),
         AsyncData(:final value) => Column(
           children: [
             for (var i = 0; i < value.length; i++) ...[
@@ -472,6 +477,7 @@ class _ReceiptTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final reversed = r.status == ReceiptStatus.reversed;
     return ListTile(
       contentPadding: EdgeInsets.zero,
@@ -479,9 +485,9 @@ class _ReceiptTile extends StatelessWidget {
         reversed ? Icons.undo : Icons.move_to_inbox_outlined,
         color: reversed ? AppColors.danger : AppColors.success,
       ),
-      title: Text('Приход №${r.number}', style: TextStyle(decoration: reversed ? TextDecoration.lineThrough : null)),
+      title: Text(l.purReceiptNumber('${r.number}'), style: TextStyle(decoration: reversed ? TextDecoration.lineThrough : null)),
       subtitle: Text(
-        [formatDateTime(r.createdAt), if (r.supplierInvoice != null) 'накл. ${r.supplierInvoice}'].join(' · '),
+        [formatDateTime(r.createdAt), if (r.supplierInvoice != null) l.purInvoiceShort(r.supplierInvoice!)].join(' · '),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
@@ -515,6 +521,7 @@ class _ItemRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final unit = p?.unit ?? 'pcs';
     final rest = remainingQty(it);
     final progress = it.qty <= 0 ? 0.0 : (it.receivedQty / it.qty).clamp(0.0, 1.0);
@@ -532,11 +539,11 @@ class _ItemRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(p?.name ?? 'Удалённый товар', style: t.textTheme.bodyLarge),
+                    Text(p?.name ?? l.purDeletedProduct, style: t.textTheme.bodyLarge),
                     const SizedBox(height: 2),
                     Text(
-                      'заказано ${Qty.format(it.qty, unit)} · принято ${Qty.format(it.receivedQty, unit)}'
-                      '${rest > 0 ? ' · осталось ${Qty.format(rest, unit)}' : ''}',
+                      l.purItemProgress(Qty.format(it.qty, unit), Qty.format(it.receivedQty, unit)) +
+                          (rest > 0 ? l.purItemRestSuffix(Qty.format(rest, unit)) : ''),
                       style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant),
                     ),
                   ],
@@ -681,7 +688,7 @@ class _PoEditorState extends ConsumerState<PoEditor> {
     final p = await findByCode(ref.read(databaseProvider), code);
     if (!mounted) return;
     if (p == null) {
-      showError(context, 'Товар «${code.trim()}» не найден');
+      showError(context, context.l10n.purProductNotFound(code.trim()));
     } else {
       _add(p);
     }
@@ -690,12 +697,13 @@ class _PoEditorState extends ConsumerState<PoEditor> {
 
   Future<void> _save({bool send = false}) async {
     if (_busy) return;
+    final loc = context.l10n;
     if (_supplierId == null) {
-      showError(context, 'Выберите поставщика');
+      showError(context, loc.purSelectSupplier);
       return;
     }
     if (_lines.isEmpty) {
-      showError(context, 'Добавьте хотя бы один товар');
+      showError(context, loc.purAddOneProduct);
       return;
     }
     if (!_key.currentState!.validate()) return;
@@ -713,7 +721,7 @@ class _PoEditorState extends ConsumerState<PoEditor> {
       );
       if (send) await repo.markOrdered(id, userId: uid);
       if (!mounted) return;
-      showSuccess(context, send ? 'Заказ сохранён и отмечен как отправленный' : 'Черновик заказа сохранён');
+      showSuccess(context, send ? loc.purOrderSavedSent : loc.purDraftSaved);
       Navigator.pop(context, id);
     } catch (e) {
       if (!mounted) return;
@@ -725,6 +733,7 @@ class _PoEditorState extends ConsumerState<PoEditor> {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final loc = context.l10n;
     final suppliers = ref.watch(purSuppliersProvider).value ?? const <Supplier>[];
     if (_loading) return const SizedBox(height: 200, child: LoadingView());
     final total = _lines.fold<int>(0, (s, l) => s + l.total);
@@ -733,8 +742,8 @@ class _PoEditorState extends ConsumerState<PoEditor> {
       key: ValueKey('posup${suppliers.length}'),
       initialValue: suppliers.any((s) => s.id == _supplierId) ? _supplierId : null,
       isExpanded: true,
-      decoration: const InputDecoration(labelText: 'Поставщик *'),
-      validator: (v) => v == null ? 'Выберите поставщика' : null,
+      decoration: InputDecoration(labelText: loc.purSupplierRequired),
+      validator: (v) => v == null ? loc.purSelectSupplier : null,
       items: [
         for (final s in suppliers)
           DropdownMenuItem(
@@ -747,7 +756,7 @@ class _PoEditorState extends ConsumerState<PoEditor> {
     final dateBtn = OutlinedButton.icon(
       style: OutlinedButton.styleFrom(minimumSize: const Size(0, 52)),
       icon: const Icon(Icons.event_outlined),
-      label: Text(_expected == null ? 'Дата поставки' : 'Поставка ${formatDate(_expected!)}'),
+      label: Text(_expected == null ? loc.purDeliveryDate : loc.purDeliveryOn(formatDate(_expected!))),
       onPressed: () async {
         final now = DateTime.now();
         final d = await showDatePicker(
@@ -761,7 +770,7 @@ class _PoEditorState extends ConsumerState<PoEditor> {
     );
     final noteField = TextField(
       controller: _note,
-      decoration: const InputDecoration(labelText: 'Примечание'),
+      decoration: InputDecoration(labelText: loc.commonNote),
     );
     final header = LayoutBuilder(
       builder: (context, c) {
@@ -805,30 +814,27 @@ class _PoEditorState extends ConsumerState<PoEditor> {
                     controller: _scan,
                     focusNode: _scanFocus,
                     autofocus: widget.order == null && _supplierId != null,
-                    decoration: const InputDecoration(labelText: 'Штрихкод', prefixIcon: Icon(Icons.qr_code_scanner)),
+                    decoration: InputDecoration(labelText: loc.commonBarcode, prefixIcon: const Icon(Icons.qr_code_scanner)),
                     onSubmitted: _onScan,
                   ),
                 ),
                 const SizedBox(width: Gap.s),
                 FilledButton.tonalIcon(
                   onPressed: () async {
-                    final p = await pickProduct(context, title: 'Добавить в заказ');
+                    final p = await pickProduct(context, title: loc.purAddToOrder);
                     if (p != null) _add(p);
                   },
                   icon: const Icon(Icons.add),
-                  label: const Text('Товар'),
+                  label: Text(loc.commonProduct),
                 ),
               ],
             ),
             const SizedBox(height: Gap.m),
             Flexible(
               child: _lines.isEmpty
-                  ? const Padding(
-                      padding: EdgeInsets.all(Gap.xl),
-                      child: Text(
-                        'Добавьте товары: сканером, кнопкой «Товар» или из вкладки «Автозаказ»',
-                        textAlign: TextAlign.center,
-                      ),
+                  ? Padding(
+                      padding: const EdgeInsets.all(Gap.xl),
+                      child: Text(loc.purEditorEmptyHint, textAlign: TextAlign.center),
                     )
                   : ListView.separated(
                       shrinkWrap: true,
@@ -839,24 +845,24 @@ class _PoEditorState extends ConsumerState<PoEditor> {
                         final qty = TextFormField(
                           controller: l.qty,
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          decoration: InputDecoration(labelText: 'Кол-во', suffixText: Qty.unitLabel(l.product.unit)),
+                          decoration: InputDecoration(labelText: loc.purPoColQty, suffixText: Qty.unitLabel(l.product.unit)),
                           onChanged: (_) => setState(() {}),
                           validator: (v) {
                             final q = QtyField.parse(v ?? '');
-                            if (q == null || q <= 0) return 'Больше 0';
-                            if (!Qty.isFractional(l.product.unit) && q != q.roundToDouble()) return 'Целое';
+                            if (q == null || q <= 0) return loc.purQtyMoreThanZeroCap;
+                            if (!Qty.isFractional(l.product.unit) && q != q.roundToDouble()) return loc.purQtyWholeCap;
                             return null;
                           },
                         );
                         final cost = TextFormField(
                           controller: l.cost,
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          decoration: InputDecoration(labelText: 'Цена', suffixText: Money.currency.symbol),
+                          decoration: InputDecoration(labelText: loc.commonPrice, suffixText: Money.currency.symbol),
                           onChanged: (_) => setState(() {}),
                           validator: (v) {
-                            if ((v ?? '').trim().isEmpty) return 'Укажите цену';
+                            if ((v ?? '').trim().isEmpty) return loc.purEnterPrice;
                             final m = Money.parse(v!);
-                            return m == null || m < 0 ? 'Неверно' : null;
+                            return m == null || m < 0 ? loc.purInvalid : null;
                           },
                         );
                         return Padding(
@@ -865,14 +871,14 @@ class _PoEditorState extends ConsumerState<PoEditor> {
                           child: _LineLayout(
                             title: Text(l.product.name, maxLines: 2, overflow: TextOverflow.ellipsis),
                             subtitle: Text(
-                              'остаток ${Qty.format(l.product.stockQty, l.product.unit)}',
+                              loc.purStockValue(Qty.format(l.product.stockQty, l.product.unit)),
                               style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant),
                             ),
                             qty: qty,
                             cost: cost,
                             total: Text(Money.format(l.total), style: const TextStyle(fontWeight: FontWeight.w600)),
                             trailing: IconButton(
-                              tooltip: 'Удалить строку',
+                              tooltip: loc.purDeleteLine,
                               onPressed: () => setState(() {
                                 _lines.remove(l);
                                 l.dispose();
@@ -892,17 +898,17 @@ class _PoEditorState extends ConsumerState<PoEditor> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    'Итого: ${Money.format(total)} · позиций ${_lines.length}',
+                    loc.purEditorTotal(Money.format(total), '${_lines.length}'),
                     style: t.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: Gap.s),
                   FilledButton.icon(
                     onPressed: _busy ? null : () => _save(send: true),
                     icon: const Icon(Icons.send_outlined),
-                    label: const Text('Сохранить и отправить'),
+                    label: Text(loc.purSaveAndSend),
                   ),
                   const SizedBox(height: Gap.s),
-                  OutlinedButton(onPressed: _busy ? null : () => _save(), child: const Text('Сохранить черновик')),
+                  OutlinedButton(onPressed: _busy ? null : () => _save(), child: Text(loc.purSaveDraft)),
                 ],
               )
             else
@@ -913,18 +919,18 @@ class _PoEditorState extends ConsumerState<PoEditor> {
                 runSpacing: Gap.s,
                 children: [
                   Text(
-                    'Итого: ${Money.format(total)} · позиций ${_lines.length}',
+                    loc.purEditorTotal(Money.format(total), '${_lines.length}'),
                     style: t.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
                   ),
                   Wrap(
                     spacing: Gap.s,
                     runSpacing: Gap.s,
                     children: [
-                      OutlinedButton(onPressed: _busy ? null : () => _save(), child: const Text('Сохранить черновик')),
+                      OutlinedButton(onPressed: _busy ? null : () => _save(), child: Text(loc.purSaveDraft)),
                       FilledButton.icon(
                         onPressed: _busy ? null : () => _save(send: true),
                         icon: const Icon(Icons.send_outlined),
-                        label: const Text('Сохранить и отправить'),
+                        label: Text(loc.purSaveAndSend),
                       ),
                     ],
                   ),
@@ -940,7 +946,12 @@ class _PoEditorState extends ConsumerState<PoEditor> {
 // ------------------------------------------------------------------ receive
 
 Future<void> showReceiveDialog(BuildContext context, PurchaseOrder o) =>
-    showFormDialog<void>(context, title: 'Приёмка по заказу №${o.number}', width: 860, child: _ReceiveForm(o));
+    showFormDialog<void>(
+      context,
+      title: context.l10n.purReceiveTitle('${o.number}'),
+      width: 860,
+      child: _ReceiveForm(o),
+    );
 
 class _RecLine {
   _RecLine(this.item, this.product)
@@ -1000,21 +1011,21 @@ class _ReceiveFormState extends ConsumerState<_ReceiveForm> {
   Future<void> _submit() async {
     final lines = _lines!;
     if (_busy || !_key.currentState!.validate()) return;
+    final loc = context.l10n;
     final active = lines.where((l) => l.q > 0).toList();
     if (active.isEmpty) {
-      showError(context, 'Укажите принятое количество хотя бы по одной позиции');
+      showError(context, loc.purReceiveEnterQty);
       return;
     }
     final value = active.fold<int>(0, (s, l) => s + (l.q * l.c).round());
     final full = lines.every((l) => l.q >= remainingQty(l.item));
     final ok = await confirm(
       context,
-      title: 'Принять товар?',
+      title: loc.purReceiveConfirmTitle,
       message:
-          'Позиций: ${active.length} на сумму ${Money.format(value)}.\n'
-          'Остатки увеличатся, долг поставщику вырастет на эту сумму.\n'
-          '${full ? 'Заказ будет закрыт как полученный.' : 'Заказ останется открытым — недопоставку можно принять позже.'}',
-      ok: 'Принять',
+          '${loc.purReceiveConfirmMessage('${active.length}', Money.format(value))}\n'
+          '${full ? loc.purReceiveWillClose : loc.purReceiveStaysOpen}',
+      ok: loc.purReceiveShort,
     );
     if (!ok || !mounted) return;
     setState(() => _busy = true);
@@ -1030,8 +1041,8 @@ class _ReceiveFormState extends ConsumerState<_ReceiveForm> {
       if (!mounted) return;
       showSuccess(
         context,
-        'Приход №${r.receipt.number} проведён на ${Money.format(r.result.value)}'
-        '${r.result.fullyReceived ? ' — заказ получен полностью' : ''}',
+        loc.purReceiptPosted('${r.receipt.number}', Money.format(r.result.value)) +
+            (r.result.fullyReceived ? loc.purFullyReceivedSuffix : ''),
       );
       Navigator.pop(context);
     } catch (e) {
@@ -1044,10 +1055,11 @@ class _ReceiveFormState extends ConsumerState<_ReceiveForm> {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final loc = context.l10n;
     final lines = _lines;
     if (lines == null) return const SizedBox(height: 200, child: LoadingView());
     if (lines.isEmpty) {
-      return const Padding(padding: EdgeInsets.all(Gap.xl), child: Text('Все позиции заказа уже приняты'));
+      return Padding(padding: const EdgeInsets.all(Gap.xl), child: Text(loc.purAllReceived));
     }
     final value = lines.fold<int>(0, (s, l) => s + (l.q * l.c).round());
     return Form(
@@ -1061,9 +1073,9 @@ class _ReceiveFormState extends ConsumerState<_ReceiveForm> {
             TextField(
               controller: _invoice,
               maxLength: 60,
-              decoration: const InputDecoration(
-                labelText: '№ накладной поставщика',
-                prefixIcon: Icon(Icons.description_outlined),
+              decoration: InputDecoration(
+                labelText: loc.purSupplierInvoiceNo,
+                prefixIcon: const Icon(Icons.description_outlined),
                 counterText: '',
               ),
             ),
@@ -1078,7 +1090,7 @@ class _ReceiveFormState extends ConsumerState<_ReceiveForm> {
                     }
                   }),
                   icon: const Icon(Icons.done_all),
-                  label: const Text('Всё по заказу'),
+                  label: Text(loc.purAllAsOrdered),
                 ),
                 TextButton.icon(
                   onPressed: () => setState(() {
@@ -1087,7 +1099,7 @@ class _ReceiveFormState extends ConsumerState<_ReceiveForm> {
                     }
                   }),
                   icon: const Icon(Icons.exposure_zero),
-                  label: const Text('Обнулить'),
+                  label: Text(loc.purZeroAll),
                 ),
               ],
             ),
@@ -1104,26 +1116,26 @@ class _ReceiveFormState extends ConsumerState<_ReceiveForm> {
                     controller: l.qty,
                     autofocus: i == 0,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: InputDecoration(labelText: 'Принято', suffixText: Qty.unitLabel(unit)),
+                    decoration: InputDecoration(labelText: loc.purReceivedField, suffixText: Qty.unitLabel(unit)),
                     onChanged: (_) => setState(() {}),
                     onFieldSubmitted: (_) => _submit(),
                     validator: (v) {
                       final q = QtyField.parse(v ?? '');
-                      if (q == null || q < 0) return 'Число ≥ 0';
-                      if (q > rest + 1e-9) return 'Макс. ${Qty.format(rest)}';
-                      if (!Qty.isFractional(unit) && q != q.roundToDouble()) return 'Целое';
+                      if (q == null || q < 0) return loc.purNumberGeZero;
+                      if (q > rest + 1e-9) return loc.purMaxQty(Qty.format(rest));
+                      if (!Qty.isFractional(unit) && q != q.roundToDouble()) return loc.purQtyWholeCap;
                       return null;
                     },
                   );
                   final cost = TextFormField(
                     controller: l.cost,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: InputDecoration(labelText: 'Цена закупки', suffixText: Money.currency.symbol),
+                    decoration: InputDecoration(labelText: loc.purPurchasePrice, suffixText: Money.currency.symbol),
                     onChanged: (_) => setState(() {}),
                     validator: (v) {
-                      if ((v ?? '').trim().isEmpty) return 'Укажите цену';
+                      if ((v ?? '').trim().isEmpty) return loc.purEnterPrice;
                       final m = Money.parse(v!);
-                      return m == null || m < 0 ? 'Неверно' : null;
+                      return m == null || m < 0 ? loc.purInvalid : null;
                     },
                   );
                   return Padding(
@@ -1132,7 +1144,7 @@ class _ReceiveFormState extends ConsumerState<_ReceiveForm> {
                     child: _LineLayout(
                       title: Text(l.product?.name ?? '—', maxLines: 2, overflow: TextOverflow.ellipsis),
                       subtitle: Text(
-                        'заказано ${Qty.format(l.item.qty, unit)} · осталось ${Qty.format(rest, unit)}',
+                        loc.purOrderedRest(Qty.format(l.item.qty, unit), Qty.format(rest, unit)),
                         style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant),
                       ),
                       qty: qty,
@@ -1153,14 +1165,14 @@ class _ReceiveFormState extends ConsumerState<_ReceiveForm> {
               children: [
                 Expanded(
                   child: Text(
-                    'К оприходованию: ${Money.format(value)}',
+                    loc.purToPost(Money.format(value)),
                     style: t.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
                   ),
                 ),
                 FilledButton.icon(
                   onPressed: _busy ? null : _submit,
                   icon: const Icon(Icons.move_to_inbox),
-                  label: const Text('Принять'),
+                  label: Text(loc.purReceiveShort),
                 ),
               ],
             ),

@@ -10,16 +10,24 @@ import '../../core/widgets/widgets.dart';
 import 'inventory_logic.dart';
 import 'receipt_document.dart';
 import 'stock_tab.dart' show InvChipBar;
+import '../../l10n/l10n.dart';
 
 enum ReceiptPeriod {
-  today('Сегодня'),
-  week('7 дней'),
-  month('30 дней'),
-  all('Всё время'),
-  custom('Период…');
+  today,
+  week,
+  month,
+  all,
+  custom;
 
-  const ReceiptPeriod(this.label);
-  final String label;
+  String labelIn(AppLocalizations l) => switch (this) {
+    ReceiptPeriod.today => l.commonToday,
+    ReceiptPeriod.week => l.invDays7,
+    ReceiptPeriod.month => l.invDays30,
+    ReceiptPeriod.all => l.invAllTime,
+    ReceiptPeriod.custom => l.invPeriodCustom,
+  };
+
+  String get label => labelIn(L.current);
 }
 
 /// Builds the list filter for a period (from inclusive, to exclusive).
@@ -78,7 +86,7 @@ class _ReceiptDocumentsViewState extends ConsumerState<ReceiptDocumentsView> {
       firstDate: DateTime(now.year - 5),
       lastDate: now,
       initialDateRange: _range,
-      helpText: 'Период документов',
+      helpText: context.l10n.invDocsPeriod,
     );
     if (r != null && mounted) {
       setState(() {
@@ -91,22 +99,23 @@ class _ReceiptDocumentsViewState extends ConsumerState<ReceiptDocumentsView> {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final compact = context.isCompact;
     final suppliers = ref.watch(invSuppliersProvider).value ?? const <Supplier>[];
     final supplierNames = ref.watch(invSupplierNamesProvider).value ?? const <String, String>{};
     final f = _filter;
 
     final search = SearchField(
-      hint: compact ? '№ или накладная' : 'Поиск: № прихода или накладной',
+      hint: compact ? l.invSearchShort : l.invSearchLong,
       onChanged: (v) => setState(() => _search = v),
     );
     final supplier = DropdownButtonFormField<String?>(
       key: ValueKey('rsup$_supplierId${suppliers.length}'),
       initialValue: suppliers.any((s) => s.id == _supplierId) ? _supplierId : null,
       isExpanded: true,
-      decoration: const InputDecoration(labelText: 'Поставщик'),
+      decoration: InputDecoration(labelText: l.commonSupplier),
       items: [
-        const DropdownMenuItem(value: null, child: Text('Все поставщики')),
+        DropdownMenuItem(value: null, child: Text(l.invAllSuppliers)),
         for (final s in suppliers)
           DropdownMenuItem(
             value: s.id,
@@ -118,10 +127,10 @@ class _ReceiptDocumentsViewState extends ConsumerState<ReceiptDocumentsView> {
     final status = DropdownButtonFormField<String?>(
       initialValue: _status,
       isExpanded: true,
-      decoration: const InputDecoration(labelText: 'Статус'),
+      decoration: InputDecoration(labelText: l.commonStatus),
       items: [
-        const DropdownMenuItem(value: null, child: Text('Все')),
-        for (final e in receiptStatusLabels.entries) DropdownMenuItem(value: e.key, child: Text(e.value)),
+        DropdownMenuItem(value: null, child: Text(l.commonAll)),
+        for (final e in receiptStatusLabelsOf(l).entries) DropdownMenuItem(value: e.key, child: Text(e.value)),
       ],
       onChanged: (v) => setState(() => _status = v),
     );
@@ -131,7 +140,7 @@ class _ReceiptDocumentsViewState extends ConsumerState<ReceiptDocumentsView> {
           label: Text(
             p == ReceiptPeriod.custom && _range != null && _period == ReceiptPeriod.custom
                 ? '${formatDate(_range!.start)} – ${formatDate(_range!.end)}'
-                : p.label,
+                : p.labelIn(l),
           ),
           selected: _period == p,
           onSelected: (_) => p == ReceiptPeriod.custom ? _pickRange() : setState(() => _period = p),
@@ -184,10 +193,8 @@ class _ReceiptDocumentsViewState extends ConsumerState<ReceiptDocumentsView> {
               if (rows.isEmpty) {
                 return EmptyState(
                   icon: Icons.receipt_long_outlined,
-                  title: 'Документов нет',
-                  message: _filtered
-                      ? 'Измените фильтры или период'
-                      : 'Проведённые приходы появятся здесь',
+                  title: l.invNoDocs,
+                  message: _filtered ? l.invChangeFiltersOrPeriod : l.invPostedAppearHere,
                 );
               }
               final posted = rows.where((r) => r.receipt.status == ReceiptStatus.posted);
@@ -196,9 +203,8 @@ class _ReceiptDocumentsViewState extends ConsumerState<ReceiptDocumentsView> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    'Документов: ${rows.length}'
-                    '${rows.length >= receiptsLimit ? ' (показаны последние $receiptsLimit — уточните фильтр)' : ''}'
-                    ' · проведено на ${Money.format(sum)}',
+                    '${rows.length >= receiptsLimit ? l.invDocsCountLimited('${rows.length}', '$receiptsLimit') : l.invDocsCount('${rows.length}')}'
+                    ' · ${l.invPostedFor(Money.format(sum))}',
                     style: t.textTheme.bodySmall,
                   ),
                   const SizedBox(height: Gap.s),
@@ -219,11 +225,11 @@ class _ReceiptDocumentsViewState extends ConsumerState<ReceiptDocumentsView> {
   }
 }
 
-String _supplierOf(GoodsReceipt r, Map<String, String> names) =>
-    r.supplierId == null ? 'Без поставщика' : names[r.supplierId] ?? 'Удалённый поставщик';
+String _supplierOf(GoodsReceipt r, Map<String, String> names, AppLocalizations l) =>
+    r.supplierId == null ? l.invNoSupplier : names[r.supplierId] ?? l.invDeletedSupplier;
 
-String? _sourceOf(ReceiptListRow row) =>
-    row.orderNumber != null ? 'Заказ №${row.orderNumber}' : (row.receipt.orderId != null ? 'Заказ' : null);
+String? _sourceOf(ReceiptListRow row, AppLocalizations l) =>
+    row.orderNumber != null ? l.invOrderRef('${row.orderNumber}') : (row.receipt.orderId != null ? l.invOrder : null);
 
 class _ReceiptsTable extends StatelessWidget {
   const _ReceiptsTable({required this.rows, required this.suppliers});
@@ -235,6 +241,7 @@ class _ReceiptsTable extends StatelessWidget {
     final t = Theme.of(context);
     final head = t.textTheme.labelMedium?.copyWith(color: t.colorScheme.onSurfaceVariant, fontWeight: FontWeight.w600);
     final muted = t.colorScheme.onSurfaceVariant;
+    final l = context.l10n;
     Widget cells({
       required Widget no,
       required Widget date,
@@ -269,14 +276,14 @@ class _ReceiptsTable extends StatelessWidget {
             color: t.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
             padding: const EdgeInsets.symmetric(horizontal: Gap.l, vertical: Gap.m),
             child: cells(
-              no: txt('№', style: head),
-              date: txt('Дата', style: head),
-              supplier: txt('Поставщик', style: head),
-              invoice: txt('Накладная', style: head),
-              lines: txt('Позиций', style: head),
-              total: txt('Сумма', style: head),
-              status: txt('Статус', style: head),
-              source: txt('Источник', style: head),
+              no: txt(l.invNoHeader, style: head),
+              date: txt(l.commonDate, style: head),
+              supplier: txt(l.commonSupplier, style: head),
+              invoice: txt(l.invInvoice, style: head),
+              lines: txt(l.invPositionsHeader, style: head),
+              total: txt(l.commonAmount, style: head),
+              status: txt(l.commonStatus, style: head),
+              source: txt(l.invSource, style: head),
             ),
           ),
           const Divider(height: 1),
@@ -294,9 +301,9 @@ class _ReceiptsTable extends StatelessWidget {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: Gap.l, vertical: Gap.m),
                     child: cells(
-                      no: txt('№${r.number}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                      no: txt(l.invNumber('${r.number}'), style: const TextStyle(fontWeight: FontWeight.w700)),
                       date: txt(formatDateTime(r.createdAt)),
-                      supplier: txt(_supplierOf(r, suppliers)),
+                      supplier: txt(_supplierOf(r, suppliers, l)),
                       invoice: txt(r.supplierInvoice ?? '—', style: TextStyle(color: r.supplierInvoice == null ? muted : null)),
                       lines: txt('${row.lineCount}'),
                       total: txt(
@@ -308,7 +315,7 @@ class _ReceiptsTable extends StatelessWidget {
                         ),
                       ),
                       status: ReceiptStatusChip(r.status),
-                      source: txt(_sourceOf(row) ?? '—', style: TextStyle(color: _sourceOf(row) == null ? muted : null)),
+                      source: txt(_sourceOf(row, l) ?? '—', style: TextStyle(color: _sourceOf(row, l) == null ? muted : null)),
                     ),
                   ),
                 );
@@ -330,6 +337,7 @@ class _ReceiptsCards extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = Theme.of(context);
     final sub = t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant);
+    final l = context.l10n;
     return ListView.builder(
       itemCount: rows.length,
       itemBuilder: (context, i) {
@@ -337,8 +345,8 @@ class _ReceiptsCards extends StatelessWidget {
         final r = row.receipt;
         final reversed = r.status == ReceiptStatus.reversed;
         final extra = [
-          if (r.supplierInvoice != null) 'накл. ${r.supplierInvoice}',
-          ?_sourceOf(row),
+          if (r.supplierInvoice != null) l.invInvoiceShort(r.supplierInvoice!),
+          ?_sourceOf(row, l),
         ].join(' · ');
         return Card(
           key: ValueKey('receipt-row-${r.id}'),
@@ -355,7 +363,7 @@ class _ReceiptsCards extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          'Приход №${r.number}',
+                          l.invReceiptRef('${r.number}'),
                           style: t.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
                         ),
                       ),
@@ -364,7 +372,7 @@ class _ReceiptsCards extends StatelessWidget {
                   ),
                   const SizedBox(height: Gap.xs),
                   Text(
-                    '${formatDateTime(r.createdAt)} · ${_supplierOf(r, suppliers)}',
+                    '${formatDateTime(r.createdAt)} · ${_supplierOf(r, suppliers, l)}',
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: sub,
@@ -375,7 +383,7 @@ class _ReceiptsCards extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          '${row.lineCount} ${pluralRu(row.lineCount, 'позиция', 'позиции', 'позиций')}',
+                          l.commonPositionsCount(row.lineCount),
                           style: t.textTheme.bodyMedium,
                         ),
                       ),

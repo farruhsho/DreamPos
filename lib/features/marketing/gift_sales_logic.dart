@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/db/database.dart';
 import '../../core/providers.dart';
 import '../../domain/services/gift_card_service.dart';
+import '../../l10n/l10n.dart';
 
 export '../../domain/services/gift_card_service.dart'
     show
@@ -18,7 +19,17 @@ export '../../domain/services/gift_card_service.dart'
         giftSaleMethods,
         giftSalesByMethod;
 
-const giftSaleStatusLabels = {GiftSaleStatus.completed: 'Проведена', GiftSaleStatus.voided: 'Аннулирована'};
+/// Status labels of sale documents in display order.
+Map<String, String> giftSaleStatusLabelsIn(AppLocalizations l) => {
+  GiftSaleStatus.completed: l.mktSaleCompleted,
+  GiftSaleStatus.voided: l.mktSaleVoidedStatus,
+};
+
+/// [giftSaleStatusLabelsIn] in the current UI language.
+Map<String, String> get giftSaleStatusLabels => giftSaleStatusLabelsIn(L.current);
+
+String giftSaleStatusLabel(String status, [AppLocalizations? l]) =>
+    giftSaleStatusLabelsIn(l ?? L.current)[status] ?? status;
 
 /// List filter. [from] inclusive, [to] exclusive (both by createdAt);
 /// [status] null = all; [giftCardId] limits to one card's documents.
@@ -132,6 +143,7 @@ final giftSaleByCardProvider = StreamProvider.autoDispose.family<GiftCardSale?, 
 /// Why the sale cannot be voided (tooltip), or null when it can. Does not
 /// check the shift or permissions — the UI does.
 final giftSaleVoidBlockReasonProvider = StreamProvider.autoDispose.family<String?, String>((ref, saleId) {
+  ref.watch(uiLocaleProvider); // reason text is built with L.current
   final db = ref.watch(databaseProvider);
   final svc = ref.watch(giftCardServiceProvider);
   return db

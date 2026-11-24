@@ -6,27 +6,30 @@ import '../../core/money.dart';
 import '../../core/permissions.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
+import '../../l10n/l10n.dart';
 import 'staff_logic.dart';
 import 'staff_providers.dart';
 import 'staff_widgets.dart';
 import 'user_form_dialog.dart';
 
-const _months = [
-  'Январь',
-  'Февраль',
-  'Март',
-  'Апрель',
-  'Май',
-  'Июнь',
-  'Июль',
-  'Август',
-  'Сентябрь',
-  'Октябрь',
-  'Ноябрь',
-  'Декабрь',
-];
-
-String monthTitle(DateTime m) => '${_months[m.month - 1]} ${m.year}';
+String monthTitle(DateTime m, [AppLocalizations? loc]) {
+  final l = loc ?? L.current;
+  final names = [
+    l.staffMonth1,
+    l.staffMonth2,
+    l.staffMonth3,
+    l.staffMonth4,
+    l.staffMonth5,
+    l.staffMonth6,
+    l.staffMonth7,
+    l.staffMonth8,
+    l.staffMonth9,
+    l.staffMonth10,
+    l.staffMonth11,
+    l.staffMonth12,
+  ];
+  return '${names[m.month - 1]} ${m.year}';
+}
 
 class MotivationTab extends ConsumerStatefulWidget {
   const MotivationTab({super.key});
@@ -47,24 +50,25 @@ class _MotivationTabState extends ConsumerState<MotivationTab> {
   Widget build(BuildContext context) {
     final rows = ref.watch(motivationProvider(_month));
     final t = Theme.of(context);
+    final l = context.l10n;
     final nav = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         IconButton(
-          tooltip: 'Предыдущий месяц',
+          tooltip: l.staffPrevMonth,
           onPressed: () => setState(() => _month = DateTime(_month.year, _month.month - 1)),
           icon: const Icon(Icons.chevron_left),
         ),
-        Text(monthTitle(_month), style: t.textTheme.titleMedium),
+        Text(monthTitle(_month, l), style: t.textTheme.titleMedium),
         IconButton(
-          tooltip: 'Следующий месяц',
+          tooltip: l.staffNextMonth,
           onPressed: _isCurrent ? null : () => setState(() => _month = DateTime(_month.year, _month.month + 1)),
           icon: const Icon(Icons.chevron_right),
         ),
         if (!_isCurrent)
           TextButton(
             onPressed: () => setState(() => _month = DateTime(DateTime.now().year, DateTime.now().month)),
-            child: const Text('Текущий'),
+            child: Text(l.staffCurrentMonth),
           ),
       ],
     );
@@ -76,7 +80,7 @@ class _MotivationTabState extends ConsumerState<MotivationTab> {
       children: [
         nav,
         Text(
-          'Выручка продавца без аннулированных чеков, за вычетом возвратов, сделанных в этом месяце',
+          l.staffMotivationHint,
           style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant),
         ),
       ],
@@ -92,11 +96,11 @@ class _MotivationTabState extends ConsumerState<MotivationTab> {
             onRetry: () => ref.invalidate(motivationProvider(_month)),
             data: (list) {
               if (list.isEmpty) {
-                return const FillScroll(
+                return FillScroll(
                   child: EmptyState(
                     icon: Icons.emoji_events_outlined,
-                    title: 'Нет продавцов',
-                    message: 'Задайте сотрудникам план продаж и комиссию в карточке сотрудника',
+                    title: l.staffNoSellers,
+                    message: l.staffNoSellersHint,
                   ),
                 );
               }
@@ -116,16 +120,16 @@ class _MotivationTabState extends ConsumerState<MotivationTab> {
                           SizedBox(
                             width: w,
                             child: StatCard(
-                              label: 'Чистая выручка',
+                              label: l.staffNetRevenue,
                               value: Money.format(total),
                               icon: Icons.payments_outlined,
-                              hint: plan > 0 ? 'План ${Money.format(plan)}' : null,
+                              hint: plan > 0 ? l.staffPlanValue(Money.format(plan)) : null,
                             ),
                           ),
                           SizedBox(
                             width: w,
                             child: StatCard(
-                              label: 'Комиссия к выплате',
+                              label: l.staffCommissionDue,
                               value: Money.format(commission),
                               icon: Icons.savings_outlined,
                               color: AppColors.success,
@@ -158,6 +162,7 @@ class _MotivationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final c = row.completion;
     final color = c == null
         ? t.colorScheme.primary
@@ -185,11 +190,11 @@ class _MotivationCard extends StatelessWidget {
           runSpacing: Gap.s,
           children: [
             for (final (k, v) in [
-              ('Выручка', Money.format(row.netRevenue)),
-              ('Возвраты', row.refunds > 0 ? '−${Money.format(row.refunds)}' : '—'),
-              ('Чеков', '${row.receipts}'),
-              ('Средний чек', row.receipts > 0 ? Money.format(row.averageCheck) : '—'),
-              ('Комиссия ${pct.format(row.user.commissionPercent)}%', Money.format(row.commission)),
+              (l.staffRevenue, Money.format(row.netRevenue)),
+              (l.staffRefunds, row.refunds > 0 ? '−${Money.format(row.refunds)}' : '—'),
+              (l.staffReceiptsLabel, '${row.receipts}'),
+              (l.staffAvgCheck, row.receipts > 0 ? Money.format(row.averageCheck) : '—'),
+              (l.staffCommissionPct(pct.format(row.user.commissionPercent)), Money.format(row.commission)),
             ])
               SizedBox(width: w, child: _metric(context, k, v)),
           ],
@@ -219,14 +224,14 @@ class _MotivationCard extends StatelessWidget {
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Text(row.user.name, style: t.textTheme.titleMedium),
-                      StatusChip(role.label, color: roleColor(role)),
+                      StatusChip(role.labelIn(l), color: roleColor(role)),
                     ],
                   ),
                 ),
                 if (c == null)
                   // No plan is a neutral fact, not a call to action.
                   Text(
-                    planText(row.plan),
+                    planText(row.plan, l),
                     style: t.textTheme.bodyMedium?.copyWith(color: t.colorScheme.onSurfaceVariant),
                   )
                 else
@@ -249,8 +254,13 @@ class _MotivationCard extends StatelessWidget {
               ),
               const SizedBox(height: Gap.xs),
               Text(
-                '${Money.format(row.netRevenue)} из ${Money.format(row.plan)}'
-                '${c < 1 ? ' · осталось ${Money.format(row.plan - row.netRevenue)}' : ' · план выполнен'}',
+                c < 1
+                    ? l.staffPlanLeft(
+                        Money.format(row.netRevenue),
+                        Money.format(row.plan),
+                        Money.format(row.plan - row.netRevenue),
+                      )
+                    : l.staffPlanDone(Money.format(row.netRevenue), Money.format(row.plan)),
                 style: t.textTheme.bodySmall,
               ),
             ],

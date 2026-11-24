@@ -6,6 +6,7 @@ import '../../../core/db/database.dart';
 import '../../../core/money.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets/widgets.dart';
+import '../../../l10n/l10n.dart';
 import '../pos_providers.dart';
 
 class PosSearchBar extends StatelessWidget {
@@ -38,9 +39,7 @@ class PosSearchBar extends StatelessWidget {
       textInputAction: TextInputAction.done,
       style: const TextStyle(fontSize: 17),
       decoration: InputDecoration(
-        hintText: context.isCompact
-            ? 'Штрихкод или название'
-            : 'Сканируйте штрихкод или введите название (F2)',
+        hintText: context.isCompact ? context.l10n.posSearchHintShort : context.l10n.posSearchHint,
         prefixIcon: busy
             ? const Padding(
                 padding: EdgeInsets.all(14),
@@ -51,7 +50,7 @@ class PosSearchBar extends StatelessWidget {
           listenable: controller,
           builder: (_, _) => controller.text.isEmpty
               ? const SizedBox.shrink()
-              : IconButton(tooltip: 'Очистить (Esc)', icon: const Icon(Icons.close), onPressed: onClear),
+              : IconButton(tooltip: context.l10n.posClearEsc, icon: const Icon(Icons.close), onPressed: onClear),
         ),
       ),
       onChanged: onChanged,
@@ -71,14 +70,14 @@ class CategoryChips extends ConsumerWidget {
     final hasFav = ref.watch(posHasFavoritesProvider).value ?? false;
     final chips = <Widget>[
       ChoiceChip(
-        label: const Text('Все'),
+        label: Text(context.l10n.commonAll),
         selected: selected == null,
         onSelected: (_) => onSelected(null),
       ),
       if (hasFav)
         ChoiceChip(
           avatar: const Icon(Icons.star, size: 18, color: AppColors.warning),
-          label: const Text('Избранное'),
+          label: Text(context.l10n.posFavorites),
           selected: selected == kFavorites,
           onSelected: (_) => onSelected(kFavorites),
         ),
@@ -129,18 +128,17 @@ class ProductGrid extends ConsumerWidget {
           if (filter.query.isNotEmpty) {
             return EmptyState(
               icon: Icons.search_off,
-              title: 'Ничего не найдено',
-              message: 'По запросу «${filter.query}» нет товаров. '
-                  'Проверьте название или отсканируйте штрихкод.',
+              title: context.l10n.commonNothingFound,
+              message: context.l10n.posNoResults(filter.query),
             );
           }
           if (filter.categoryId != null) {
-            return const EmptyState(icon: Icons.category_outlined, title: 'В категории нет товаров');
+            return EmptyState(icon: Icons.category_outlined, title: context.l10n.posCategoryEmpty);
           }
-          return const EmptyState(
+          return EmptyState(
             icon: Icons.inventory_2_outlined,
-            title: 'Каталог пуст',
-            message: 'Добавьте товары в разделе «Товары», чтобы продавать',
+            title: context.l10n.posCatalogEmpty,
+            message: context.l10n.posCatalogEmptyHint,
           );
         }
         return GridView.builder(
@@ -214,7 +212,7 @@ class ProductTile extends StatelessWidget {
             if (sc != null)
               StatusChip(Qty.format(p.stockQty, p.unit), color: sc)
             else
-              Text('без учёта остатка',
+              Text(context.l10n.posNoStockTracking,
                   style: t.textTheme.labelSmall?.copyWith(color: t.colorScheme.onSurfaceVariant)),
           ]),
         ),

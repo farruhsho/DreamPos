@@ -5,6 +5,7 @@ import '../../core/permissions.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
+import '../../l10n/l10n.dart';
 import 'audit_tab.dart';
 import 'motivation_tab.dart';
 import 'roles_tab.dart';
@@ -17,29 +18,30 @@ class StaffScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = context.l10n;
     final session = ref.watch(sessionProvider);
     if (session == null || !session.can(Perm.manageStaff)) {
-      return const PageScaffold(
-        title: 'Сотрудники',
+      return PageScaffold(
+        title: l.staffTitle,
         body: EmptyState(
           icon: Icons.lock_outline,
-          title: 'Нет доступа',
-          message: 'Раздел доступен владельцу и администратору',
+          title: l.staffNoAccess,
+          message: l.staffNoAccessHint,
         ),
       );
     }
     final audit = session.can(Perm.viewAudit);
     final tabs = <(Tab, Widget)>[
-      (const Tab(icon: Icon(Icons.badge_outlined), text: 'Сотрудники'), const UsersTab()),
-      (const Tab(icon: Icon(Icons.schedule), text: 'Рабочее время'), const TimeTab()),
-      (const Tab(icon: Icon(Icons.emoji_events_outlined), text: 'Мотивация'), const MotivationTab()),
-      (const Tab(icon: Icon(Icons.admin_panel_settings_outlined), text: 'Роли и права'), const RolesTab()),
-      if (audit) (const Tab(icon: Icon(Icons.manage_search), text: 'Журнал действий'), const AuditTab()),
+      (Tab(icon: const Icon(Icons.badge_outlined), text: l.staffTitle), const UsersTab()),
+      (Tab(icon: const Icon(Icons.schedule), text: l.staffTabTime), const TimeTab()),
+      (Tab(icon: const Icon(Icons.emoji_events_outlined), text: l.staffTabMotivation), const MotivationTab()),
+      (Tab(icon: const Icon(Icons.admin_panel_settings_outlined), text: l.staffTabRoles), const RolesTab()),
+      if (audit) (Tab(icon: const Icon(Icons.manage_search), text: l.staffTabAudit), const AuditTab()),
     ];
     return DefaultTabController(
       length: tabs.length,
       child: PageScaffold(
-        title: 'Сотрудники',
+        title: l.staffTitle,
         padding: EdgeInsets.zero,
         // Labelled even on phones: the app bar already has the bare timer icon.
         actions: [ClockButton(short: context.isCompact)],

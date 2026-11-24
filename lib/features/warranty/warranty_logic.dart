@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme.dart';
+import '../../l10n/l10n.dart';
 
 class WStatus {
   WStatus._();
@@ -37,25 +38,31 @@ bool isClosed(String s) => s == WStatus.returnedToClient;
 /// A resolution note is mandatory when the claim is decided.
 bool resolutionRequired(String to) => WStatus.resolved.contains(to);
 
-String warrantyStatusLabel(String s) => switch (s) {
-  WStatus.received => 'Принят',
-  WStatus.inRepair => 'В ремонте',
-  WStatus.replaced => 'Замена',
-  WStatus.refunded => 'Возврат денег',
-  WStatus.rejected => 'Отказ',
-  WStatus.returnedToClient => 'Выдан клиенту',
-  _ => s,
-};
+String warrantyStatusLabel(String s, [AppLocalizations? l]) {
+  final t = l ?? L.current;
+  return switch (s) {
+    WStatus.received => t.warrantyStatusReceived,
+    WStatus.inRepair => t.warrantyStatusInRepair,
+    WStatus.replaced => t.warrantyStatusReplaced,
+    WStatus.refunded => t.warrantyStatusRefunded,
+    WStatus.rejected => t.warrantyStatusRejected,
+    WStatus.returnedToClient => t.warrantyStatusReturned,
+    _ => s,
+  };
+}
 
 /// Label of the action button that moves a claim INTO [s].
-String warrantyActionLabel(String s) => switch (s) {
-  WStatus.inRepair => 'Передать в ремонт',
-  WStatus.replaced => 'Заменить товар',
-  WStatus.refunded => 'Вернуть деньги',
-  WStatus.rejected => 'Отказать',
-  WStatus.returnedToClient => 'Выдать клиенту',
-  _ => warrantyStatusLabel(s),
-};
+String warrantyActionLabel(String s, [AppLocalizations? l]) {
+  final t = l ?? L.current;
+  return switch (s) {
+    WStatus.inRepair => t.warrantyActionInRepair,
+    WStatus.replaced => t.warrantyActionReplace,
+    WStatus.refunded => t.warrantyActionRefund,
+    WStatus.rejected => t.warrantyActionReject,
+    WStatus.returnedToClient => t.warrantyActionReturn,
+    _ => warrantyStatusLabel(s, t),
+  };
+}
 
 IconData warrantyActionIcon(String s) => switch (s) {
   WStatus.inRepair => Icons.build_outlined,
@@ -87,13 +94,22 @@ WarrantyState warrantyState(DateTime? until, DateTime now) {
 
 /// Filter groups shown as chips in the list.
 enum ClaimGroup {
-  all('Все', null),
-  open('В работе', WStatus.open),
-  inRepair('В ремонте', [WStatus.inRepair]),
-  resolved('Решены', WStatus.resolved),
-  closed('Выданы', [WStatus.returnedToClient]);
+  all(null),
+  open(WStatus.open),
+  inRepair([WStatus.inRepair]),
+  resolved(WStatus.resolved),
+  closed([WStatus.returnedToClient]);
 
-  const ClaimGroup(this.label, this.statuses);
-  final String label;
+  const ClaimGroup(this.statuses);
   final List<String>? statuses;
+
+  String labelIn(AppLocalizations l) => switch (this) {
+    ClaimGroup.all => l.commonAll,
+    ClaimGroup.open => l.warrantyGroupOpen,
+    ClaimGroup.inRepair => l.warrantyStatusInRepair,
+    ClaimGroup.resolved => l.warrantyGroupResolved,
+    ClaimGroup.closed => l.warrantyGroupClosed,
+  };
+
+  String get label => labelIn(L.current);
 }

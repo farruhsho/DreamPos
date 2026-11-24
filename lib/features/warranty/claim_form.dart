@@ -10,6 +10,7 @@ import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/pickers.dart';
 import '../../core/widgets/widgets.dart';
+import '../../l10n/l10n.dart';
 import 'warranty_logic.dart';
 import 'warranty_repository.dart';
 
@@ -19,7 +20,7 @@ Future<WarrantyClaim?> showNewClaim(BuildContext context, {String? receipt}) {
       MaterialPageRoute(
         fullscreenDialog: true,
         builder: (_) => Scaffold(
-          appBar: AppBar(title: const Text('Новая гарантийная заявка')),
+          appBar: AppBar(title: Text(context.l10n.warrantyNewClaimTitle)),
           body: NewClaimForm(initialReceipt: receipt),
         ),
       ),
@@ -27,7 +28,7 @@ Future<WarrantyClaim?> showNewClaim(BuildContext context, {String? receipt}) {
   }
   return showFormDialog<WarrantyClaim>(
     context,
-    title: 'Новая гарантийная заявка',
+    title: context.l10n.warrantyNewClaimTitle,
     width: 680,
     child: NewClaimForm(initialReceipt: receipt),
   );
@@ -77,7 +78,7 @@ class _NewClaimFormState extends ConsumerState<NewClaimForm> {
   Future<void> _lookup() async {
     final n = int.tryParse(_receipt.text.trim().replaceAll('№', ''));
     if (n == null) {
-      setState(() => _lookupError = 'Введите номер чека цифрами');
+      setState(() => _lookupError = context.l10n.warrantyEnterReceiptDigits);
       return;
     }
     final seq = ++_lookupSeq; // only the latest lookup may update the form
@@ -92,7 +93,7 @@ class _NewClaimFormState extends ConsumerState<NewClaimForm> {
       setState(() {
         _looking = false;
         _sale = r;
-        _lookupError = r == null ? 'Чек №$n не найден' : null;
+        _lookupError = r == null ? context.l10n.warrantyReceiptNotFound('$n') : null;
         _item = selectable.length == 1 ? selectable.first : null;
         _customer = r?.customer ?? _customer;
       });
@@ -106,8 +107,8 @@ class _NewClaimFormState extends ConsumerState<NewClaimForm> {
 
   /// Why an item of the found receipt cannot be taken on warranty.
   String? _itemBlock(SaleLookup s, SaleItem it) {
-    if (s.sale.status == 'voided') return 'чек аннулирован';
-    if (it.returnedQty >= it.qty - 1e-9) return 'товар возвращён';
+    if (s.sale.status == 'voided') return context.l10n.warrantyBlockVoided;
+    if (it.returnedQty >= it.qty - 1e-9) return context.l10n.warrantyBlockReturned;
     return null;
   }
 
@@ -120,9 +121,9 @@ class _NewClaimFormState extends ConsumerState<NewClaimForm> {
     if (state != WarrantyState.active) {
       final ok = await confirm(
         context,
-        title: state == WarrantyState.expired ? 'Гарантия истекла' : 'Гарантия не установлена',
-        message: 'Заявку можно принять как платный ремонт или на экспертизу. Принять?',
-        ok: 'Принять',
+        title: state == WarrantyState.expired ? context.l10n.warrantyExpiredTitle : context.l10n.warrantyNotSetTitle,
+        message: context.l10n.warrantyPaidRepairQuestion,
+        ok: context.l10n.warrantyAccept,
       );
       if (!ok || !mounted) return false;
     }
@@ -130,11 +131,12 @@ class _NewClaimFormState extends ConsumerState<NewClaimForm> {
     if (dup != null && mounted) {
       return confirm(
         context,
-        title: 'Уже есть открытая заявка',
-        message:
-            'По этому товару из чека уже принята заявка №${dup.number} '
-            '(${warrantyStatusLabel(dup.status).toLowerCase()}). Создать ещё одну?',
-        ok: 'Создать',
+        title: context.l10n.warrantyDuplicateTitle,
+        message: context.l10n.warrantyDuplicateMessage(
+          '${dup.number}',
+          warrantyStatusLabel(dup.status, context.l10n).toLowerCase(),
+        ),
+        ok: context.l10n.commonCreate,
       );
     }
     return mounted;
@@ -144,8 +146,8 @@ class _NewClaimFormState extends ConsumerState<NewClaimForm> {
     if (_busy) return; // Ctrl+Enter / double click while a dialog or save is pending
     setState(() => _triedSubmit = true);
     if (!_formKey.currentState!.validate()) return;
-    if (_mode == 0 && _item == null) return showError(context, 'Найдите чек и выберите товар из него');
-    if (_mode == 1 && _product == null) return showError(context, 'Выберите товар');
+    if (_mode == 0 && _item == null) return showError(context, context.l10n.warrantyFindReceiptAndItem);
+    if (_mode == 1 && _product == null) return showError(context, context.l10n.warrantySelectProduct);
     setState(() => _busy = true);
     try {
       if (!await _confirmWarnings() || !mounted) {
@@ -174,6 +176,7 @@ class _NewClaimFormState extends ConsumerState<NewClaimForm> {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final muted = t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant);
     return CallbackShortcuts(
       bindings: {
@@ -194,9 +197,13 @@ class _NewClaimFormState extends ConsumerState<NewClaimForm> {
                 padding: const EdgeInsets.fromLTRB(Gap.xl, Gap.s, Gap.xl, Gap.l),
                 children: [
                   SegmentedButton<int>(
-                    segments: const [
-                      ButtonSegment(value: 0, icon: Icon(Icons.receipt_long_outlined), label: Text('По чеку')),
-                      ButtonSegment(value: 1, icon: Icon(Icons.edit_note), label: Text('Без чека')),
+                    segments: [
+                      ButtonSegment(
+                        value: 0,
+                        icon: const Icon(Icons.receipt_long_outlined),
+                        label: Text(l.warrantyByReceipt),
+                      ),
+                      ButtonSegment(value: 1, icon: const Icon(Icons.edit_note), label: Text(l.warrantyWithoutReceipt)),
                     ],
                     selected: {_mode},
                     onSelectionChanged: (s) => setState(() => _mode = s.first),
@@ -208,9 +215,9 @@ class _NewClaimFormState extends ConsumerState<NewClaimForm> {
                   const SizedBox(height: Gap.m),
                   TextFormField(
                     controller: _serial,
-                    decoration: const InputDecoration(
-                      labelText: 'Серийный номер / IMEI',
-                      prefixIcon: Icon(Icons.qr_code_2),
+                    decoration: InputDecoration(
+                      labelText: l.warrantySerialImei,
+                      prefixIcon: const Icon(Icons.qr_code_2),
                     ),
                   ),
                   const SizedBox(height: Gap.m),
@@ -219,12 +226,12 @@ class _NewClaimFormState extends ConsumerState<NewClaimForm> {
                     controller: _problem,
                     minLines: 3,
                     maxLines: 6,
-                    decoration: const InputDecoration(
-                      labelText: 'Описание неисправности *',
-                      hintText: 'Что не работает, когда проявилось, внешний вид, комплектность',
+                    decoration: InputDecoration(
+                      labelText: l.warrantyProblemLabel,
+                      hintText: l.warrantyProblemHint,
                       alignLabelWithHint: true,
                     ),
-                    validator: (v) => (v ?? '').trim().length < 3 ? 'Опишите неисправность' : null,
+                    validator: (v) => (v ?? '').trim().length < 3 ? l.warrantyDescribeProblem : null,
                   ),
                 ],
               ),
@@ -236,13 +243,13 @@ class _NewClaimFormState extends ConsumerState<NewClaimForm> {
                 spacing: Gap.s,
                 overflowSpacing: Gap.s,
                 children: [
-                  TextButton(onPressed: () => Navigator.of(context).maybePop(), child: const Text('Отмена')),
+                  TextButton(onPressed: () => Navigator.of(context).maybePop(), child: Text(l.commonCancel)),
                   FilledButton.icon(
                     onPressed: _busy ? null : _submit,
                     icon: _busy
                         ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                         : const Icon(Icons.check),
-                    label: const Text('Принять заявку'),
+                    label: Text(l.warrantySubmit),
                   ),
                 ],
               ),
@@ -255,6 +262,7 @@ class _NewClaimFormState extends ConsumerState<NewClaimForm> {
 
   List<Widget> _receiptSection(ThemeData t, TextStyle? muted) {
     final s = _sale;
+    final l = context.l10n;
     return [
       Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -267,7 +275,7 @@ class _NewClaimFormState extends ConsumerState<NewClaimForm> {
               keyboardType: TextInputType.number,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               decoration: InputDecoration(
-                labelText: 'Номер чека',
+                labelText: l.warrantyReceiptNumber,
                 prefixIcon: const Icon(Icons.receipt_long_outlined),
                 errorText: _lookupError,
               ),
@@ -279,24 +287,21 @@ class _NewClaimFormState extends ConsumerState<NewClaimForm> {
             onPressed: _looking ? null : _lookup,
             child: _looking
                 ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Text('Найти'),
+                : Text(l.warrantyFind),
           ),
         ],
       ),
       if (s != null) ...[
         const SizedBox(height: Gap.m),
         Text(
-          'Чек №${s.sale.number} от ${formatDateTime(s.sale.createdAt)} — выберите товар',
+          l.warrantyReceiptPickItem('${s.sale.number}', formatDateTime(s.sale.createdAt)),
           style: t.textTheme.titleSmall,
         ),
         const SizedBox(height: Gap.xs),
         if (s.sale.status == 'voided')
           Padding(
             padding: const EdgeInsets.only(bottom: Gap.xs),
-            child: Text(
-              'Чек аннулирован — принять товар по нему нельзя. Используйте режим «Без чека».',
-              style: TextStyle(color: AppColors.danger),
-            ),
+            child: Text(l.warrantyReceiptVoided, style: TextStyle(color: AppColors.danger)),
           ),
         for (final it in s.items) _itemTile(s, it, muted),
         if (_item != null) ...[const SizedBox(height: Gap.s), _warrantyBanner(_item!.warrantyUntil)],
@@ -308,10 +313,11 @@ class _NewClaimFormState extends ConsumerState<NewClaimForm> {
     final sel = _item?.id == it.id;
     final block = _itemBlock(s, it);
     final st = warrantyState(it.warrantyUntil, DateTime.now());
+    final l = context.l10n;
     final (label, color) = switch (st) {
-      WarrantyState.none => ('без гарантии', Colors.grey),
-      WarrantyState.active => ('гарантия до ${formatDate(it.warrantyUntil!)}', AppColors.success),
-      WarrantyState.expired => ('гарантия истекла ${formatDate(it.warrantyUntil!)}', AppColors.danger),
+      WarrantyState.none => (l.warrantyNoWarranty, Colors.grey),
+      WarrantyState.active => (l.warrantyChipUntil(formatDate(it.warrantyUntil!)), AppColors.success),
+      WarrantyState.expired => (l.warrantyChipExpired(formatDate(it.warrantyUntil!)), AppColors.danger),
     };
     return Card(
       margin: const EdgeInsets.only(bottom: Gap.xs),
@@ -346,14 +352,11 @@ class _NewClaimFormState extends ConsumerState<NewClaimForm> {
 
   Widget _warrantyBanner(DateTime? until) {
     final st = warrantyState(until, DateTime.now());
+    final l = context.l10n;
     final (color, icon, text) = switch (st) {
-      WarrantyState.active => (AppColors.success, Icons.verified_user, 'На гарантии до ${formatDate(until!)}'),
-      WarrantyState.expired => (
-        AppColors.danger,
-        Icons.gpp_bad_outlined,
-        'Гарантия истекла ${formatDate(until!)}. Заявку можно принять как платный ремонт.',
-      ),
-      WarrantyState.none => (AppColors.warning, Icons.info_outline, 'На этот товар гарантия не установлена'),
+      WarrantyState.active => (AppColors.success, Icons.verified_user, l.warrantyBannerActive(formatDate(until!))),
+      WarrantyState.expired => (AppColors.danger, Icons.gpp_bad_outlined, l.warrantyBannerExpired(formatDate(until!))),
+      WarrantyState.none => (AppColors.warning, Icons.info_outline, l.warrantyBannerNone),
     };
     return Container(
       padding: const EdgeInsets.all(Gap.m),
@@ -375,6 +378,7 @@ class _NewClaimFormState extends ConsumerState<NewClaimForm> {
   List<Widget> _manualSection() {
     final missing = _triedSubmit && _product == null;
     final err = Theme.of(context).colorScheme.error;
+    final l = context.l10n;
     return [
       Card(
         shape: missing
@@ -385,10 +389,10 @@ class _NewClaimFormState extends ConsumerState<NewClaimForm> {
             : null,
         child: ListTile(
           leading: Icon(Icons.inventory_2_outlined, color: missing ? err : null),
-          title: Text(_product?.name ?? 'Выберите товар *', style: missing ? TextStyle(color: err) : null),
+          title: Text(_product?.name ?? l.warrantySelectProductRequired, style: missing ? TextStyle(color: err) : null),
           subtitle: _product == null
               ? Text(
-                  missing ? 'Обязательно для заявки без чека' : 'Для товара без чека или проданного вне системы',
+                  missing ? l.warrantyRequiredNoReceipt : l.warrantyManualHint,
                   style: missing ? TextStyle(color: err) : null,
                 )
               : null,
@@ -405,14 +409,14 @@ class _NewClaimFormState extends ConsumerState<NewClaimForm> {
   Widget _customerTile(TextStyle? muted) => Card(
     child: ListTile(
       leading: const Icon(Icons.person_outline),
-      title: Text(_customer?.name ?? 'Клиент (необязательно)'),
-      subtitle: Text(_customer?.phone ?? 'Нужен для связи о готовности', style: muted),
+      title: Text(_customer?.name ?? context.l10n.warrantyCustomerOptional),
+      subtitle: Text(_customer?.phone ?? context.l10n.warrantyCustomerHint, style: muted),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (_customer != null)
             IconButton(
-              tooltip: 'Убрать клиента',
+              tooltip: context.l10n.warrantyRemoveCustomer,
               onPressed: () => setState(() => _customer = null),
               icon: const Icon(Icons.close),
             ),

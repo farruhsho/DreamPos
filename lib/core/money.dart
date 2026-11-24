@@ -1,5 +1,7 @@
 import 'package:intl/intl.dart';
 
+import '../l10n/l10n.dart';
+
 /// Currency configuration. Money is always an `int` of minor units;
 /// `decimals` says how many minor digits one major unit has
 /// (UZS/TJS cash practice: 0 or 2; USD: 2).
@@ -114,26 +116,31 @@ class Qty {
 
   static double round(double q) => (q * 1000).roundToDouble() / 1000;
 
-  static String format(double q, [String? unit]) {
+  /// [l] picks the language of the unit label (default: UI language;
+  /// pass `L.receipt` on printed documents).
+  static String format(double q, [String? unit, AppLocalizations? l]) {
     final r = round(q);
     final s = r == r.truncateToDouble()
         ? r.toStringAsFixed(0)
         : r.toStringAsFixed(3).replaceAll(RegExp(r'0+$'), '').replaceAll(',', '.');
-    final u = unit == null ? '' : ' ${unitLabel(unit)}';
+    final u = unit == null ? '' : ' ${unitLabel(unit, l)}';
     return '$s$u'.replaceAll('.', ',');
   }
 
   static const units = ['pcs', 'kg', 'g', 'l', 'm', 'pack'];
 
-  static String unitLabel(String unit) => switch (unit) {
-        'pcs' => 'шт',
-        'kg' => 'кг',
-        'g' => 'г',
-        'l' => 'л',
-        'm' => 'м',
-        'pack' => 'уп',
-        _ => unit,
-      };
+  static String unitLabel(String unit, [AppLocalizations? l]) {
+    final t = l ?? L.current;
+    return switch (unit) {
+      'pcs' => t.unitPcs,
+      'kg' => t.unitKg,
+      'g' => t.unitG,
+      'l' => t.unitL,
+      'm' => t.unitM,
+      'pack' => t.unitPack,
+      _ => unit,
+    };
+  }
 
   static bool isFractional(String unit) => unit == 'kg' || unit == 'l' || unit == 'm';
 }

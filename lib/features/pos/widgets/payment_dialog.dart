@@ -13,6 +13,7 @@ import '../../../core/money.dart';
 import '../../../core/providers.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets/widgets.dart';
+import '../../../l10n/l10n.dart';
 import '../../../domain/services/sale_service.dart';
 import '../cart_controller.dart';
 import '../pos_providers.dart';
@@ -44,12 +45,14 @@ class PaymentSplit {
   bool get nonCashTooBig => nonCash > total;
 
   /// Error message to show, or null if the split can be submitted.
-  String? get error {
+  String? get error => errorIn(L.current);
+
+  String? errorIn(AppLocalizations l) {
     if (nonCashTooBig) {
-      return 'Безналичная оплата больше суммы чека на ${Money.format(nonCash - total)}';
+      return l.posNonCashOver(Money.format(nonCash - total));
     }
-    if (missing > 0) return 'Не хватает ${Money.format(missing)}';
-    if (cashNeeded == 0 && cash > 0) return 'Наличные не нужны — чек уже оплачен';
+    if (missing > 0) return l.posMissing(Money.format(missing));
+    if (cashNeeded == 0 && cash > 0) return l.posCashNotNeeded;
     return null;
   }
 }
@@ -201,7 +204,7 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
       initialDate: _debtDue,
       firstDate: today.add(const Duration(days: 1)),
       lastDate: today.add(const Duration(days: 730)),
-      helpText: 'Срок возврата долга',
+      helpText: context.l10n.posDebtDue,
     );
     if (picked == null || !mounted) return;
     setState(() {
@@ -216,7 +219,7 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
         key: const Key('pay-debt-due'),
         padding: const EdgeInsets.fromLTRB(Gap.l, Gap.s, 0, 0),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Срок возврата долга', style: t.textTheme.labelLarge),
+          Text(context.l10n.posDebtDue, style: t.textTheme.labelLarge),
           const SizedBox(height: Gap.xs),
           Wrap(
             spacing: Gap.s,
@@ -225,15 +228,15 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
             children: [
               for (final d in debtDueChoices)
                 ChoiceChip(
-                  label: Text('$d дн.'),
+                  label: Text(context.l10n.posDays('$d')),
                   selected: _debtDays == d,
                   onSelected: (_) => _setDebtDays(d),
                 ),
               ActionChip(
                 key: const Key('pay-debt-date'),
-                tooltip: 'Выбрать дату',
+                tooltip: context.l10n.posPickDate,
                 avatar: const Icon(Icons.event, size: 18),
-                label: Text('до ${formatDate(_debtDue)}'),
+                label: Text(context.l10n.posUntil(formatDate(_debtDue))),
                 onPressed: _pickDebtDue,
               ),
             ],
@@ -270,17 +273,18 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
 
   String? _validateExtras() {
     final s = _split;
+    final l = context.l10n;
     if (s.bonus > 0 && s.bonus > _maxBonus) {
-      return 'Бонусами можно оплатить не более ${Money.format(_maxBonus)}';
+      return l.posBonusMax(Money.format(_maxBonus));
     }
     final avail = _debtAvailable;
     if (s.debt > 0 && avail != null && s.debt > avail) {
-      return 'Превышен кредитный лимит: доступно ${Money.format(avail)}';
+      return l.posCreditExceeded(Money.format(avail));
     }
     if (s.gift > 0) {
-      if (_giftCard == null) return 'Проверьте код сертификата';
+      if (_giftCard == null) return l.posCheckGiftCode;
       if (s.gift > _giftCard!.balance) {
-        return 'На сертификате только ${Money.format(_giftCard!.balance)}';
+        return l.posGiftOnly(Money.format(_giftCard!.balance));
       }
     }
     return null;
@@ -288,8 +292,9 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
 
   Future<void> _checkGift() async {
     final code = normalizeGiftCode(_giftCode.text);
+    final l = context.l10n;
     if (code.isEmpty) {
-      setState(() => _giftError = 'Введите код сертификата');
+      setState(() => _giftError = l.posEnterGiftCode);
       return;
     }
     setState(() {
@@ -304,13 +309,13 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
           .getSingleOrNull();
       String? err;
       if (card == null) {
-        err = 'Сертификат не найден';
+        err = l.posGiftNotFound;
       } else if (card.status != 'active') {
-        err = 'Сертификат не активен (${card.status == 'used' ? 'использован' : card.status})';
+        err = l.posGiftInactive(card.status == 'used' ? l.posGiftUsed : card.status);
       } else if (card.expiresAt != null && DateTime.now().isAfter(card.expiresAt!)) {
-        err = 'Срок действия истёк ${formatDate(card.expiresAt!)}';
+        err = l.posGiftExpired(formatDate(card.expiresAt!));
       } else if (card.balance <= 0) {
-        err = 'На сертификате нет средств';
+        err = l.posGiftEmpty;
       }
       if (!mounted) return;
       setState(() {
@@ -328,7 +333,7 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
   Future<void> _confirm() async {
     if (_busy) return;
     final s = _split;
-    final err = s.error ?? _validateExtras();
+    final err = s.errorIn(context.l10n) ?? _validateExtras();
     if (err != null) {
       setState(() => _serverError = err);
       return;
@@ -374,8 +379,9 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
     final customer = widget.customer;
     final loyalty = customer != null && _loyaltyEnabled && customer.bonusBalance > 0;
     final hasNonCash = s.nonCash > 0;
+    final l = context.l10n;
     final extrasError = _validateExtras();
-    final canConfirm = s.error == null && extrasError == null && !_busy;
+    final canConfirm = s.errorIn(l) == null && extrasError == null && !_busy;
     final tenders =
         quickTenders(s.cashNeeded, Money.currency, notes: ref.watch(posBanknotesProvider));
     final rounding = hasNonCash ? 0 : widget.total - _cashTotal;
@@ -419,7 +425,7 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
                 child: TextButton(
                   style: TextButton.styleFrom(padding: _kTrailingPadding),
                   onPressed: () => _payAllBy(c, cap: cap),
-                  child: const Text('Всё'),
+                  child: Text(l.posAll),
                 ),
               ),
             ),
@@ -461,7 +467,7 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
             child: Row(children: [
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('К оплате', style: t.textTheme.titleSmall),
+                  Text(l.posToPay, style: t.textTheme.titleSmall),
                   FittedBox(
                     fit: BoxFit.scaleDown,
                     alignment: Alignment.centerLeft,
@@ -471,16 +477,16 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
                             fontWeight: FontWeight.w800, color: t.colorScheme.onPrimaryContainer)),
                   ),
                   if (rounding > 0)
-                    Text('Округление: −${Money.format(rounding)}',
+                    Text(l.posRounding(Money.format(rounding)),
                         key: const Key('pay-rounding'),
                         style: t.textTheme.bodyMedium?.copyWith(
                             color: t.colorScheme.onPrimaryContainer, fontWeight: FontWeight.w600)),
                   if (customer != null)
-                    Text('Клиент: ${customer.name}', style: t.textTheme.bodySmall),
+                    Text(l.posCustomerValue(customer.name), style: t.textTheme.bodySmall),
                 ]),
               ),
               IconButton(
-                tooltip: 'Закрыть (Esc)',
+                tooltip: l.posCloseEsc,
                 onPressed: _busy ? null : () => Navigator.pop(context),
                 icon: const Icon(Icons.close),
               ),
@@ -500,8 +506,8 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,\s]'))],
                   decoration: InputDecoration(
-                    labelText: 'Наличными получено',
-                    helperText: hasNonCash ? 'Нужно наличными: ${Money.format(s.cashNeeded)}' : null,
+                    labelText: l.posCashReceived,
+                    helperText: hasNonCash ? l.posCashNeeded(Money.format(s.cashNeeded)) : null,
                     helperMaxLines: 2,
                     prefixIcon: const Icon(Icons.payments_outlined),
                     suffixText: Money.currency.symbol,
@@ -521,7 +527,7 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
                 Wrap(spacing: Gap.s, runSpacing: Gap.s, children: [
                   ChoiceChip(
                     key: const Key('pay-exact'),
-                    label: const Text('Без сдачи'),
+                    label: Text(l.posNoChange),
                     selected: s.cashNeeded > 0 && s.cash == s.cashNeeded,
                     onSelected: (_) => _setCash(s.cashNeeded),
                   ),
@@ -546,7 +552,7 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
                         _cashFocus.requestFocus();
                       },
                       icon: const Icon(Icons.credit_card),
-                      label: const Text('Картой'),
+                      label: Text(l.posByCard),
                     ),
                     FilledButton.tonalIcon(
                       onPressed: () {
@@ -555,27 +561,26 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
                         _cashFocus.requestFocus();
                       },
                       icon: const Icon(Icons.qr_code_2),
-                      label: const Text('Переводом'),
+                      label: Text(l.posByTransfer),
                     ),
                     OutlinedButton.icon(
                       onPressed: () => setState(() => _showMore = true),
                       icon: const Icon(Icons.call_split),
-                      label: const Text('Смешанная оплата'),
+                      label: Text(l.posMixed),
                     ),
                   ])
                 else ...[
-                  methodRow(icon: Icons.credit_card, label: 'Карта', c: _card),
+                  methodRow(icon: Icons.credit_card, label: l.payCard, c: _card),
                   methodRow(
                     icon: Icons.qr_code_2,
-                    label: 'Перевод',
+                    label: l.payTransfer,
                     c: _transfer,
                     extra: _v(_transfer) > 0
                         ? Padding(
                             padding: const EdgeInsets.only(top: Gap.s),
                             child: TextField(
                               controller: _transferRef,
-                              decoration: const InputDecoration(
-                                  labelText: '№ операции / комментарий (необязательно)'),
+                              decoration: InputDecoration(labelText: l.posTransferRef),
                             ),
                           )
                         : null,
@@ -583,22 +588,22 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
                   if (loyalty)
                     methodRow(
                       icon: Icons.stars_outlined,
-                      label: 'Бонусы',
+                      label: l.payBonus,
                       c: _bonus,
                       cap: _maxBonus,
                       helper:
-                          'Баланс ${Money.format(customer.bonusBalance)} · можно списать до ${Money.format(_maxBonus)}',
+                          l.posBonusHelper(Money.format(customer.bonusBalance), Money.format(_maxBonus)),
                     ),
                   if (customer != null)
                     methodRow(
                       icon: Icons.account_balance_wallet_outlined,
-                      label: 'В долг',
+                      label: l.payDebt,
                       c: _debt,
                       cap: _debtAvailable,
                       helper: _debtAvailable == null
-                          ? 'Долг ${Money.format(customer.debtBalance)} · лимит не задан'
-                          : 'Долг ${Money.format(customer.debtBalance)} из ${Money.format(customer.debtLimit)} · '
-                              'доступно ${Money.format(_debtAvailable!)}',
+                          ? l.posDebtNoLimit(Money.format(customer.debtBalance))
+                          : l.posDebtHelper(Money.format(customer.debtBalance), Money.format(customer.debtLimit),
+                              Money.format(_debtAvailable!)),
                       extra: s.debt > 0 ? _debtDueRow(t) : null,
                     )
                   else
@@ -606,8 +611,8 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
                       padding: const EdgeInsets.only(top: Gap.m),
                       child: Text(
                           compact
-                              ? 'Для оплаты в долг или бонусами выберите клиента'
-                              : 'Для оплаты в долг или бонусами выберите клиента (F4)',
+                              ? l.posSelectCustomerForDebt
+                              : l.posSelectCustomerForDebtF4,
                           style: t.textTheme.bodySmall
                               ?.copyWith(color: t.colorScheme.onSurfaceVariant)),
                     ),
@@ -623,12 +628,14 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
                         child: TextField(
                           controller: _giftCode,
                           decoration: InputDecoration(
-                            labelText: 'Код сертификата',
+                            labelText: l.posGiftCode,
                             errorText: _giftError,
                             helperText: _giftCard == null
                                 ? null
-                                : 'Баланс ${Money.format(_giftCard!.balance)}'
-                                    '${_giftCard!.expiresAt == null ? '' : ' · до ${formatDate(_giftCard!.expiresAt!)}'}',
+                                : l.posGiftBalance(Money.format(_giftCard!.balance)) +
+                                    (_giftCard!.expiresAt == null
+                                        ? ''
+                                        : ' · ${l.posUntil(formatDate(_giftCard!.expiresAt!))}'),
                           ),
                           onChanged: (_) {
                             if (_giftCard != null || _giftError != null) {
@@ -650,7 +657,7 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
                           child: TextButton(
                             style: TextButton.styleFrom(padding: _kTrailingPadding),
                             onPressed: _checkingGift ? null : _checkGift,
-                            child: const FittedBox(child: Text('Проверить')),
+                            child: FittedBox(child: Text(l.posCheck)),
                           ),
                         ),
                       ),
@@ -659,7 +666,7 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
                   if (_giftCard != null)
                     methodRow(
                         icon: Icons.redeem,
-                        label: 'Оплата сертификатом',
+                        label: l.posPayByGift,
                         c: _gift,
                         cap: _giftCard!.balance),
                 ],
@@ -690,7 +697,7 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
                           height: 22,
                           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                       : const Icon(Icons.check_circle_outline),
-                  label: Text(_busy ? 'Проводим…' : (compact ? 'Провести оплату' : 'Провести оплату (Enter)'),
+                  label: Text(_busy ? l.posProcessing : (compact ? l.posConfirmPay : l.posConfirmPayEnter),
                       style: const TextStyle(fontSize: 17)),
                 ),
               ),
@@ -711,13 +718,14 @@ class _ChangeBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final missing = split.missing > 0 || split.nonCashTooBig;
     final color = missing ? AppColors.danger : AppColors.success;
     final label = split.nonCashTooBig
-        ? 'Переплата безналом'
+        ? l.posNonCashOverpay
         : missing
-            ? 'Не хватает'
-            : 'Сдача';
+            ? l.posMissingLabel
+            : l.commonChange;
     final value = split.nonCashTooBig
         ? split.nonCash - split.total
         : missing

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/providers.dart';
 import '../core/theme.dart';
+import '../l10n/l10n.dart';
 import 'router.dart';
 
 class DreamPosApp extends ConsumerWidget {
@@ -13,6 +14,8 @@ class DreamPosApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // keep settings (and Money.currency) live for the whole app
     ref.watch(settingsProvider);
+    final lang = ref.watch(uiLocaleProvider); // also keeps L.current in sync
+    ref.watch(receiptLocaleProvider); // keeps L.receipt in sync
     final router = ref.watch(routerProvider);
     final setup = ref.watch(setupDoneProvider);
     final themeMode = switch (ref.watch(settingProvider('theme_mode'))) {
@@ -27,9 +30,12 @@ class DreamPosApp extends ConsumerWidget {
       darkTheme: buildTheme(Brightness.dark),
       themeMode: themeMode,
       routerConfig: router,
-      locale: const Locale('ru'),
-      supportedLocales: const [Locale('ru'), Locale('en')],
+      locale: Locale(lang),
+      // ru/uz/ky/en are all covered by GlobalMaterial/Cupertino/Widgets
+      // localizations (flutter_localizations), so no fallback delegate is needed.
+      supportedLocales: AppLocalizations.supportedLocales,
       localizationsDelegates: const [
+        AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,

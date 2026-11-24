@@ -5,6 +5,7 @@ import '../../../core/money.dart';
 import '../../../core/providers.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets/widgets.dart';
+import '../../../l10n/l10n.dart';
 import '../settings_logic.dart';
 import '../settings_providers.dart';
 import '../settings_widgets.dart';
@@ -27,13 +28,13 @@ class _CurrencySectionState extends ConsumerState<CurrencySection> with Settings
   @override
   String toStored(String key, String display) => formatPercentValue(parsePercent(display) ?? 0);
 
-  String _presetName(CurrencyConfig c) => switch (c.code) {
-    'UZS' => 'Узбекский сум',
-    'TJS' => 'Таджикский сомони',
-    'KZT' => 'Казахстанский тенге',
-    'KGS' => 'Киргизский сом',
-    'RUB' => 'Российский рубль',
-    'USD' => 'Доллар США',
+  String _presetName(CurrencyConfig c, AppLocalizations l) => switch (c.code) {
+    'UZS' => l.settingsCurUzs,
+    'TJS' => l.settingsCurTjs,
+    'KZT' => l.settingsCurKzt,
+    'KGS' => l.settingsCurKgs,
+    'RUB' => l.settingsCurRub,
+    'USD' => l.settingsCurUsd,
     _ => c.code,
   };
 
@@ -61,23 +62,19 @@ class _CurrencySectionState extends ConsumerState<CurrencySection> with Settings
     final rescale = products > 0 && c.decimals != current.decimals;
     final settings = ref.read(settingsProvider).value ?? const <String, String>{};
     final changes = currencyChangeSettings(c, settings);
-    final resetsCash =
-        changes.containsKey(SettingKeys.posBanknotes) || changes.containsKey(SettingKeys.cashRounding);
+    final resetsCash = changes.containsKey(SettingKeys.posBanknotes) || changes.containsKey(SettingKeys.cashRounding);
+    final l = context.l10n;
     final ok = await confirm(
       context,
-      title: 'Сменить валюту на ${c.code}?',
+      title: l.settingsCurChangeTitle(c.code),
       message: [
-        'Все суммы будут показываться в «${c.symbol}».',
+        l.settingsCurChangeSymbol(c.symbol),
         if (rescale)
-          'Внимание: у вас уже заведено товаров: $products. Цены хранятся в минимальных единицах, '
-              'поэтому цена ${Money.format(sample, c: current)} станет ${Money.format(sample, c: c)}. '
-              'Проверьте и исправьте цены после смены валюты.',
-        if (resetsCash)
-          'Номиналы купюр быстрой оплаты и округление наличных будут сброшены '
-              'на стандартные для новой валюты (раздел «Продажи»).',
-        'После первой продажи валюту изменить будет нельзя.',
+          l.settingsCurChangeRescale('$products', Money.format(sample, c: current), Money.format(sample, c: c)),
+        if (resetsCash) l.settingsCurChangeResetsCash,
+        l.settingsCurChangeFinal,
       ].join('\n\n'),
-      ok: 'Сменить валюту',
+      ok: l.settingsCurChangeOk,
       destructive: rescale,
     );
     if (!ok || !mounted) return;
@@ -85,7 +82,7 @@ class _CurrencySectionState extends ConsumerState<CurrencySection> with Settings
     await runGuarded(
       context,
       () => changeCurrency(ref.read(databaseProvider), c, settings, userId: currentUserId(ref)),
-      success: 'Валюта: ${_presetName(c)}',
+      success: context.l10n.settingsCurrencyValue(_presetName(c, context.l10n)),
     );
   }
 
@@ -96,37 +93,29 @@ class _CurrencySectionState extends ConsumerState<CurrencySection> with Settings
     final hasSales = ref.watch(hasSalesProvider);
     final locked = hasSales.value ?? true; // locked until we know
     final t = Theme.of(context);
+    final l = context.l10n;
 
     return buildForm(
-      title: 'Валюта и налоги',
-      description: 'Валюта, в которой ведётся учёт, и ставка НДС по умолчанию для новых товаров.',
+      title: l.settingsSecCurrency,
+      description: l.settingsCurrencyDesc,
       children: [
         SectionCard(
-          title: 'Валюта учёта',
+          title: l.settingsCurBase,
           trailing: locked && hasSales.hasValue
-              ? const Tooltip(
-                  message: 'Валюта зафиксирована после первой продажи',
-                  child: Icon(Icons.lock_outline, size: 20),
-                )
+              ? Tooltip(message: l.settingsCurLockedTooltip, child: const Icon(Icons.lock_outline, size: 20))
               : null,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (hasSales.hasValue && locked) ...[
-                const InfoBanner(
-                  icon: Icons.lock_outline,
-                  color: AppColors.warning,
-                  text:
-                      'Валюта зафиксирована: в базе уже есть продажи. Все суммы в чеках, отчётах, '
-                      'долгах и бонусах хранятся в этой валюте — её смена исказила бы всю историю.',
-                ),
+                InfoBanner(icon: Icons.lock_outline, color: AppColors.warning, text: l.settingsCurLockedBanner),
                 const SizedBox(height: Gap.m),
               ],
               if (hasSales.hasError) ...[
                 InfoBanner(
                   icon: Icons.error_outline,
                   color: AppColors.danger,
-                  text: 'Не удалось проверить наличие продаж: ${errorText(hasSales.error!)}',
+                  text: l.settingsCurCheckFailed(errorText(hasSales.error!)),
                 ),
                 const SizedBox(height: Gap.m),
               ],
@@ -142,28 +131,23 @@ class _CurrencySectionState extends ConsumerState<CurrencySection> with Settings
                     radius: 20,
                     child: Text(
                       c.code,
-                      style: const TextStyle(
-                        fontFamily: AppFonts.mono,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                      ),
+                      style: const TextStyle(fontFamily: AppFonts.mono, fontSize: 11, fontWeight: FontWeight.w700),
                     ),
                   ),
-                  title: Text('${_presetName(c)} (${c.code})'),
+                  title: Text('${_presetName(c, l)} (${c.code})'),
                   subtitle: Text(
-                    'Пример: ${Money.format(c.decimals == 0 ? 1234500 : 123450, c: c)}'
-                    '${c.decimals > 0 ? ' · с копейками' : ' · без копеек'}',
+                    c.decimals > 0
+                        ? l.settingsCurExampleCents(Money.format(123450, c: c))
+                        : l.settingsCurExampleNoCents(Money.format(1234500, c: c)),
                   ),
-                  trailing: c.code == current.code
-                      ? Icon(Icons.check_circle, color: t.colorScheme.primary)
-                      : null,
+                  trailing: c.code == current.code ? Icon(Icons.check_circle, color: t.colorScheme.primary) : null,
                   onTap: locked ? null : () => _choose(c, current),
                 ),
             ],
           ),
         ),
         SectionCard(
-          title: 'НДС',
+          title: l.commonVat,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -171,11 +155,11 @@ class _CurrencySectionState extends ConsumerState<CurrencySection> with Settings
                 child: TextFormField(
                   controller: ctl(SettingKeys.defaultVatPercent),
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(
-                    labelText: 'НДС по умолчанию для новых товаров',
+                  decoration: InputDecoration(
+                    labelText: l.settingsVatDefault,
                     suffixText: '%',
                     helperMaxLines: 3,
-                    helperText: '0 — если магазин не плательщик НДС',
+                    helperText: l.settingsVatHelper,
                   ),
                   validator: (v) => validatePercent(v, max: 50),
                   onFieldSubmitted: (_) => save(),
@@ -187,18 +171,11 @@ class _CurrencySectionState extends ConsumerState<CurrencySection> with Settings
                 runSpacing: Gap.s,
                 children: [
                   for (final v in const ['0', '12', '15', '20'])
-                    ActionChip(
-                      label: Text('$v %'),
-                      onPressed: () => ctl(SettingKeys.defaultVatPercent).text = v,
-                    ),
+                    ActionChip(label: Text('$v %'), onPressed: () => ctl(SettingKeys.defaultVatPercent).text = v),
                 ],
               ),
               const SizedBox(height: Gap.m),
-              const InfoBanner(
-                text:
-                    'Цены товаров указываются с НДС. Сумма НДС выделяется из цены по ставке товара '
-                    'и печатается в чеке строкой «в т.ч. НДС». Ставку можно изменить в карточке товара.',
-              ),
+              InfoBanner(text: l.settingsVatInfo),
             ],
           ),
         ),

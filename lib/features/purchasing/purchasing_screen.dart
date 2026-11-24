@@ -9,37 +9,40 @@ import 'orders_tab.dart';
 import 'price_tab.dart';
 import 'reorder_tab.dart';
 import 'suppliers_tab.dart';
+import '../../l10n/l10n.dart';
 
 /// Закупки: поставщики, заказы, автозаказ, контроль закупочных цен.
 class PurchasingScreen extends ConsumerWidget {
   const PurchasingScreen({super.key});
 
-  static const tabs = [
-    Tab(icon: Icon(Icons.storefront_outlined), text: 'Поставщики'),
-    Tab(icon: Icon(Icons.receipt_long_outlined), text: 'Заказы'),
-    Tab(icon: Icon(Icons.auto_mode_outlined), text: 'Автозаказ'),
-    Tab(icon: Icon(Icons.price_change_outlined), text: 'Закупочные цены'),
+  static List<Tab> tabsOf(AppLocalizations l) => [
+    Tab(icon: const Icon(Icons.storefront_outlined), text: l.purTabSuppliers),
+    Tab(icon: const Icon(Icons.receipt_long_outlined), text: l.purTabOrders),
+    Tab(icon: const Icon(Icons.auto_mode_outlined), text: l.purTabReorder),
+    Tab(icon: const Icon(Icons.price_change_outlined), text: l.purTabPrices),
   ];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = context.l10n;
     final session = ref.watch(sessionProvider);
     if (session == null || !session.can(Perm.purchasing)) {
-      return const PageScaffold(
-        title: 'Закупки',
+      return PageScaffold(
+        title: l.purTitle,
         body: EmptyState(
           icon: Icons.lock_outline,
-          title: 'Нет доступа',
-          message: 'Закупки доступны кладовщику, менеджеру и владельцу',
+          title: l.purNoAccess,
+          message: l.purNoAccessMessage,
         ),
       );
     }
+    final tabs = tabsOf(l);
     return DefaultTabController(
       length: tabs.length,
       child: PageScaffold(
-        title: 'Закупки',
+        title: l.purTitle,
         padding: EdgeInsets.all(context.isCompact ? Gap.m : Gap.l),
-        bottom: const TabBar(isScrollable: true, tabAlignment: TabAlignment.start, tabs: tabs),
+        bottom: TabBar(isScrollable: true, tabAlignment: TabAlignment.start, tabs: tabs),
         body: const TabBarView(
           physics: NeverScrollableScrollPhysics(),
           children: [SuppliersTab(), OrdersTab(), ReorderTab(), PriceControlTab()],

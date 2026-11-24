@@ -1,0 +1,23 @@
+{
+  "authEnterPin": "Enter PIN",
+  "authDemoMode": "Demo mode",
+  "setupDefaultReceiptFooter": "Thank you for your purchase!",
+  "setupWelcome": "Welcome to DreamPOS",
+  "setupIntro": "Setup takes less than a minute. You can change everything later in “Settings”.",
+  "setupStart": "Get started",
+  "setupStoreName": "Store name *",
+  "setupEnterStoreName": "Enter a name",
+  "setupTaxId": "TIN / STIR",
+  "setupCurrency": "Base currency",
+  "setupCurrencyExample": "Example: {amount}",
+  "setupCurrencyWarning": "The currency cannot be changed after the first sale — all amounts in the database depend on it.",
+  "setupOwnerName": "Your name (owner) *",
+  "setupPin": "PIN (4–8 digits) *",
+  "setupPinRepeat": "Repeat PIN *",
+  "setupPinMismatch": "PINs do not match",
+  "setupDemo": "Fill with demo data",
+  "setupDemoHint": "Products, customers and promotions to explore the system. Do not enable for a real store.",
+  "setupStepStore": "Store",
+  "setupStepCurrency": "Currency",
+  "setupStepOwner": "Owner"
+}

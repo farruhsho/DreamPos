@@ -2,6 +2,7 @@ import 'package:drift/drift.dart' hide Column;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../l10n/l10n.dart';
 import '../db/database.dart';
 import '../money.dart';
 import '../providers.dart';
@@ -36,8 +37,10 @@ Future<Product?> findByCode(AppDatabase db, String code) async {
 }
 
 /// Modal product picker. Returns the chosen product or null.
-Future<Product?> pickProduct(BuildContext context, {String title = 'Выбор товара'}) {
-  return showFormDialog<Product>(context, title: title, width: 640, child: const _ProductPicker());
+/// [title] defaults to «Выбор товара» in the UI language.
+Future<Product?> pickProduct(BuildContext context, {String? title}) {
+  return showFormDialog<Product>(context,
+      title: title ?? context.l10n.corePickProductTitle, width: 640, child: const _ProductPicker());
 }
 
 class _ProductPicker extends ConsumerStatefulWidget {
@@ -65,7 +68,7 @@ class _ProductPickerState extends ConsumerState<_ProductPicker> {
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         SearchField(
           autofocus: true,
-          hint: 'Название, артикул или штрихкод',
+          hint: context.l10n.corePickProductHint,
           onChanged: (v) => setState(() {
             _q = v;
             _load();
@@ -85,7 +88,7 @@ class _ProductPickerState extends ConsumerState<_ProductPicker> {
               if (!s.hasData) return const LoadingView();
               final list = s.data!;
               if (list.isEmpty) {
-                return const EmptyState(icon: Icons.search_off, title: 'Ничего не найдено');
+                return EmptyState(icon: Icons.search_off, title: context.l10n.commonNothingFound);
               }
               return ListView.separated(
                 itemCount: list.length,
@@ -96,8 +99,8 @@ class _ProductPickerState extends ConsumerState<_ProductPicker> {
                     title: Text(p.name),
                     subtitle: Text([
                       if (p.barcode != null) p.barcode!,
-                      if (p.sku != null) 'арт. ${p.sku}',
-                      'остаток ${Qty.format(p.stockQty, p.unit)}',
+                      if (p.sku != null) context.l10n.coreSkuShort(p.sku!),
+                      context.l10n.coreStockShort(Qty.format(p.stockQty, p.unit, context.l10n)),
                     ].join(' · ')),
                     trailing: Text(Money.format(p.price),
                         style: const TextStyle(fontWeight: FontWeight.w600)),
@@ -134,7 +137,8 @@ Future<List<Customer>> searchCustomers(AppDatabase db, String query, {int limit 
 
 /// Modal customer picker with quick "new customer" creation.
 Future<Customer?> pickCustomer(BuildContext context) =>
-    showFormDialog<Customer>(context, title: 'Клиент', width: 600, child: const _CustomerPicker());
+    showFormDialog<Customer>(context,
+        title: context.l10n.commonCustomer, width: 600, child: const _CustomerPicker());
 
 class _CustomerPicker extends ConsumerStatefulWidget {
   const _CustomerPicker();
@@ -154,7 +158,7 @@ class _CustomerPickerState extends ConsumerState<_CustomerPicker> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        title: const Text('Новый клиент'),
+        title: Text(c.l10n.coreNewCustomer),
         content: Form(
           key: key,
           child: SizedBox(
@@ -163,23 +167,23 @@ class _CustomerPickerState extends ConsumerState<_CustomerPicker> {
               TextFormField(
                   controller: name,
                   autofocus: true,
-                  decoration: const InputDecoration(labelText: 'Имя *'),
-                  validator: (v) => (v ?? '').trim().isEmpty ? 'Введите имя' : null),
+                  decoration: InputDecoration(labelText: c.l10n.coreNameRequiredLabel),
+                  validator: (v) => (v ?? '').trim().isEmpty ? c.l10n.commonEnterName : null),
               const SizedBox(height: Gap.m),
               TextFormField(
                   controller: phone,
                   keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(labelText: 'Телефон')),
+                  decoration: InputDecoration(labelText: c.l10n.commonPhone)),
             ]),
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Отмена')),
+          TextButton(onPressed: () => Navigator.pop(c, false), child: Text(c.l10n.commonCancel)),
           FilledButton(
               onPressed: () {
                 if (key.currentState!.validate()) Navigator.pop(c, true);
               },
-              child: const Text('Создать')),
+              child: Text(c.l10n.commonCreate)),
         ],
       ),
     );
@@ -203,7 +207,7 @@ class _CustomerPickerState extends ConsumerState<_CustomerPicker> {
           Expanded(
             child: SearchField(
               autofocus: true,
-              hint: 'Имя, телефон или номер карты',
+              hint: context.l10n.coreCustomerSearchHint,
               onChanged: (v) => setState(() {
                 _q = v;
                 _f = searchCustomers(ref.read(databaseProvider), v);
@@ -212,7 +216,7 @@ class _CustomerPickerState extends ConsumerState<_CustomerPicker> {
           ),
           const SizedBox(width: Gap.s),
           FilledButton.tonalIcon(
-              onPressed: _create, icon: const Icon(Icons.person_add_alt), label: const Text('Новый')),
+              onPressed: _create, icon: const Icon(Icons.person_add_alt), label: Text(context.l10n.commonNew)),
         ]),
         const SizedBox(height: Gap.s),
         SizedBox(
@@ -225,8 +229,8 @@ class _CustomerPickerState extends ConsumerState<_CustomerPicker> {
               if (s.data!.isEmpty) {
                 return EmptyState(
                   icon: Icons.person_search,
-                  title: 'Клиент не найден',
-                  action: FilledButton(onPressed: _create, child: const Text('Создать клиента')),
+                  title: context.l10n.commonCustomerNotFound,
+                  action: FilledButton(onPressed: _create, child: Text(context.l10n.coreCreateCustomer)),
                 );
               }
               return ListView.separated(
@@ -239,18 +243,19 @@ class _CustomerPickerState extends ConsumerState<_CustomerPicker> {
                     title: Text(c.name),
                     subtitle: Text([
                       if (c.phone != null) c.phone!,
-                      if (c.cardNumber != null) 'карта ${c.cardNumber}',
-                      if (c.discountPercent > 0) 'скидка ${c.discountPercent.toStringAsFixed(0)}%',
+                      if (c.cardNumber != null) context.l10n.coreCardShort(c.cardNumber!),
+                      if (c.discountPercent > 0)
+                        context.l10n.coreDiscountShort(c.discountPercent.toStringAsFixed(0)),
                     ].join(' · ')),
                     trailing: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         if (c.debtBalance > 0)
-                          Text('долг ${Money.format(c.debtBalance)}',
+                          Text(context.l10n.coreDebtShort(Money.format(c.debtBalance)),
                               style: const TextStyle(color: AppColors.danger, fontSize: 12)),
                         if (c.bonusBalance > 0)
-                          Text('бонусы ${Money.format(c.bonusBalance)}',
+                          Text(context.l10n.coreBonusShort(Money.format(c.bonusBalance)),
                               style: const TextStyle(color: AppColors.success, fontSize: 12)),
                       ],
                     ),

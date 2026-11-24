@@ -13,6 +13,7 @@ import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
 import '../../domain/services/sale_service.dart';
+import '../../l10n/l10n.dart';
 import 'filter_menu.dart';
 import 'sale_detail.dart';
 import 'sales_logic.dart';
@@ -59,7 +60,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> with SingleTickerProv
     if (n == null) return;
     final sale = await findSaleByNumber(ref.read(databaseProvider), n);
     if (!mounted) return;
-    if (sale == null) return showError(context, 'Чек №$n не найден');
+    if (sale == null) return showError(context, context.l10n.salesReceiptNoNotFound('$n'));
     _tabs.index = 0;
     setState(() => _focus = _Focus(sale.id, sale.number));
   }
@@ -73,17 +74,18 @@ class _SalesScreenState extends ConsumerState<SalesScreen> with SingleTickerProv
   @override
   Widget build(BuildContext context) {
     ref.watch(settingsProvider); // keeps Money.currency in sync
+    final l = context.l10n;
     return PageScaffold(
-      title: 'Чеки',
-      subtitle: 'История продаж и возвраты',
+      title: l.salesTitle,
+      subtitle: l.salesSubtitle,
       padding: EdgeInsets.zero,
       bottom: TabBar(
         controller: _tabs,
         isScrollable: true,
         tabAlignment: TabAlignment.start,
-        tabs: const [
-          Tab(icon: Icon(Icons.receipt_long_outlined), text: 'Чеки'),
-          Tab(icon: Icon(Icons.assignment_return_outlined), text: 'Возвраты'),
+        tabs: [
+          Tab(icon: const Icon(Icons.receipt_long_outlined), text: l.salesTitle),
+          Tab(icon: const Icon(Icons.assignment_return_outlined), text: l.salesTabReturns),
         ],
       ),
       body: TabBarView(
@@ -179,6 +181,7 @@ class _SalesTabState extends ConsumerState<_SalesTab> with AutomaticKeepAliveCli
     if (async.hasValue) _last = async.value;
     final totals = ref.watch(salesTotalsProvider(f.copyWith(limit: SalesFilter.pageSize))).value;
     final wide = context.isWide;
+    final l = context.l10n;
 
     final list = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -189,8 +192,8 @@ class _SalesTabState extends ConsumerState<_SalesTab> with AutomaticKeepAliveCli
             padding: const EdgeInsets.symmetric(horizontal: Gap.l),
             child: Text(
               shift.value == null
-                  ? 'Смена не открыта. Вы видите только чеки текущей смены.'
-                  : 'Показаны чеки текущей смены №${shift.value!.number}',
+                  ? l.salesNoShiftReceipts
+                  : l.salesShiftReceipts('${shift.value!.number}'),
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),
@@ -213,10 +216,10 @@ class _SalesTabState extends ConsumerState<_SalesTab> with AutomaticKeepAliveCli
         Expanded(
           flex: 6,
           child: !visible
-              ? const EmptyState(
+              ? EmptyState(
                   icon: Icons.touch_app_outlined,
-                  title: 'Выберите чек',
-                  message: 'Здесь появятся состав чека, оплаты, возвраты и действия',
+                  title: l.salesSelectReceipt,
+                  message: l.salesSelectReceiptHint,
                 )
               : SaleDetailView(key: ValueKey(_selected), saleId: _selected!),
         ),
@@ -225,6 +228,7 @@ class _SalesTabState extends ConsumerState<_SalesTab> with AutomaticKeepAliveCli
   }
 
   Widget _listBody(AsyncValue<List<SaleRow>> async, SalesFilter f) {
+    final l = context.l10n;
     final rows = async.value ?? _last;
     if (rows == null) {
       if (async.hasError) {
@@ -237,24 +241,24 @@ class _SalesTabState extends ConsumerState<_SalesTab> with AutomaticKeepAliveCli
       final restricted = f.shiftId != null;
       return EmptyState(
         icon: Icons.receipt_long_outlined,
-        title: 'Чеков не найдено',
+        title: l.salesNoReceipts,
         message: filtered
-            ? 'Измените условия поиска или сбросьте фильтры'
+            ? l.salesNoReceiptsFiltered
             : restricted
-            ? 'В текущей смене продаж пока нет'
-            : 'За выбранный период продаж нет',
+            ? l.salesNoSalesInShift
+            : l.salesNoSalesInPeriod,
         action: filtered
             ? OutlinedButton(
                 onPressed: () => setState(() {
                   _search.clear();
                   _filter = SalesFilter(period: _filter.period, custom: _filter.custom);
                 }),
-                child: const Text('Сбросить фильтры'),
+                child: Text(l.salesResetFilters),
               )
             : !restricted && _filter.period != Period.all
             ? OutlinedButton(
                 onPressed: () => setState(() => _filter = _filter.copyWith(period: Period.all)),
-                child: const Text('Показать за всё время'),
+                child: Text(l.salesShowAllTime),
               )
             : null,
       );
@@ -273,7 +277,7 @@ class _SalesTabState extends ConsumerState<_SalesTab> with AutomaticKeepAliveCli
                 onPressed: () =>
                     setState(() => _filter = _filter.copyWith(limit: _filter.limit + SalesFilter.pageSize)),
                 icon: const Icon(Icons.expand_more),
-                label: const Text('Показать ещё'),
+                label: Text(l.salesShowMore),
               ),
             ),
           );
@@ -286,10 +290,11 @@ class _SalesTabState extends ConsumerState<_SalesTab> with AutomaticKeepAliveCli
 
   Widget _filters(Session session, bool restricted) {
     final staff = ref.watch(staffProvider).value ?? const [];
+    final l = context.l10n;
     final search = SearchField(
       controller: _search,
       autofocus: context.isWide,
-      hint: 'Номер чека, клиент или товар',
+      hint: l.salesSearchHint,
       onChanged: (v) => setState(() => _filter = _filter.copyWith(query: v)),
     );
     final chips = Wrap(
@@ -303,22 +308,22 @@ class _SalesTabState extends ConsumerState<_SalesTab> with AutomaticKeepAliveCli
             onChanged: (p, c) => setState(() => _filter = _filter.copyWith(period: p, custom: c)),
           ),
         FilterMenu<String>(
-          label: 'Статус',
+          label: l.commonStatus,
           value: _filter.status,
-          options: [(null, 'Все'), for (final s in saleStatuses) (s, saleStatusLabel(s))],
+          options: [(null, l.commonAll), for (final s in saleStatuses) (s, saleStatusLabel(s, l))],
           onSelected: (v) => setState(() => _filter = _filter.copyWith(status: () => v)),
         ),
         FilterMenu<String>(
-          label: 'Оплата',
+          label: l.commonPayment,
           value: _filter.method,
-          options: [(null, 'Любая'), for (final m in paymentMethods) (m, paymentMethodLabel(m))],
+          options: [(null, l.salesAnyFem), for (final m in paymentMethods) (m, paymentMethodLabel(m, l))],
           onSelected: (v) => setState(() => _filter = _filter.copyWith(method: () => v)),
         ),
         if (!restricted && staff.isNotEmpty)
           FilterMenu<String>(
-            label: 'Кассир',
+            label: l.commonCashier,
             value: _filter.cashierId,
-            options: [(null, 'Все'), for (final u in staff) (u.id, u.name)],
+            options: [(null, l.commonAll), for (final u in staff) (u.id, u.name)],
             onSelected: (v) => setState(() => _filter = _filter.copyWith(cashierId: () => v)),
           ),
       ],
@@ -339,15 +344,18 @@ class _TotalsBar extends StatelessWidget {
   final SalesTotals totals;
 
   @override
-  Widget build(BuildContext context) => _TotalsStrip(
-    items: [
-      ('Чеков', '${totals.count}', null),
-      ('Продажи', Money.format(totals.gross), null),
-      if (totals.refunded > 0) ('Возвраты', '−${Money.format(totals.refunded)}', AppColors.danger),
-      ('Итого', Money.format(totals.net), AppColors.success),
-      if (totals.voided > 0) ('Аннулировано', '${totals.voided}', AppColors.danger),
-    ],
-  );
+  Widget build(BuildContext context) {
+    final l = context.l10n;
+    return _TotalsStrip(
+      items: [
+        (l.salesReceiptsLabel, '${totals.count}', null),
+        (l.salesSalesLabel, Money.format(totals.gross), null),
+        if (totals.refunded > 0) (l.salesTabReturns, '−${Money.format(totals.refunded)}', AppColors.danger),
+        (l.commonTotal, Money.format(totals.net), AppColors.success),
+        if (totals.voided > 0) (l.salesVoidedLabel, '${totals.voided}', AppColors.danger),
+      ],
+    );
+  }
 }
 
 /// Compact summary strip above a list (label over bold value).
@@ -376,7 +384,7 @@ class _TotalsStrip extends StatelessWidget {
         color: t.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(10),
       ),
-      child: Wrap(spacing: Gap.xl, runSpacing: Gap.s, children: [for (final (l, v, c) in items) item(l, v, c)]),
+      child: Wrap(spacing: Gap.xl, runSpacing: Gap.s, children: [for (final (k, v, c) in items) item(k, v, c)]),
     );
   }
 }
@@ -390,6 +398,7 @@ class _SaleTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final s = row.sale;
     final color = saleStatusColor(s.status);
     final now = DateTime.now();
@@ -420,8 +429,8 @@ class _SaleTile extends StatelessWidget {
         _meta([
           ?row.cashierName,
           ?row.customerName,
-          '${row.itemsCount} поз.',
-          if (row.methods.isNotEmpty) row.methods.map(paymentMethodLabel).join(', '),
+          l.salesPositionsShort('${row.itemsCount}'),
+          if (row.methods.isNotEmpty) row.methods.map((m) => paymentMethodLabel(m, l)).join(', '),
         ]),
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
@@ -440,7 +449,7 @@ class _SaleTile extends StatelessWidget {
           ),
           if (s.status != 'completed') ...[
             const SizedBox(height: 2),
-            StatusChip(saleStatusLabel(s.status), color: color),
+            StatusChip(saleStatusLabel(s.status, l), color: color),
           ],
         ],
       ),
@@ -480,6 +489,7 @@ class _ReturnsTabState extends ConsumerState<_ReturnsTab> with AutomaticKeepAliv
     if (async.hasValue) _last = async.value;
     final rows = async.value ?? _last;
     final wide = context.isWide;
+    final l = context.l10n;
 
     Widget body;
     if (rows == null) {
@@ -489,10 +499,10 @@ class _ReturnsTabState extends ConsumerState<_ReturnsTab> with AutomaticKeepAliv
     } else if (rows.isEmpty) {
       body = EmptyState(
         icon: Icons.assignment_return_outlined,
-        title: 'Возвратов нет',
+        title: l.salesNoReturns,
         message: _filter.query.isNotEmpty || _filter.method != null
-            ? 'Измените условия поиска'
-            : 'Возвраты оформляются из карточки чека во вкладке «Чеки»',
+            ? l.salesChangeSearch
+            : l.salesNoReturnsHint,
       );
     } else {
       final more = rows.length >= f.limit;
@@ -509,7 +519,7 @@ class _ReturnsTabState extends ConsumerState<_ReturnsTab> with AutomaticKeepAliv
                   onPressed: () =>
                       setState(() => _filter = _filter.copyWith(limit: _filter.limit + SalesFilter.pageSize)),
                   icon: const Icon(Icons.expand_more),
-                  label: const Text('Показать ещё'),
+                  label: Text(l.salesShowMore),
                 ),
               ),
             );
@@ -524,16 +534,16 @@ class _ReturnsTabState extends ConsumerState<_ReturnsTab> with AutomaticKeepAliv
               child: const Icon(Icons.assignment_return, color: AppColors.danger, size: 20),
             ),
             title: Text(
-              'Возврат №${r.ret.number} · чек №${r.saleNumber}',
+              l.salesReturnTitle('${r.ret.number}', '${r.saleNumber}'),
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
             subtitle: Text(
               _meta([
                 formatDateTime(r.ret.createdAt),
-                paymentMethodLabel(r.ret.refundMethod),
+                paymentMethodLabel(r.ret.refundMethod, l),
                 ?r.userName,
                 ?r.customerName,
-                '${r.itemsCount} поз.',
+                l.salesPositionsShort('${r.itemsCount}'),
                 if ((r.ret.reason ?? '').isNotEmpty) r.ret.reason!,
               ]),
               maxLines: 2,
@@ -569,7 +579,7 @@ class _ReturnsTabState extends ConsumerState<_ReturnsTab> with AutomaticKeepAliv
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               SearchField(
-                hint: 'Номер, клиент или причина',
+                hint: l.salesReturnsSearchHint,
                 onChanged: (v) => setState(() => _filter = _filter.copyWith(query: v)),
               ),
               const SizedBox(height: Gap.s),
@@ -584,11 +594,11 @@ class _ReturnsTabState extends ConsumerState<_ReturnsTab> with AutomaticKeepAliv
                       onChanged: (p, c) => setState(() => _filter = _filter.copyWith(period: p, custom: c)),
                     ),
                   FilterMenu<String>(
-                    label: 'Способ',
+                    label: l.salesMethodLabel,
                     value: _filter.method,
                     options: [
-                      (null, 'Любой'),
-                      for (final m in refundMethodOptions(hasCustomer: true)) (m, paymentMethodLabel(m)),
+                      (null, l.salesAnyMasc),
+                      for (final m in refundMethodOptions(hasCustomer: true)) (m, paymentMethodLabel(m, l)),
                     ],
                     onSelected: (v) => setState(() => _filter = _filter.copyWith(method: () => v)),
                   ),
@@ -602,16 +612,16 @@ class _ReturnsTabState extends ConsumerState<_ReturnsTab> with AutomaticKeepAliv
             padding: const EdgeInsets.symmetric(horizontal: Gap.l),
             child: Text(
               shift.value == null
-                  ? 'Смена не открыта. Вы видите только возвраты текущей смены.'
-                  : 'Показаны возвраты текущей смены №${shift.value!.number}',
+                  ? l.salesNoShiftReturns
+                  : l.salesShiftReturns('${shift.value!.number}'),
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),
         if (totals != null && totals.count > 0)
           _TotalsStrip(
             items: [
-              ('Возвратов', '${totals.count}', null),
-              ('На сумму', '−${Money.format(totals.sum)}', AppColors.danger),
+              (l.salesReturnsCountLabel, '${totals.count}', null),
+              (l.salesSumLabel, '−${Money.format(totals.sum)}', AppColors.danger),
             ],
           ),
         if (async.isLoading && _last != null) const LinearProgressIndicator(minHeight: 2),
@@ -628,10 +638,10 @@ class _ReturnsTabState extends ConsumerState<_ReturnsTab> with AutomaticKeepAliv
         Expanded(
           flex: 6,
           child: _selectedSale == null
-              ? const EmptyState(
+              ? EmptyState(
                   icon: Icons.touch_app_outlined,
-                  title: 'Выберите возврат',
-                  message: 'Здесь появятся чек, состав возврата и акт для печати',
+                  title: l.salesSelectReturn,
+                  message: l.salesSelectReturnHint,
                 )
               : SaleDetailView(
                   key: ValueKey(_selectedReturn),

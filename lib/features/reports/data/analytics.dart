@@ -2,18 +2,26 @@
 import 'dart:math' as math;
 
 import '../../../core/money.dart';
+import '../../../l10n/l10n.dart';
 import 'report_queries.dart';
 
 // ------------------------------------------------------------------ ABC
 
 enum AbcClass {
-  a('A', 'Основная выручка (первые 80%)'),
-  b('B', 'Средний вклад (следующие 15%)'),
-  c('C', 'Малый вклад (последние 5%)');
+  a('A'),
+  b('B'),
+  c('C');
 
-  const AbcClass(this.label, this.hint);
+  const AbcClass(this.label);
   final String label;
-  final String hint;
+
+  String hintIn(AppLocalizations l) => switch (this) {
+        AbcClass.a => l.repAbcHintA,
+        AbcClass.b => l.repAbcHintB,
+        AbcClass.c => l.repAbcHintC,
+      };
+
+  String get hint => hintIn(L.current);
 }
 
 /// ABC analysis by value (revenue).

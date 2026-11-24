@@ -8,6 +8,7 @@ import '../../core/permissions.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
+import '../../l10n/l10n.dart';
 import 'warranty_act.dart';
 import 'warranty_logic.dart';
 import 'warranty_repository.dart';
@@ -18,7 +19,7 @@ class ClaimDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Гарантийная заявка')),
+    appBar: AppBar(title: Text(context.l10n.warrantyClaimTitle)),
     body: ClaimDetailView(claimId: claimId),
   );
 }
@@ -31,7 +32,8 @@ class ClaimDetailView extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) => AsyncView<ClaimRow?>(
     value: ref.watch(claimProvider(claimId)),
     onRetry: () => ref.invalidate(claimProvider(claimId)),
-    data: (row) => row == null ? const EmptyState(icon: Icons.search_off, title: 'Заявка не найдена') : _Body(row: row),
+    data: (row) =>
+        row == null ? EmptyState(icon: Icons.search_off, title: context.l10n.warrantyClaimNotFound) : _Body(row: row),
   );
 }
 
@@ -42,6 +44,7 @@ class _Body extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final c = row.claim;
     final next = nextStatuses(c.status);
     final wState = warrantyState(row.warrantyUntil, c.createdAt);
@@ -57,15 +60,19 @@ class _Body extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Заявка №${c.number}', style: t.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
                   Text(
-                    'принята ${formatDateTime(c.createdAt)}${row.userName == null ? '' : ' · ${row.userName}'}',
+                    l.warrantyClaimNumber('${c.number}'),
+                    style: t.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  Text(
+                    '${l.warrantyAcceptedAt(formatDateTime(c.createdAt))}'
+                    '${row.userName == null ? '' : ' · ${row.userName}'}',
                     style: t.textTheme.bodyMedium?.copyWith(color: t.colorScheme.onSurfaceVariant),
                   ),
                 ],
               ),
             ),
-            StatusChip(warrantyStatusLabel(c.status), color: warrantyStatusColor(c.status)),
+            StatusChip(warrantyStatusLabel(c.status, l), color: warrantyStatusColor(c.status)),
           ],
         ),
         const SizedBox(height: Gap.m),
@@ -76,37 +83,39 @@ class _Body extends ConsumerWidget {
                   ? FilledButton.icon(
                       onPressed: () => _change(context, ref, s),
                       icon: Icon(warrantyActionIcon(s)),
-                      label: Text(warrantyActionLabel(s)),
+                      label: Text(warrantyActionLabel(s, l)),
                     )
                   : OutlinedButton.icon(
                       style: s == WStatus.rejected ? OutlinedButton.styleFrom(foregroundColor: AppColors.danger) : null,
                       onPressed: () => _change(context, ref, s),
                       icon: Icon(warrantyActionIcon(s)),
-                      label: Text(warrantyActionLabel(s)),
+                      label: Text(warrantyActionLabel(s, l)),
                     ),
             OutlinedButton.icon(
               onPressed: () => runGuarded(context, () => printClaimAct(ref.read(databaseProvider), row)),
               icon: const Icon(Icons.print_outlined),
-              label: const Text('Акт приёма'),
+              label: Text(l.warrantyActButton),
             ),
           ],
         ),
         if (c.status == WStatus.refunded) ...[const SizedBox(height: Gap.m), _RefundHint(row: row)],
         const SizedBox(height: Gap.m),
         SectionCard(
-          title: 'Товар',
+          title: l.commonProduct,
           child: Column(
             children: [
-              _kv(context, 'Наименование', row.productName ?? '—'),
-              _kv(context, 'Серийный номер', c.serialNumber ?? '—'),
+              _kv(context, l.warrantyProductName, row.productName ?? '—'),
+              _kv(context, l.warrantySerialNumber, c.serialNumber ?? '—'),
               _kv(
                 context,
-                'Покупка',
-                row.saleNumber == null ? 'без чека' : 'чек №${row.saleNumber} от ${formatDate(row.saleDate!)}',
+                l.warrantyPurchase,
+                row.saleNumber == null
+                    ? l.warrantyNoReceipt
+                    : l.warrantyReceiptRef('${row.saleNumber}', formatDate(row.saleDate!)),
                 trailing: row.saleNumber == null
                     ? null
                     : IconButton(
-                        tooltip: 'Открыть чек',
+                        tooltip: l.warrantyOpenReceipt,
                         visualDensity: VisualDensity.compact,
                         onPressed: () => context.go('/sales?receipt=${row.saleNumber}'),
                         icon: const Icon(Icons.open_in_new, size: 18),
@@ -114,11 +123,11 @@ class _Body extends ConsumerWidget {
               ),
               _kv(
                 context,
-                'Гарантия',
+                l.warrantyWarranty,
                 switch (wState) {
-                  WarrantyState.none => 'не установлена',
-                  WarrantyState.active => 'до ${formatDate(row.warrantyUntil!)}',
-                  WarrantyState.expired => 'истекла ${formatDate(row.warrantyUntil!)}',
+                  WarrantyState.none => l.warrantyNotSet,
+                  WarrantyState.active => l.warrantyUntil(formatDate(row.warrantyUntil!)),
+                  WarrantyState.expired => l.warrantyExpiredOn(formatDate(row.warrantyUntil!)),
                 },
                 color: switch (wState) {
                   WarrantyState.active => AppColors.success,
@@ -131,24 +140,24 @@ class _Body extends ConsumerWidget {
         ),
         const SizedBox(height: Gap.m),
         SectionCard(
-          title: 'Клиент',
+          title: l.commonCustomer,
           child: Column(
             children: [
-              _kv(context, 'Имя', row.customerName ?? 'не указан'),
-              if (row.customerPhone != null) _kv(context, 'Телефон', row.customerPhone!),
+              _kv(context, l.commonPersonName, row.customerName ?? l.warrantyNotSpecified),
+              if (row.customerPhone != null) _kv(context, l.commonPhone, row.customerPhone!),
             ],
           ),
         ),
         const SizedBox(height: Gap.m),
-        SectionCard(title: 'Неисправность', child: SelectableText(c.problem)),
+        SectionCard(title: l.warrantyProblem, child: SelectableText(c.problem)),
         if ((c.resolution ?? '').isNotEmpty) ...[
           const SizedBox(height: Gap.m),
-          SectionCard(title: 'Решение', child: SelectableText(c.resolution!)),
+          SectionCard(title: l.warrantyResolution, child: SelectableText(c.resolution!)),
         ],
         if (history.isNotEmpty) ...[
           const SizedBox(height: Gap.m),
           SectionCard(
-            title: 'История',
+            title: l.warrantyHistory,
             child: Column(
               children: [
                 for (final (e, user) in history)
@@ -156,7 +165,7 @@ class _Body extends ConsumerWidget {
                     dense: true,
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.history, size: 20),
-                    title: Text(_historyTitle(e.action, e.details)),
+                    title: Text(_historyTitle(l, e.action, e.details)),
                     subtitle: Text('${formatDateTime(e.at)}${user == null ? '' : ' · $user'}'),
                   ),
               ],
@@ -167,13 +176,13 @@ class _Body extends ConsumerWidget {
     );
   }
 
-  String _historyTitle(String action, String? details) {
-    if (action == 'warranty.create') return 'Заявка принята';
+  String _historyTitle(AppLocalizations l, String action, String? details) {
+    if (action == 'warranty.create') return l.warrantyHistoryCreated;
     final d = details ?? '';
     final m = RegExp(r'^(\w+)→(\w+)(.*)$').firstMatch(d);
     if (m == null) return d;
     final rest = m.group(3)!.replaceFirst(RegExp(r'^;\s*'), '');
-    return '${warrantyStatusLabel(m.group(1)!)} → ${warrantyStatusLabel(m.group(2)!)}'
+    return '${warrantyStatusLabel(m.group(1)!, l)} → ${warrantyStatusLabel(m.group(2)!, l)}'
         '${rest.isEmpty ? '' : ': $rest'}';
   }
 
@@ -185,6 +194,7 @@ class _Body extends ConsumerWidget {
           _StatusDialog(row: row, to: to, canWriteOff: session.can(Perm.stockOps) && row.claim.productId != null),
     );
     if (r == null || !context.mounted) return;
+    final l = context.l10n;
     final ok = await runGuarded(
       context,
       () => ref
@@ -197,16 +207,16 @@ class _Body extends ConsumerWidget {
             writeOff: r.$2,
             stock: ref.read(stockServiceProvider),
           ),
-      success: 'Статус: ${warrantyStatusLabel(to)}${r.$2 ? ' · 1 ед. списана' : ''}',
+      success: r.$2
+          ? l.warrantyStatusChangedWriteOff(warrantyStatusLabel(to, l))
+          : l.warrantyStatusChanged(warrantyStatusLabel(to, l)),
     );
     if (ok && to == WStatus.refunded && context.mounted) {
       final go = await confirm(
         context,
-        title: 'Оформите возврат денег',
-        message:
-            'Деньги возвращаются только через возврат по чеку в разделе «Чеки» — '
-            'так касса, склад и отчёты останутся верными. Перейти к оформлению?',
-        ok: row.saleNumber == null ? 'Открыть «Чеки»' : 'Открыть чек №${row.saleNumber}',
+        title: l.warrantyRefundTitle,
+        message: l.warrantyRefundMessage,
+        ok: row.saleNumber == null ? l.warrantyOpenReceipts : l.warrantyOpenReceiptNumber('${row.saleNumber}'),
       );
       if (go && context.mounted) {
         context.go(row.saleNumber == null ? '/sales' : '/sales?receipt=${row.saleNumber}');
@@ -231,10 +241,10 @@ class _RefundHint extends StatelessWidget {
       children: [
         const Icon(Icons.info_outline, color: AppColors.info),
         const SizedBox(width: Gap.m),
-        const Expanded(child: Text('Решение — возврат денег. Оформите возврат по чеку (без возврата на склад).')),
+        Expanded(child: Text(context.l10n.warrantyRefundHint)),
         TextButton(
           onPressed: () => context.go(row.saleNumber == null ? '/sales' : '/sales?receipt=${row.saleNumber}'),
-          child: const Text('К чеку'),
+          child: Text(context.l10n.warrantyToReceipt),
         ),
       ],
     ),
@@ -274,20 +284,21 @@ class _StatusDialogState extends State<_StatusDialog> {
   @override
   Widget build(BuildContext context) {
     final to = widget.to;
+    final l = context.l10n;
     final required = resolutionRequired(to);
     final hint = switch (to) {
-      WStatus.inRepair => 'Сервисный центр, ориентировочный срок',
-      WStatus.replaced => 'Например: заменён на новый, серийный № …',
-      WStatus.refunded => 'Например: дефект подтверждён, возврат денег',
-      WStatus.rejected => 'Причина отказа: следы удара, вскрытие, нарушение условий…',
-      WStatus.returnedToClient => 'Кому и когда выдано',
+      WStatus.inRepair => l.warrantyHintInRepair,
+      WStatus.replaced => l.warrantyHintReplaced,
+      WStatus.refunded => l.warrantyHintRefunded,
+      WStatus.rejected => l.warrantyHintRejected,
+      WStatus.returnedToClient => l.warrantyHintReturned,
       _ => null,
     };
     return CallbackShortcuts(
       bindings: {const SingleActivator(LogicalKeyboardKey.enter, control: true): _ok},
       child: AlertDialog(
         scrollable: true,
-        title: Text(warrantyActionLabel(to)),
+        title: Text(warrantyActionLabel(to, l)),
         content: Form(
           key: _key,
           child: SizedBox(
@@ -297,8 +308,11 @@ class _StatusDialogState extends State<_StatusDialog> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'Заявка №${widget.row.claim.number}: ${warrantyStatusLabel(widget.row.claim.status)} → '
-                  '${warrantyStatusLabel(to)}',
+                  l.warrantyTransition(
+                    '${widget.row.claim.number}',
+                    warrantyStatusLabel(widget.row.claim.status, l),
+                    warrantyStatusLabel(to, l),
+                  ),
                 ),
                 const SizedBox(height: Gap.m),
                 TextFormField(
@@ -307,11 +321,11 @@ class _StatusDialogState extends State<_StatusDialog> {
                   minLines: 2,
                   maxLines: 4,
                   decoration: InputDecoration(
-                    labelText: required ? 'Решение *' : 'Комментарий',
+                    labelText: required ? l.warrantyResolutionRequired : l.commonComment,
                     hintText: hint,
                     alignLabelWithHint: true,
                   ),
-                  validator: (v) => required && (v ?? '').trim().isEmpty ? 'Укажите решение' : null,
+                  validator: (v) => required && (v ?? '').trim().isEmpty ? l.warrantyEnterResolution : null,
                 ),
                 if (to == WStatus.replaced) ...[
                   const SizedBox(height: Gap.s),
@@ -319,31 +333,24 @@ class _StatusDialogState extends State<_StatusDialog> {
                     contentPadding: EdgeInsets.zero,
                     value: _writeOff,
                     onChanged: widget.canWriteOff ? (v) => setState(() => _writeOff = v ?? false) : null,
-                    title: const Text('Списать 1 ед. со склада'),
-                    subtitle: Text(
-                      widget.canWriteOff
-                          ? 'Причина: «Гарантийная замена» — выданный клиенту товар уйдёт из остатка'
-                          : 'Недоступно: нет прав на складские операции или не указан товар',
-                    ),
+                    title: Text(l.warrantyWriteOffOne),
+                    subtitle: Text(widget.canWriteOff ? l.warrantyWriteOffHint : l.warrantyWriteOffUnavailable),
                   ),
                 ],
                 if (to == WStatus.refunded) ...[
                   const SizedBox(height: Gap.s),
-                  const Text(
-                    'Статус не двигает деньги. После сохранения оформите возврат по чеку в разделе «Чеки».',
-                    style: TextStyle(color: AppColors.info),
-                  ),
+                  Text(l.warrantyRefundNote, style: const TextStyle(color: AppColors.info)),
                 ],
               ],
             ),
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')),
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(l.commonCancel)),
           FilledButton(
             style: to == WStatus.rejected ? FilledButton.styleFrom(backgroundColor: AppColors.danger) : null,
             onPressed: _ok,
-            child: const Text('Сохранить'),
+            child: Text(l.commonSave),
           ),
         ],
       ),

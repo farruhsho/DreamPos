@@ -11,29 +11,56 @@ import '../../core/providers.dart';
 import '../../domain/errors.dart';
 import '../../domain/services/receipt_service.dart';
 import '../../domain/services/stock_service.dart';
+import '../../l10n/l10n.dart';
 
 export '../../domain/services/receipt_service.dart' show PostedReceipt, ReceiptLineInput, ReceiptStatus;
 
 // ------------------------------------------------------------------ labels
 
-const movementTypeLabels = <String, String>{
-  'sale': 'Продажа',
-  'return': 'Возврат',
-  'receipt': 'Приход',
-  'receipt_reversal': 'Сторно прихода',
-  'writeoff': 'Списание',
-  'adjustment': 'Корректировка',
-  'inventory': 'Инвентаризация',
-  'transfer': 'Перемещение',
+Map<String, String> movementTypeLabelsOf(AppLocalizations l) => {
+  'sale': l.commonSale,
+  'return': l.commonReturn,
+  'receipt': l.invReceipt,
+  'receipt_reversal': l.invMoveReceiptReversal,
+  'writeoff': l.invWriteoff,
+  'adjustment': l.invAdjustment,
+  'inventory': l.invCount,
+  'transfer': l.invMoveTransfer,
 };
 
-String movementLabel(String type) => movementTypeLabels[type] ?? type;
+/// Movement type labels in the UI language.
+Map<String, String> get movementTypeLabels => movementTypeLabelsOf(L.current);
 
-const writeOffReasons = <String>['Брак', 'Просрочка', 'Порча', 'Недостача', 'Личное потребление', 'Другое'];
+String movementLabel(String type, [AppLocalizations? l]) => movementTypeLabelsOf(l ?? L.current)[type] ?? type;
 
-const receiptStatusLabels = <String, String>{'posted': 'Проведён', 'reversed': 'Сторнирован'};
+/// Write-off reason chips; the last one is «Другое» (comment required).
+/// The chosen label is written to the movement reason as typed text.
+List<String> writeOffReasonsOf(AppLocalizations l) => [
+  l.invReasonDefect,
+  l.invReasonExpired,
+  l.invReasonSpoiled,
+  l.invReasonShortage,
+  l.invReasonPersonalUse,
+  l.invReasonOther,
+];
 
-const countStatusLabels = <String, String>{'draft': 'Черновик', 'completed': 'Проведена', 'cancelled': 'Отменена'};
+List<String> get writeOffReasons => writeOffReasonsOf(L.current);
+
+Map<String, String> receiptStatusLabelsOf(AppLocalizations l) => {
+  'posted': l.invReceiptPosted,
+  'reversed': l.invReceiptReversed,
+};
+
+/// Receipt status labels in the UI language (also used by purchasing).
+Map<String, String> get receiptStatusLabels => receiptStatusLabelsOf(L.current);
+
+Map<String, String> countStatusLabelsOf(AppLocalizations l) => {
+  'draft': l.invCountDraft,
+  'completed': l.invCountCompleted,
+  'cancelled': l.invCountCancelled,
+};
+
+Map<String, String> get countStatusLabels => countStatusLabelsOf(L.current);
 
 // ------------------------------------------------------------------ providers
 
@@ -218,7 +245,7 @@ class ReceiptDocLine {
   final GoodsReceiptItem item;
   final Product? product;
 
-  String get name => product?.name ?? 'Удалённый товар';
+  String get name => product?.name ?? L.current.invDeletedProduct;
   String get unit => product?.unit ?? 'pcs';
   int get total => lineValue(item.qty, item.unitCost);
 
@@ -234,19 +261,25 @@ List<ReceiptDocLine> receiptDocLines(List<GoodsReceiptItem> items, Map<String, P
 String? movementReference(StockMovement m, Map<String, int> receiptNumbers) {
   if (m.refType != 'receipt' || m.refId == null) return null;
   final n = receiptNumbers[m.refId];
-  return n == null ? null : 'Приход №$n';
+  return n == null ? null : L.current.invReceiptRef('$n');
 }
 
 // ------------------------------------------------------------------ stock overview
 
 enum StockFilter {
-  all('Все'),
-  low('Мало'),
-  out('Нет в наличии'),
-  negative('Минус');
+  all,
+  low,
+  out,
+  negative;
 
-  const StockFilter(this.label);
-  final String label;
+  String labelIn(AppLocalizations l) => switch (this) {
+    StockFilter.all => l.commonAll,
+    StockFilter.low => l.invFilterLow,
+    StockFilter.out => l.invFilterOut,
+    StockFilter.negative => l.invFilterNegative,
+  };
+
+  String get label => labelIn(L.current);
 }
 
 bool isLow(Product p) => p.minStock > 0 && p.stockQty > 0 && p.stockQty <= p.minStock;
@@ -315,13 +348,14 @@ int lineValue(double qty, int unitCost) => (qty * unitCost).round();
 
 /// Validates a quantity for the product's unit. Returns an error or null.
 String? validateQty(double? q, String unit, {bool allowZero = false}) {
-  if (q == null) return 'Введите количество';
-  if (q < 0) return 'Количество не может быть отрицательным';
-  if (!allowZero && q == 0) return 'Количество должно быть больше нуля';
+  final l = L.current;
+  if (q == null) return l.invQtyRequired;
+  if (q < 0) return l.invQtyNegative;
+  if (!allowZero && q == 0) return l.invQtyPositive;
   if (!Qty.isFractional(unit) && q != q.roundToDouble()) {
-    return 'Для «${Qty.unitLabel(unit)}» допускается только целое число';
+    return l.invQtyIntegerOnly(Qty.unitLabel(unit, l));
   }
-  if (q > 1e7) return 'Слишком большое количество';
+  if (q > 1e7) return l.invQtyTooLarge;
   return null;
 }
 
@@ -352,7 +386,7 @@ class CountLine {
   final InventoryCountItem item;
   final Product? product;
 
-  String get name => product?.name ?? 'Удалённый товар';
+  String get name => product?.name ?? L.current.invDeletedProduct;
   String get unit => product?.unit ?? 'pcs';
   double get currentQty => product?.stockQty ?? item.expectedQty;
   int get unitCost => item.unitCost;
@@ -453,13 +487,13 @@ class InventoryRepo {
     String? supplierInvoice,
     bool canEditPrices = true,
   }) async {
-    if (lines.isEmpty) throw BusinessException('Добавьте хотя бы одну позицию');
+    if (lines.isEmpty) throw BusinessException(L.current.invAddAtLeastOneLine);
     for (final l in lines) {
       final err = validateQty(l.qty, l.product.unit);
       if (err != null) throw BusinessException('${l.product.name}: $err');
-      if (l.unitCost < 0) throw BusinessException('${l.product.name}: цена закупки отрицательная');
+      if (l.unitCost < 0) throw BusinessException(L.current.invCostNegative(l.product.name));
       if (l.newPrice != null && l.newPrice! <= 0) {
-        throw BusinessException('${l.product.name}: розничная цена должна быть больше нуля');
+        throw BusinessException(L.current.invRetailMustBePositive(l.product.name));
       }
     }
     return receipts.post(
@@ -491,14 +525,14 @@ class InventoryRepo {
       case CountScope.all:
         sel.where((p) => p.isActive.equals(true));
       case CountScope.category:
-        if (categoryId == null) throw BusinessException('Выберите категорию');
+        if (categoryId == null) throw BusinessException(L.current.invSelectCategory);
         sel.where((p) => p.categoryId.equals(categoryId) & p.isActive.equals(true));
       case CountScope.selected:
-        if (productIds.isEmpty) throw BusinessException('Выберите товары');
+        if (productIds.isEmpty) throw BusinessException(L.current.invSelectProducts);
         sel.where((p) => p.id.isIn(productIds));
     }
     final products = await sel.get();
-    if (products.isEmpty) throw BusinessException('Нет товаров для инвентаризации');
+    if (products.isEmpty) throw BusinessException(L.current.invNoProductsToCount);
     final id = newId();
     await db.transaction(() async {
       final number = await db.nextNumber('inventory');
@@ -530,7 +564,7 @@ class InventoryRepo {
         userId: userId,
         entity: 'inventory_count',
         entityId: id,
-        details: '№$number; ${products.length} поз.',
+        details: '№$number; ${products.length} поз.', // l10n-ignore: audit text stored in the DB
       );
     });
     return id;
@@ -538,7 +572,7 @@ class InventoryRepo {
 
   Future<InventoryCount> _draft(String countId) async {
     final c = await (db.select(db.inventoryCounts)..where((t) => t.id.equals(countId))).getSingle();
-    if (c.status != 'draft') throw BusinessException('Инвентаризация уже закрыта');
+    if (c.status != 'draft') throw BusinessException(L.current.invCountClosed);
     return c;
   }
 
@@ -550,7 +584,7 @@ class InventoryRepo {
       final now = DateTime.now();
       for (final e in values.entries) {
         final v = e.value;
-        if (v != null && v < 0) throw BusinessException('Количество не может быть отрицательным');
+        if (v != null && v < 0) throw BusinessException(L.current.invQtyNegative);
         await (db.update(db.inventoryCountItems)..where((i) => i.id.equals(e.key) & i.countId.equals(countId))).write(
           InventoryCountItemsCompanion(countedQty: Value(v == null ? null : Qty.round(v)), updatedAt: Value(now)),
         );
@@ -613,7 +647,7 @@ class InventoryRepo {
       final counted = await (db.select(
         db.inventoryCountItems,
       )..where((i) => i.countId.equals(countId) & i.countedQty.isNotNull())).get();
-      if (counted.isEmpty) throw BusinessException('Не введено ни одного фактического количества');
+      if (counted.isEmpty) throw BusinessException(L.current.invNoCountedQty);
       await stock.completeCount(countId, userId: userId);
     });
   }

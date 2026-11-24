@@ -8,17 +8,24 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/money.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
+import '../../l10n/l10n.dart';
 import 'gift_card_detail.dart';
 import 'gift_sales_logic.dart';
 
 enum GiftSalesPeriod {
-  today('Сегодня'),
-  week('7 дней'),
-  month('30 дней'),
-  all('Всё время');
+  today,
+  week,
+  month,
+  all;
 
-  const GiftSalesPeriod(this.label);
-  final String label;
+  String labelIn(AppLocalizations l) => switch (this) {
+    GiftSalesPeriod.today => l.commonToday,
+    GiftSalesPeriod.week => l.mktPeriod7Days,
+    GiftSalesPeriod.month => l.mktPeriod30Days,
+    GiftSalesPeriod.all => l.mktPeriodAllTime,
+  };
+
+  String get label => labelIn(L.current);
 
   /// Start of the period (inclusive) relative to [now]; null = no bound.
   DateTime? from(DateTime now) {
@@ -101,6 +108,7 @@ class _GiftSalesListState extends ConsumerState<GiftSalesList> {
     if (_dayOf(widget.clock()) != _filterDay) _filter = _makeFilter();
     final async = ref.watch(giftSalesProvider(_filter));
     final t = Theme.of(context);
+    final l = context.l10n;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -113,17 +121,17 @@ class _GiftSalesListState extends ConsumerState<GiftSalesList> {
             children: [
               for (final p in GiftSalesPeriod.values)
                 ChoiceChip(
-                  label: Text(p.label),
+                  label: Text(p.labelIn(l)),
                   selected: _period == p,
                   onSelected: (_) => _set(period: p),
                 ),
               const SizedBox(width: Gap.m, height: 1),
               ChoiceChip(
-                label: const Text('Все'),
+                label: Text(l.commonAll),
                 selected: _status == null,
                 onSelected: (_) => _set(clearStatus: true),
               ),
-              for (final e in giftSaleStatusLabels.entries)
+              for (final e in giftSaleStatusLabelsIn(l).entries)
                 ChoiceChip(
                   label: Text(e.value),
                   selected: _status == e.key,
@@ -138,10 +146,10 @@ class _GiftSalesListState extends ConsumerState<GiftSalesList> {
             onRetry: () => ref.invalidate(giftSalesProvider(_filter)),
             data: (rows) {
               if (rows.isEmpty) {
-                return const EmptyState(
+                return EmptyState(
                   icon: Icons.receipt_long_outlined,
-                  title: 'Продаж сертификатов нет',
-                  message: 'За выбранный период нет документов с таким статусом.',
+                  title: l.mktGiftSalesEmptyTitle,
+                  message: l.mktGiftSalesEmptyMessage,
                 );
               }
               final completed = rows.where((r) => r.sale.status == GiftSaleStatus.completed);
@@ -155,9 +163,9 @@ class _GiftSalesListState extends ConsumerState<GiftSalesList> {
                   if (i == 0) {
                     return Text(
                       [
-                        '${rows.length} ${pluralRu(rows.length, 'документ', 'документа', 'документов')}',
-                        'проведено на ${Money.format(total)}',
-                        if (voided > 0) 'аннулировано: $voided',
+                        l.commonDocumentsCount(rows.length),
+                        l.mktCompletedFor(Money.format(total)),
+                        if (voided > 0) l.mktVoidedCount('$voided'),
                       ].join(' · '),
                       style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant),
                     );
@@ -182,6 +190,7 @@ class _SaleRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final s = row.sale;
     final voided = s.status == GiftSaleStatus.voided;
     final meta = t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant);
@@ -221,11 +230,11 @@ class _SaleRow extends StatelessWidget {
               const SizedBox(height: Gap.xs),
               Row(
                 children: [
-                  StatusChip(giftSaleStatusLabels[s.status] ?? s.status, color: giftSaleStatusColor(s.status)),
+                  StatusChip(giftSaleStatusLabel(s.status, l), color: giftSaleStatusColor(s.status)),
                   const SizedBox(width: Gap.s),
                   Expanded(
                     child: Text(
-                      giftPaymentsText(row.payments),
+                      giftPaymentsText(row.payments, l),
                       style: meta,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -240,7 +249,7 @@ class _SaleRow extends StatelessWidget {
                   formatDateTime(s.createdAt),
                   ?row.cashierName,
                   ?row.customerName,
-                  if (voided && s.voidReason != null) 'причина: ${s.voidReason}',
+                  if (voided && s.voidReason != null) l.mktReasonLower(s.voidReason!),
                 ].join(' · '),
                 style: meta,
                 maxLines: 2,

@@ -5,6 +5,7 @@ import '../../core/db/database.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
+import '../../l10n/l10n.dart';
 import 'marketing_repo.dart';
 import 'promo_simulator.dart';
 import 'promotion_editor.dart';
@@ -29,22 +30,22 @@ class _PromotionsTabState extends ConsumerState<PromotionsTab> {
 
   Future<void> _create() async {
     final id = await showPromotionEditor(context);
-    if (id != null && mounted) showSuccess(context, 'Акция сохранена');
+    if (id != null && mounted) showSuccess(context, context.l10n.mktPromoSaved);
   }
 
   Future<void> _delete(Promotion p) async {
     final ok = await confirm(
       context,
-      title: 'Удалить акцию?',
-      message: '«${p.name}» перестанет применяться на кассе. Проданные чеки не изменятся.',
-      ok: 'Удалить',
+      title: context.l10n.mktDeletePromoTitle,
+      message: context.l10n.mktDeletePromoMessage(p.name),
+      ok: context.l10n.commonDelete,
       destructive: true,
     );
     if (!ok || !mounted) return;
     await runGuarded(
       context,
       () => ref.read(marketingRepoProvider).deletePromotion(p, userId: ref.read(sessionProvider)!.user.id),
-      success: 'Акция удалена',
+      success: context.l10n.mktPromoDeleted,
     );
   }
 
@@ -54,6 +55,7 @@ class _PromotionsTabState extends ConsumerState<PromotionsTab> {
     final cats = {for (final c in ref.watch(categoriesListProvider).value ?? const <Category>[]) c.id: c.name};
     final prods = ref.watch(promoProductNamesProvider).value ?? const <String, String>{};
     final now = DateTime.now();
+    final l = context.l10n;
 
     return AsyncView<List<Promotion>>(
       value: async,
@@ -92,19 +94,19 @@ class _PromotionsTabState extends ConsumerState<PromotionsTab> {
                       SizedBox(
                         width: context.width < 600 ? double.infinity : 320,
                         child: SearchField(
-                          hint: 'Название или промокод',
+                          hint: l.mktPromoSearchHint,
                           onChanged: (v) => setState(() => _search = v),
                         ),
                       ),
                       FilledButton.icon(
                         onPressed: _create,
                         icon: const Icon(Icons.add),
-                        label: const Text('Новая акция'),
+                        label: Text(l.mktNewPromo),
                       ),
                       OutlinedButton.icon(
                         onPressed: () => showPromoSimulator(context),
                         icon: const Icon(Icons.calculate_outlined),
-                        label: const Text('Проверить на чеке'),
+                        label: Text(l.mktTestOnReceipt),
                       ),
                     ],
                   ),
@@ -116,14 +118,14 @@ class _PromotionsTabState extends ConsumerState<PromotionsTab> {
                     padding: const EdgeInsets.symmetric(horizontal: Gap.l, vertical: Gap.s),
                     children: [
                       ChoiceChip(
-                        label: Text('Все ${all.length}'),
+                        label: Text(l.mktChipAll('${all.length}')),
                         selected: _status == null,
                         onSelected: (_) => setState(() => _status = null),
                       ),
                       for (final s in PromoStatus.values) ...[
                         const SizedBox(width: Gap.xs),
                         ChoiceChip(
-                          label: Text('${s.label} ${count(s)}'),
+                          label: Text('${s.labelIn(l)} ${count(s)}'),
                           selected: _status == s,
                           onSelected: (_) => setState(() => _status = s),
                         ),
@@ -135,18 +137,16 @@ class _PromotionsTabState extends ConsumerState<PromotionsTab> {
                   child: all.isEmpty
                       ? EmptyState(
                           icon: Icons.campaign_outlined,
-                          title: 'Акций пока нет',
-                          message:
-                              'Создайте скидку на чек, на категорию или товар, «2+1» или промокод. '
-                              'Касса применит её автоматически.',
+                          title: l.mktPromosEmptyTitle,
+                          message: l.mktPromosEmptyMessage,
                           action: FilledButton.icon(
                             onPressed: _create,
                             icon: const Icon(Icons.add),
-                            label: const Text('Создать акцию'),
+                            label: Text(l.mktCreatePromo),
                           ),
                         )
                       : list.isEmpty
-                      ? const EmptyState(icon: Icons.filter_alt_off_outlined, title: 'Нет акций с таким фильтром')
+                      ? EmptyState(icon: Icons.filter_alt_off_outlined, title: l.mktPromosNoMatch)
                       : ListView.separated(
                           padding: const EdgeInsets.fromLTRB(Gap.l, 0, Gap.l, Gap.l),
                           itemCount: list.length,
@@ -157,7 +157,7 @@ class _PromotionsTabState extends ConsumerState<PromotionsTab> {
                             return _PromoCard(
                               promotion: p,
                               status: statusOf(p, now),
-                              description: describePromo(p, targetName: target),
+                              description: describePromo(p, targetName: target, l: l),
                               onEdit: () => showPromotionEditor(context, promotion: p),
                               onDuplicate: () => showPromotionEditor(context, promotion: p, duplicate: true),
                               onDelete: () => _delete(p),
@@ -204,6 +204,7 @@ class _PromoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final p = promotion;
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -244,43 +245,43 @@ class _PromoCard extends StatelessWidget {
                         crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           Text(p.name, style: t.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
-                          StatusChip(status.label, color: promoStatusColor(status)),
+                          StatusChip(status.labelIn(l), color: promoStatusColor(status)),
                         ],
                       ),
                       const SizedBox(height: 2),
                       Text(description, style: t.textTheme.bodyMedium),
                       Text(
-                        '${promoTypeLabel(p.type)} · ${formatPeriod(p.startsAt, p.endsAt)}',
+                        '${promoTypeLabel(p.type, l)} · ${formatPeriod(p.startsAt, p.endsAt, l)}',
                         style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant),
                       ),
                     ],
                   ),
                 ),
                 Tooltip(
-                  message: p.isActive ? 'Выключить' : 'Включить',
+                  message: p.isActive ? l.mktTurnOff : l.mktTurnOn,
                   child: Switch(value: p.isActive, onChanged: onToggle),
                 ),
                 PopupMenuButton<String>(
-                  tooltip: 'Действия',
+                  tooltip: l.commonActions,
                   onSelected: (v) => switch (v) {
                     'edit' => onEdit(),
                     'dup' => onDuplicate(),
                     _ => onDelete(),
                   },
-                  itemBuilder: (_) => const [
+                  itemBuilder: (_) => [
                     PopupMenuItem(
                       value: 'edit',
-                      child: ListTile(leading: Icon(Icons.edit_outlined), title: Text('Изменить')),
+                      child: ListTile(leading: const Icon(Icons.edit_outlined), title: Text(l.commonEdit)),
                     ),
                     PopupMenuItem(
                       value: 'dup',
-                      child: ListTile(leading: Icon(Icons.copy), title: Text('Дублировать')),
+                      child: ListTile(leading: const Icon(Icons.copy), title: Text(l.mktDuplicate)),
                     ),
                     PopupMenuItem(
                       value: 'del',
                       child: ListTile(
-                        leading: Icon(Icons.delete_outline, color: AppColors.danger),
-                        title: Text('Удалить', style: TextStyle(color: AppColors.danger)),
+                        leading: const Icon(Icons.delete_outline, color: AppColors.danger),
+                        title: Text(l.commonDelete, style: const TextStyle(color: AppColors.danger)),
                       ),
                     ),
                   ],

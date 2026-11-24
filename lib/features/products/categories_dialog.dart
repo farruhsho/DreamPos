@@ -6,6 +6,7 @@ import '../../core/permissions.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
+import '../../l10n/l10n.dart';
 import 'product_logic.dart';
 import 'product_widgets.dart';
 import 'products_repo.dart';
@@ -53,8 +54,9 @@ class _CategoryEditDialogState extends ConsumerState<_CategoryEditDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l = context.l10n;
     return AlertDialog(
-      title: Text(widget.category == null ? 'Новая категория' : 'Категория'),
+      title: Text(widget.category == null ? l.prodNewCategory : l.commonCategory),
       content: Form(
         key: _key,
         child: SizedBox(
@@ -65,17 +67,17 @@ class _CategoryEditDialogState extends ConsumerState<_CategoryEditDialog> {
               autofocus: true,
               maxLength: 120,
               textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(labelText: 'Название *', counterText: ''),
-              validator: (v) => (v ?? '').trim().isEmpty ? 'Введите название' : null,
+              decoration: InputDecoration(labelText: l.prodNameRequired, counterText: ''),
+              validator: (v) => (v ?? '').trim().isEmpty ? l.prodErrEnterNameShort : null,
               onFieldSubmitted: (_) => _save(),
             ),
             const SizedBox(height: Gap.l),
-            Text('Цвет', style: Theme.of(context).textTheme.bodySmall),
+            Text(l.prodColor, style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: Gap.s),
             Wrap(spacing: Gap.s, runSpacing: Gap.s, children: [
               for (final c in categoryPalette)
                 Semantics(
-                  label: 'Цвет',
+                  label: l.prodColor,
                   selected: c == _color,
                   button: true,
                   child: InkWell(
@@ -100,8 +102,8 @@ class _CategoryEditDialogState extends ConsumerState<_CategoryEditDialog> {
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')),
-        FilledButton(onPressed: _busy ? null : _save, child: const Text('Сохранить')),
+        TextButton(onPressed: () => Navigator.pop(context), child: Text(l.commonCancel)),
+        FilledButton(onPressed: _busy ? null : _save, child: Text(l.commonSave)),
       ],
     );
   }
@@ -110,7 +112,7 @@ class _CategoryEditDialogState extends ConsumerState<_CategoryEditDialog> {
 /// Full categories management: list, reorder, edit, delete.
 Future<void> showCategoriesManager(BuildContext context) => showFormDialog<void>(
       context,
-      title: 'Категории',
+      title: context.l10n.prodCategories,
       width: 560,
       child: const _CategoriesManager(),
     );
@@ -129,15 +131,16 @@ class _CategoriesManagerState extends ConsumerState<_CategoriesManager> {
     final userId = ref.read(sessionProvider)?.user.id;
     final count = await repo.categoryProductCount(c.id);
     if (!mounted) return;
+    final l = context.l10n;
     if (count == 0) {
       final ok = await confirm(context,
-          title: 'Удалить категорию «${c.name}»?',
-          message: 'В категории нет товаров.',
-          ok: 'Удалить',
+          title: l.prodDeleteCategoryQ(c.name),
+          message: l.prodCategoryEmptyMsg,
+          ok: l.commonDelete,
           destructive: true);
       if (!ok || !mounted) return;
       await runGuarded(context, () => repo.deleteCategory(c.id, userId: userId),
-          success: 'Категория удалена');
+          success: l.prodCategoryDeleted);
       return;
     }
     // Has products: ask where to move them.
@@ -147,18 +150,18 @@ class _CategoriesManagerState extends ConsumerState<_CategoriesManager> {
       context: context,
       builder: (dc) => StatefulBuilder(
         builder: (dc, setS) => AlertDialog(
-          title: Text('Удалить «${c.name}»?'),
+          title: Text(l.prodDeleteQ(c.name)),
           content: SizedBox(
             width: 400,
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('В категории $count товаров. Куда их перенести?'),
+              Text(l.prodCategoryMoveQ('$count')),
               const SizedBox(height: Gap.l),
               DropdownButtonFormField<String?>(
                 initialValue: target,
                 isExpanded: true,
-                decoration: const InputDecoration(labelText: 'Перенести в'),
+                decoration: InputDecoration(labelText: l.prodMoveTo),
                 items: [
-                  const DropdownMenuItem(value: null, child: Text('Без категории')),
+                  DropdownMenuItem(value: null, child: Text(l.prodNoCategory)),
                   for (final o in others)
                     DropdownMenuItem(
                       value: o.id,
@@ -174,11 +177,11 @@ class _CategoriesManagerState extends ConsumerState<_CategoriesManager> {
             ]),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(dc, false), child: const Text('Отмена')),
+            TextButton(onPressed: () => Navigator.pop(dc, false), child: Text(l.commonCancel)),
             FilledButton(
               style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
               onPressed: () => Navigator.pop(dc, true),
-              child: const Text('Перенести и удалить'),
+              child: Text(l.prodMoveAndDelete),
             ),
           ],
         ),
@@ -187,7 +190,7 @@ class _CategoriesManagerState extends ConsumerState<_CategoriesManager> {
     if (ok != true || !mounted) return;
     await runGuarded(
         context, () => repo.deleteCategory(c.id, moveTo: target, moveToNone: target == null, userId: userId),
-        success: 'Категория удалена, товары перенесены');
+        success: l.prodCategoryDeletedMoved);
   }
 
   @override
@@ -196,6 +199,7 @@ class _CategoriesManagerState extends ConsumerState<_CategoriesManager> {
     final canEdit = session?.can(Perm.editProducts) ?? false;
     final cats = ref.watch(productCategoriesProvider);
     final counts = ref.watch(categoryCountsProvider).value ?? const {};
+    final l = context.l10n;
     return Padding(
       padding: const EdgeInsets.fromLTRB(Gap.l, Gap.s, Gap.l, Gap.l),
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -205,7 +209,7 @@ class _CategoriesManagerState extends ConsumerState<_CategoriesManager> {
             child: FilledButton.tonalIcon(
               onPressed: () => showCategoryEditDialog(context),
               icon: const Icon(Icons.add),
-              label: const Text('Новая категория'),
+              label: Text(l.prodNewCategory),
             ),
           ),
         const SizedBox(height: Gap.s),
@@ -215,10 +219,10 @@ class _CategoriesManagerState extends ConsumerState<_CategoriesManager> {
             data: (list) {
               if (_local != null && _local!.length == list.length) list = _local!;
               if (list.isEmpty) {
-                return const EmptyState(
+                return EmptyState(
                   icon: Icons.category_outlined,
-                  title: 'Категорий пока нет',
-                  message: 'Категории помогают быстро находить товары на кассе и в отчётах.',
+                  title: l.prodNoCategoriesYet,
+                  message: l.prodCategoriesHint,
                 );
               }
               return ConstrainedBox(
@@ -257,16 +261,16 @@ class _CategoriesManagerState extends ConsumerState<_CategoriesManager> {
                         if (canEdit) ...[CategoryDot(color: c.color, size: 14), const SizedBox(width: Gap.s)],
                         Flexible(child: Text(c.name, maxLines: 2, overflow: TextOverflow.ellipsis)),
                       ]),
-                      subtitle: Text('Товаров: ${counts[c.id] ?? 0}'),
+                      subtitle: Text(l.prodCountLabel('${counts[c.id] ?? 0}')),
                       trailing: !canEdit
                           ? null
                           : Row(mainAxisSize: MainAxisSize.min, children: [
                               IconButton(
-                                  tooltip: 'Изменить',
+                                  tooltip: l.commonEdit,
                                   icon: const Icon(Icons.edit_outlined),
                                   onPressed: () => showCategoryEditDialog(context, category: c)),
                               IconButton(
-                                  tooltip: 'Удалить',
+                                  tooltip: l.commonDelete,
                                   icon: const Icon(Icons.delete_outline),
                                   onPressed: () => _delete(c, list)),
                             ]),
@@ -280,8 +284,7 @@ class _CategoriesManagerState extends ConsumerState<_CategoriesManager> {
         if (canEdit)
           Padding(
             padding: const EdgeInsets.only(top: Gap.s),
-            child: Text('Перетащите, чтобы изменить порядок на кассе. '
-                'Без категории: ${counts[null] ?? 0} товаров.',
+            child: Text(l.prodCategoriesFooter('${counts[null] ?? 0}'),
                 style: Theme.of(context).textTheme.bodySmall),
           ),
       ]),

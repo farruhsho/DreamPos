@@ -14,18 +14,23 @@ import '../../domain/errors.dart';
 import '../../domain/services/receipt_service.dart';
 import '../../domain/services/stock_service.dart';
 import '../../domain/services/supplier_service.dart';
+import '../../l10n/l10n.dart';
 
 export '../../domain/services/supplier_service.dart' show SupplierLedgerKind;
 
 // ------------------------------------------------------------------ labels
 
-const poStatusLabels = <String, String>{
-  'draft': 'Черновик',
-  'ordered': 'Заказан',
-  poPartialStatus: 'Частично получен',
-  'received': 'Получен',
-  'cancelled': 'Отменён',
+/// PO status labels in [l].
+Map<String, String> poStatusLabelsOf(AppLocalizations l) => {
+  'draft': l.purStatusDraft,
+  'ordered': l.purStatusOrdered,
+  poPartialStatus: l.purStatusPartial,
+  'received': l.purStatusReceived,
+  'cancelled': l.purStatusCancelled,
 };
+
+/// [poStatusLabelsOf] in the UI language.
+Map<String, String> get poStatusLabels => poStatusLabelsOf(L.current);
 
 /// Display-only status for an `ordered` PO with some lines already received.
 /// Never stored: the DB keeps `ordered` until everything arrives.
@@ -39,7 +44,15 @@ String poDisplayStatus(String status, {required bool anyReceived}) =>
 String poDisplayStatusOf(PurchaseOrder o, Iterable<PurchaseOrderItem> items) =>
     poDisplayStatus(o.status, anyReceived: items.any((i) => i.deletedAt == null && i.receivedQty > 0));
 
-const paymentMethodLabels = <String, String>{'cash': 'Наличные', 'card': 'Карта', 'transfer': 'Перечисление'};
+/// Supplier payment method labels in [l].
+Map<String, String> paymentMethodLabelsOf(AppLocalizations l) => {
+  'cash': l.payCash,
+  'card': l.payCard,
+  'transfer': l.purMethodTransfer,
+};
+
+/// [paymentMethodLabelsOf] in the UI language.
+Map<String, String> get paymentMethodLabels => paymentMethodLabelsOf(L.current);
 
 // ------------------------------------------------------------------ providers
 
@@ -176,14 +189,18 @@ final purchasingRepoProvider = Provider(
 
 // ------------------------------------------------------------------ supplier statement
 
-const supplierLedgerKindLabels = <String, String>{
-  'opening': 'Начальный остаток',
-  'receipt': 'Приход',
-  'receipt_reversal': 'Сторно прихода',
-  'payment': 'Оплата',
-  'payment_cancel': 'Отмена оплаты',
-  'adjustment': 'Корректировка',
+/// Ledger row kind labels in [l].
+Map<String, String> supplierLedgerKindLabelsOf(AppLocalizations l) => {
+  'opening': l.purLedgerOpening,
+  'receipt': l.purLedgerReceipt,
+  'receipt_reversal': l.purLedgerReceiptReversal,
+  'payment': l.commonPayment,
+  'payment_cancel': l.purLedgerPaymentCancel,
+  'adjustment': l.purLedgerAdjustment,
 };
+
+/// [supplierLedgerKindLabelsOf] in the UI language.
+Map<String, String> get supplierLedgerKindLabels => supplierLedgerKindLabelsOf(L.current);
 
 /// Supplier statement (акт сверки) for a period built from ledger rows.
 /// * [opening] — balance before [from] (last balanceAfter before it, else 0);
@@ -249,7 +266,7 @@ String supplierLedgerOperation(
     case SupplierLedgerKind.receipt:
     case SupplierLedgerKind.receiptReversal:
       final n = e.refId == null ? null : receiptNumbers[e.refId];
-      return n == null ? base : '$base №$n';
+      return n == null ? base : L.current.purLedgerOpNumbered(base, '$n');
     case SupplierLedgerKind.payment:
       final p = e.refId == null ? null : payments[e.refId];
       final m = p == null ? null : paymentMethodLabels[p.method] ?? p.method;
@@ -273,19 +290,27 @@ SupplierPayment? cancellablePayment(SupplierLedgerEntry e, Map<String, SupplierP
 bool supplierPaymentCancelAllowed(SupplierPayment p, {required bool canCash}) => p.method != 'cash' || canCash;
 
 /// Tooltip / error when [supplierPaymentCancelAllowed] is false.
-const noCashPermissionText = 'Нет права на операции с наличными';
+String get noCashPermissionText => L.current.purNoCashPermission;
 
 /// Period presets of the «Взаиморасчёты» section.
 enum LedgerPeriod {
-  all('Всё время'),
-  month('Этот месяц'),
-  lastMonth('Прошлый месяц'),
-  quarter('Квартал'),
-  year('Год'),
-  custom('Период…');
+  all,
+  month,
+  lastMonth,
+  quarter,
+  year,
+  custom;
 
-  const LedgerPeriod(this.label);
-  final String label;
+  String labelIn(AppLocalizations l) => switch (this) {
+    all => l.purPeriodAll,
+    month => l.purPeriodThisMonth,
+    lastMonth => l.purPeriodLastMonth,
+    quarter => l.purPeriodQuarter,
+    year => l.commonYear,
+    custom => l.purPeriodCustom,
+  };
+
+  String get label => labelIn(L.current);
 }
 
 /// Half-open range `[from, to)` of [p] (null = unbounded). For
@@ -313,23 +338,25 @@ String ledgerPeriodText(DateTime? from, DateTime? to, {DateTime? firstEntry}) {
   final last = to?.subtract(const Duration(days: 1));
   final start = from ?? firstEntry;
   if (start == null && last == null) return ledgerAllTimeText;
-  if (start == null) return 'по ${_d(last!)}';
+  if (start == null) return L.current.purPeriodUntil(_d(last!));
   return '${_d(start)} – ${_d(last ?? DateTime.now())}';
 }
 
-const ledgerAllTimeText = 'всё время';
+String get ledgerAllTimeText => L.current.purAllTimeLower;
 
 /// Heading line of the act: «за период 01.11.2026 – 24.11.2026», «за всё время».
-String ledgerPeriodHeading(String period) => period == ledgerAllTimeText ? 'за $period' : 'за период $period';
+String ledgerPeriodHeading(String period) =>
+    period == ledgerAllTimeText ? L.current.purHeadingAllTime(period) : L.current.purHeadingPeriod(period);
 
 String _d(DateTime d) => '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
 String _dt(DateTime d) => '${_d(d)} ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 
 /// Conclusion line of the act: who owes whom at the end of the period.
 String statementConclusion(int closing, {required String store, required String supplier, required String at}) {
-  if (closing == 0) return 'На $at задолженность между сторонами отсутствует.';
-  if (closing > 0) return 'На $at задолженность «$store» перед «$supplier» составляет ${Money.format(closing)}.';
-  return 'На $at задолженность «$supplier» перед «$store» (аванс) составляет ${Money.format(-closing)}.';
+  final l = L.current;
+  if (closing == 0) return l.purConclusionNone(at);
+  if (closing > 0) return l.purConclusionStoreOwes(at, store, supplier, Money.format(closing));
+  return l.purConclusionSupplierOwes(at, supplier, store, Money.format(-closing));
 }
 
 /// A plain (possibly negative) number as [_csvMoney] writes it («-1250,5»).
@@ -360,14 +387,15 @@ String supplierStatementCsv({
   required String period,
   required String Function(SupplierLedgerEntry) operation,
 }) {
+  final l = L.current;
   final rows = <List<String>>[
-    ['Акт сверки взаиморасчётов'],
-    ['Магазин', storeName],
-    ['Поставщик', supplierName],
-    ['Период', period],
+    [l.purActTitle],
+    [l.purStore, storeName],
+    [l.commonSupplier, supplierName],
+    [l.commonPeriod, period],
     [],
-    ['Дата', 'Операция', 'Комментарий', 'Приход (+)', 'Расход (−)', 'Баланс'],
-    ['', 'Сальдо на начало периода', '', '', '', _csvMoney(st.opening)],
+    [l.commonDate, l.purOperation, l.commonComment, l.purIncrease, l.purDecrease, l.commonBalance],
+    ['', l.purOpeningBalance, '', '', '', _csvMoney(st.opening)],
     for (final e in st.rows)
       [
         _dt(e.createdAt),
@@ -377,8 +405,8 @@ String supplierStatementCsv({
         e.amount < 0 ? _csvMoney(-e.amount) : '',
         _csvMoney(e.balanceAfter),
       ],
-    ['', 'Обороты за период', '', _csvMoney(st.increase), _csvMoney(st.decrease), ''],
-    ['', 'Сальдо на конец периода', '', '', '', _csvMoney(st.closing)],
+    ['', l.purTurnover, '', _csvMoney(st.increase), _csvMoney(st.decrease), ''],
+    ['', l.purClosingBalance, '', '', '', _csvMoney(st.closing)],
   ];
   return rows.map((r) => r.map(_csvCell).join(';')).join('\r\n');
 }
@@ -527,13 +555,13 @@ class PurchasingRepo {
 
   Future<String> saveSupplier(SupplierInput input, {String? id, String? userId}) async {
     final name = input.name.trim();
-    if (name.isEmpty) throw BusinessException('Укажите название поставщика');
-    if (name.length > 160) throw BusinessException('Название слишком длинное');
+    if (name.isEmpty) throw BusinessException(L.current.purErrSupplierNameRequired);
+    if (name.length > 160) throw BusinessException(L.current.purErrNameTooLong);
     // SQLite lower() is ASCII-only, so compare Cyrillic names in Dart.
     final existing = await (db.select(db.suppliers)..where((s) => s.deletedAt.isNull())).get();
     final key = name.toLowerCase();
     if (existing.any((s) => s.id != id && s.name.trim().toLowerCase() == key)) {
-      throw BusinessException('Поставщик «$name» уже есть');
+      throw BusinessException(L.current.purErrSupplierExists(name));
     }
     final now = DateTime.now();
     final sid = id ?? newId();
@@ -561,12 +589,12 @@ class PurchasingRepo {
     await db.transaction(() async {
       final s = await (db.select(db.suppliers)..where((t) => t.id.equals(id))).getSingle();
       if (s.balance != 0) {
-        throw BusinessException('Нельзя удалить поставщика с ненулевым балансом (${Money.format(s.balance)})');
+        throw BusinessException(L.current.purErrDeleteNonZeroBalance(Money.format(s.balance)));
       }
       final open = await (db.select(
         db.purchaseOrders,
       )..where((o) => o.supplierId.equals(id) & o.status.isIn(['draft', 'ordered']) & o.deletedAt.isNull())).get();
-      if (open.isNotEmpty) throw BusinessException('У поставщика есть незакрытые заказы (${open.length})');
+      if (open.isNotEmpty) throw BusinessException(L.current.purErrSupplierHasOpenOrders('${open.length}'));
       final now = DateTime.now();
       await (db.update(
         db.suppliers,
@@ -613,12 +641,12 @@ class PurchasingRepo {
   // ---- purchase orders
 
   void _validateLines(List<PoLineInput> lines) {
-    if (lines.isEmpty) throw BusinessException('Добавьте в заказ хотя бы один товар');
+    if (lines.isEmpty) throw BusinessException(L.current.purErrAddOneProduct);
     final seen = <String>{};
     for (final l in lines) {
-      if (l.qty <= 0) throw BusinessException('Количество должно быть больше нуля');
-      if (l.unitCost < 0) throw BusinessException('Цена не может быть отрицательной');
-      if (!seen.add(l.productId)) throw BusinessException('Товар повторяется в заказе — объедините строки');
+      if (l.qty <= 0) throw BusinessException(L.current.errQtyMustBePositive);
+      if (l.unitCost < 0) throw BusinessException(L.current.errPriceNegative);
+      if (!seen.add(l.productId)) throw BusinessException(L.current.purErrDuplicateProduct);
     }
   }
 
@@ -636,7 +664,7 @@ class PurchasingRepo {
     final total = poLinesTotal(lines);
     await db.transaction(() async {
       final s = await (db.select(db.suppliers)..where((t) => t.id.equals(supplierId))).getSingleOrNull();
-      if (s == null || s.deletedAt != null) throw BusinessException('Выберите поставщика');
+      if (s == null || s.deletedAt != null) throw BusinessException(L.current.purSelectSupplier);
       final now = DateTime.now();
       if (id == null) {
         final number = await db.nextNumber('po');
@@ -655,7 +683,7 @@ class PurchasingRepo {
             );
       } else {
         final o = await (db.select(db.purchaseOrders)..where((t) => t.id.equals(id))).getSingle();
-        if (o.status != 'draft') throw BusinessException('Изменять можно только черновик заказа');
+        if (o.status != 'draft') throw BusinessException(L.current.purErrOnlyDraftEditable);
         await (db.update(db.purchaseOrders)..where((t) => t.id.equals(id))).write(
           PurchaseOrdersCompanion(
             supplierId: Value(supplierId),
@@ -691,9 +719,9 @@ class PurchasingRepo {
   Future<void> markOrdered(String orderId, {String? userId}) async {
     await db.transaction(() async {
       final o = await _order(orderId);
-      if (o.status != 'draft') throw BusinessException('Заказ уже отправлен');
+      if (o.status != 'draft') throw BusinessException(L.current.purErrAlreadySent);
       final n = await (db.select(db.purchaseOrderItems)..where((i) => i.orderId.equals(orderId))).get();
-      if (n.isEmpty) throw BusinessException('В заказе нет позиций');
+      if (n.isEmpty) throw BusinessException(L.current.purErrNoLines);
       await (db.update(db.purchaseOrders)..where((t) => t.id.equals(orderId))).write(
         PurchaseOrdersCompanion(status: const Value('ordered'), updatedAt: Value(DateTime.now())),
       );
@@ -713,7 +741,7 @@ class PurchasingRepo {
   Future<void> cancelOrder(String orderId, {String? userId, String? reason}) async {
     await db.transaction(() async {
       final o = await _order(orderId);
-      if (o.status != 'draft' && o.status != 'ordered') throw BusinessException('Заказ уже закрыт');
+      if (o.status != 'draft' && o.status != 'ordered') throw BusinessException(L.current.purErrAlreadyClosed);
       final items = await (db.select(db.purchaseOrderItems)..where((i) => i.orderId.equals(orderId))).get();
       final anyReceived = items.any((i) => i.receivedQty > 0);
       final now = DateTime.now();
@@ -723,7 +751,7 @@ class PurchasingRepo {
           receivedAt: anyReceived ? Value(now) : const Value.absent(),
           note: reason == null || reason.trim().isEmpty
               ? const Value.absent()
-              : Value([if (o.note != null) o.note!, 'Закрыт: ${reason.trim()}'].join('\n')),
+              : Value([if (o.note != null) o.note!, 'Закрыт: ${reason.trim()}'].join('\n')), // l10n-ignore: stored PO note
           updatedAt: Value(now),
         ),
       );
@@ -755,11 +783,13 @@ class PurchasingRepo {
     String? note,
   }) async {
     final active = lines.where((l) => l.qty > 0).toList();
-    if (active.isEmpty) throw BusinessException('Укажите количество хотя бы по одной позиции');
+    if (active.isEmpty) throw BusinessException(L.current.purErrEnterQtyOneLine);
     return db.transaction(() async {
       final o = await _order(orderId);
       if (o.status != 'ordered' && o.status != 'draft') {
-        throw BusinessException('Заказ №${o.number} уже ${poStatusLabels[o.status]?.toLowerCase() ?? o.status}');
+        throw BusinessException(
+          L.current.purErrOrderAlreadyStatus('${o.number}', poStatusLabels[o.status]?.toLowerCase() ?? o.status),
+        );
       }
       final items = {
         for (final i in await (db.select(db.purchaseOrderItems)..where((i) => i.orderId.equals(orderId))).get())
@@ -769,18 +799,18 @@ class PurchasingRepo {
       final seen = <String>{};
       for (final l in active) {
         final it = items[l.itemId];
-        if (it == null) throw BusinessException('Позиция не найдена в заказе');
-        if (!seen.add(it.id)) throw BusinessException('Позиция заказа указана дважды');
+        if (it == null) throw BusinessException(L.current.purErrLineNotFound);
+        if (!seen.add(it.id)) throw BusinessException(L.current.purErrLineTwice);
         final p = await (db.select(db.products)..where((t) => t.id.equals(it.productId))).getSingle();
         final rest = remainingQty(it);
         if (Qty.round(l.qty) > rest + 1e-9) {
-          throw BusinessException('«${p.name}»: можно принять не больше ${Qty.format(rest, p.unit)}');
+          throw BusinessException(L.current.purErrReceiveAtMost(p.name, Qty.format(rest, p.unit)));
         }
         if (!Qty.isFractional(p.unit) && l.qty != l.qty.roundToDouble()) {
-          throw BusinessException('«${p.name}»: только целое количество');
+          throw BusinessException(L.current.purErrWholeQty(p.name));
         }
         final cost = l.unitCost ?? it.unitCost;
-        if (cost < 0) throw BusinessException('«${p.name}»: цена не может быть отрицательной');
+        if (cost < 0) throw BusinessException(L.current.purErrLinePriceNegative(p.name));
         inputs.add(
           ReceiptLineInput(productId: it.productId, qty: Qty.round(l.qty), unitCost: cost, orderItemId: it.id),
         );
@@ -817,8 +847,8 @@ class PurchasingRepo {
         entity: 'purchase_order',
         entityId: orderId,
         details:
-            '№${o.number}; приход №${doc.number}; поз. ${active.length}; сумма ${doc.total}; '
-            '${full ? 'полностью' : 'частично'}',
+            '№${o.number}; приход №${doc.number}; поз. ${active.length}; сумма ${doc.total}; ' // l10n-ignore: audit
+            '${full ? 'полностью' : 'частично'}', // l10n-ignore: audit details (stored)
       );
       return (result: ReceiveResult(value: doc.total, fullyReceived: full, lines: active.length), receipt: doc);
     });
@@ -896,10 +926,10 @@ class PurchasingRepo {
     await db.transaction(() async {
       for (final e in groups.entries) {
         if (e.value.isEmpty) continue;
-        ids.add(await saveDraftOrder(supplierId: e.key, lines: e.value, userId: userId, note: 'Автозаказ'));
+        ids.add(await saveDraftOrder(supplierId: e.key, lines: e.value, userId: userId, note: 'Автозаказ')); // l10n-ignore: stored PO note
       }
     });
-    if (ids.isEmpty) throw BusinessException('Нет позиций для заказа');
+    if (ids.isEmpty) throw BusinessException(L.current.purErrNothingToOrder);
     return ids;
   }
 }

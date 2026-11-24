@@ -2,14 +2,18 @@
 //   SCREENSHOTS=1 SCREENSHOTS_DIR=build/screens_purchasing flutter test test/features/purchasing/ux_screens_test.dart
 import 'package:dreampos/domain/services/stock_service.dart';
 import 'package:dreampos/features/purchasing/purchasing_logic.dart';
+import 'package:dreampos/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../ux/harness.dart';
 
+/// Strings of the screenshot language (SCREENSHOTS_LOCALE), ru by default.
+final AppLocalizations _l = L.of(screenshotsLocale);
+
 Finder _tab(String label) => find.descendant(
-  of: find.ancestor(of: find.text('Поставщики'), matching: find.byType(TabBar)),
+  of: find.ancestor(of: find.text(_l.purTabSuppliers), matching: find.byType(TabBar)),
   matching: find.text(label),
 );
 
@@ -126,17 +130,17 @@ Future<void> _run(WidgetTester tester, String size) async {
   await h.settle();
   expect(await h.shot('purchasing_supplier_detail'), isEmpty);
   // «Взаиморасчёты» is the first tab: cancel dialog, correction, act menu.
-  await tester.tap(find.byTooltip('Отменить оплату').first);
+  await tester.tap(find.byTooltip(_l.purCancelPayment).first);
   await h.settle();
   expect(await h.shot('purchasing_ledger_cancel_payment'), isEmpty);
   await _closeAlert(h);
-  await tester.ensureVisible(find.text('Корректировка').first);
-  await tester.tap(find.text('Корректировка').first);
+  await tester.ensureVisible(find.text(_l.purLedgerAdjustment).first);
+  await tester.tap(find.text(_l.purLedgerAdjustment).first);
   await h.settle();
   expect(await h.shot('purchasing_ledger_adjust'), isEmpty);
   await _closeDialog(h);
-  await tester.ensureVisible(find.text('Акт сверки').first);
-  await tester.tap(find.text('Акт сверки').first);
+  await tester.ensureVisible(find.text(_l.purActShort).first);
+  await tester.tap(find.text(_l.purActShort).first);
   await h.settle();
   expect(await h.shot('purchasing_ledger_act_menu'), isEmpty);
   await tester.sendKeyEvent(LogicalKeyboardKey.escape);
@@ -147,51 +151,51 @@ Future<void> _run(WidgetTester tester, String size) async {
     await tester.fling(nested, const Offset(0, 2000), 3000);
     await h.settle();
   }
-  await tester.tap(find.text('Оплатить').first);
+  await tester.tap(find.text(_l.purPay).first);
   await h.settle();
   await h.shot('purchasing_supplier_payment');
   await _closeDialog(h);
-  await tester.tap(find.byTooltip('Изменить').first);
+  await tester.tap(find.byTooltip(_l.commonEdit).first);
   await h.settle();
   await h.shot('purchasing_supplier_form');
   await _closeDialog(h);
-  await tester.tap(find.text('Оплаты').last);
+  await tester.tap(find.text(_l.purTabPayments).last);
   await h.settle();
   expect(await h.shot('purchasing_supplier_payments'), isEmpty);
   await _back(h);
 
-  await _openTab(h, 'Заказы');
+  await _openTab(h, _l.purTabOrders);
   await h.shot('purchasing_orders');
   await tester.tap(find.textContaining('ООО «Оптовик»').first);
   await h.settle();
   expect(await h.shot('purchasing_order_detail'), isEmpty);
-  await tester.ensureVisible(find.text('Приходы по заказу'));
+  await tester.ensureVisible(find.text(_l.purOrderReceipts));
   await h.settle();
   expect(await h.shot('purchasing_order_receipts'), isEmpty);
-  await tester.ensureVisible(find.text('Принять товар').first);
+  await tester.ensureVisible(find.text(_l.purReceiveGoods).first);
   await h.settle();
-  await tester.tap(find.text('Принять товар').first);
+  await tester.tap(find.text(_l.purReceiveGoods).first);
   await h.settle();
-  expect(find.text('№ накладной поставщика'), findsOneWidget);
+  expect(find.text(_l.purSupplierInvoiceNo), findsOneWidget);
   expect(await h.shot('purchasing_receive_dialog'), isEmpty);
   await _closeDialog(h);
   await _back(h);
   await tester.tap(find.textContaining('ИП Каримов').first);
   await h.settle();
   await h.shot('purchasing_order_draft');
-  await tester.tap(find.text('Изменить').first);
+  await tester.tap(find.text(_l.commonEdit).first);
   await h.settle();
   await h.shot('purchasing_po_editor');
   await _closeDialog(h);
   await _back(h);
-  await tester.tap(find.text('Заказ').first);
+  await tester.tap(find.text(_l.purOrderButton).first);
   await h.settle();
   await h.shot('purchasing_po_editor_new');
   await _closeDialog(h);
 
-  await _openTab(h, 'Автозаказ');
+  await _openTab(h, _l.purTabReorder);
   await h.shot('purchasing_reorder');
-  await _openTab(h, 'Закупочные цены');
+  await _openTab(h, _l.purTabPrices);
   await h.shot('purchasing_prices');
   await h.finish();
 }

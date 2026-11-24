@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets/widgets.dart';
+import '../../../l10n/l10n.dart';
 import '../settings_logic.dart';
 import '../settings_providers.dart';
 import '../settings_widgets.dart';
@@ -36,7 +37,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
       _busy = null;
       if (f != null) _lastExport = f;
     });
-    if (f != null) showSuccess(context, 'Файл сохранён: ${f!.path}');
+    if (f != null) showSuccess(context, context.l10n.settingsFileSaved(f!.path));
   }
 
   @override
@@ -44,6 +45,7 @@ class _DataSectionState extends ConsumerState<DataSection> {
     final demo = ref.watch(settingProvider(SettingKeys.demoMode)) == '1';
     final dbPath = ref.watch(databasePathProvider).value;
     final t = Theme.of(context);
+    final l = context.l10n;
 
     Widget exportTile(String what, IconData icon, String title, String subtitle) => ListTile(
       leading: Icon(icon),
@@ -59,40 +61,28 @@ class _DataSectionState extends ConsumerState<DataSection> {
     );
 
     return SectionView(
-      title: 'Данные',
-      description: 'Демо-режим и выгрузка справочников в файлы для Excel.',
+      title: l.settingsSecData,
+      description: l.settingsDataDesc,
       children: [
         SectionCard(
-          title: 'Режим работы',
+          title: l.settingsMode,
           trailing: StatusChip(
-            demo ? 'Демо-режим' : 'Рабочая база',
+            demo ? l.settingsDemoMode : l.settingsLiveDb,
             color: demo ? AppColors.warning : AppColors.success,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                demo
-                    ? 'Сейчас в базе демонстрационные товары, клиенты и продажи. Они нужны, чтобы '
-                          'познакомиться с программой. Не смешивайте их с реальной торговлей.'
-                    : 'Программа работает с реальными данными магазина.',
-              ),
+              Text(demo ? l.settingsDemoText : l.settingsLiveText),
               if (demo) ...[
                 const SizedBox(height: Gap.m),
-                const InfoBanner(
-                  color: AppColors.warning,
-                  icon: Icons.warning_amber,
-                  text:
-                      'Удалить демо-данные кнопкой нельзя: это необратимо и затронуло бы отчёты, '
-                      'остатки и журнал. Чтобы начать работу с чистой базой:',
-                ),
+                InfoBanner(color: AppColors.warning, icon: Icons.warning_amber, text: l.settingsDemoWarning),
                 const SizedBox(height: Gap.s),
                 for (final (i, s) in [
-                  'Создайте резервную копию (раздел «Резервное копирование») — на случай, если демо-данные ещё понадобятся.',
-                  'Закройте программу.',
-                  'Удалите файл базы данных и, если есть, файлы рядом с ним, имя которых оканчивается на «wal» или «shm».'
-                      '${dbPath == null ? '' : '\nФайл базы: $dbPath'}',
-                  'Запустите DreamPOS — откроется мастер первоначальной настройки. Не отмечайте «Демо-данные».',
+                  l.settingsDemoStep1,
+                  l.settingsDemoStep2,
+                  '${l.settingsDemoStep3}${dbPath == null ? '' : '\n${l.settingsDbFile(dbPath)}'}',
+                  l.settingsDemoStep4,
                 ].indexed)
                   Padding(
                     padding: const EdgeInsets.only(top: Gap.xs),
@@ -103,9 +93,9 @@ class _DataSectionState extends ConsumerState<DataSection> {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: TextButton.icon(
-                      onPressed: () => copyToClipboard(context, dbPath, message: 'Путь скопирован'),
+                      onPressed: () => copyToClipboard(context, dbPath, message: l.settingsPathCopied),
                       icon: const Icon(Icons.copy, size: 18),
-                      label: const Text('Копировать путь к базе'),
+                      label: Text(l.settingsCopyDbPath),
                     ),
                   ),
                 ],
@@ -114,33 +104,23 @@ class _DataSectionState extends ConsumerState<DataSection> {
           ),
         ),
         TileCard(
-          title: 'Экспорт',
+          title: l.commonExport,
           children: [
-            exportTile(
-              'products',
-              Icons.inventory_2_outlined,
-              'Товары',
-              'Наименование, штрихкод, цены, остатки',
-            ),
-            exportTile('customers', Icons.people_outline, 'Клиенты', 'Контакты, скидки, бонусы и долги'),
+            exportTile('products', Icons.inventory_2_outlined, l.commonProducts, l.settingsExportProductsHint),
+            exportTile('customers', Icons.people_outline, l.commonCustomers, l.settingsExportCustomersHint),
             Padding(
               padding: const EdgeInsets.fromLTRB(Gap.l, Gap.s, Gap.l, Gap.l),
-              child: Text(
-                'Файлы сохраняются в папку «Документы/DreamPOS/exports» в формате CSV '
-                '(разделитель «;», кодировка UTF-8) — открываются в Excel и Google Таблицах. '
-                'Файл клиентов содержит телефоны и долги — не пересылайте его посторонним.',
-                style: t.textTheme.bodySmall,
-              ),
+              child: Text(l.settingsExportInfo, style: t.textTheme.bodySmall),
             ),
             if (_lastExport != null)
               ListTile(
                 leading: const Icon(Icons.check_circle, color: AppColors.success),
-                title: const Text('Последний файл'),
+                title: Text(l.settingsLastFile),
                 subtitle: SelectableText(_lastExport!.path),
                 trailing: IconButton(
-                  tooltip: 'Копировать путь',
+                  tooltip: l.settingsCopyPath,
                   icon: const Icon(Icons.copy),
-                  onPressed: () => copyToClipboard(context, _lastExport!.path, message: 'Путь скопирован'),
+                  onPressed: () => copyToClipboard(context, _lastExport!.path, message: l.settingsPathCopied),
                 ),
               ),
           ],

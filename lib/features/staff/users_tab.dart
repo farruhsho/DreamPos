@@ -6,6 +6,7 @@ import '../../core/permissions.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
+import '../../l10n/l10n.dart';
 import 'staff_logic.dart';
 import 'staff_providers.dart';
 import 'staff_widgets.dart';
@@ -24,6 +25,7 @@ class _UsersTabState extends ConsumerState<UsersTab> {
 
   @override
   Widget build(BuildContext context) {
+    final l = context.l10n;
     final users = ref.watch(staffUsersProvider);
     final today = todayPeriod();
     final sessions = ref.watch(workSessionsProvider(today)).value ?? const <WorkSession>[];
@@ -40,10 +42,10 @@ class _UsersTabState extends ConsumerState<UsersTab> {
       children: [
         LayoutBuilder(
           builder: (context, c) {
-            final search = SearchField(hint: 'Имя или телефон', onChanged: (v) => setState(() => _q = v));
+            final search = SearchField(hint: l.staffSearchHint, onChanged: (v) => setState(() => _q = v));
             final inactive = FilterChip(
-              label: const Text('Неактивные'),
-              tooltip: 'Показать деактивированных сотрудников',
+              label: Text(l.staffInactiveFilter),
+              tooltip: l.staffInactiveFilterTip,
               selected: _showInactive,
               onSelected: (v) => setState(() => _showInactive = v),
             );
@@ -52,7 +54,7 @@ class _UsersTabState extends ConsumerState<UsersTab> {
               key: const ValueKey('add_user'),
               onPressed: () => showUserFormDialog(context),
               icon: const Icon(Icons.person_add_alt_1),
-              label: Text(compact ? 'Добавить' : 'Добавить сотрудника'),
+              label: Text(compact ? l.commonAdd : l.staffAddUser),
             );
             if (compact) {
               // Phone: full-width search, then filter + primary action on one row.
@@ -105,8 +107,8 @@ class _UsersTabState extends ConsumerState<UsersTab> {
                 return FillScroll(
                   child: EmptyState(
                     icon: Icons.badge_outlined,
-                    title: list.isEmpty ? 'Сотрудников пока нет' : 'Никого не найдено',
-                    message: list.isEmpty ? 'Добавьте кассиров и менеджеров, чтобы они могли входить по PIN' : null,
+                    title: list.isEmpty ? l.staffEmpty : l.staffNobodyFound,
+                    message: list.isEmpty ? l.staffEmptyHint : null,
                   ),
                 );
               }
@@ -144,34 +146,33 @@ class _UserTile extends ConsumerWidget {
   Future<void> _toggleActive(BuildContext context, WidgetRef ref) async {
     final actor = ref.read(sessionProvider)?.user;
     if (actor == null) return;
+    final l = context.l10n;
     final svc = ref.read(staffServiceProvider);
     if (user.isActive) {
       final ok = await confirm(
         context,
-        title: 'Деактивировать ${user.name}?',
-        message:
-            'Сотрудник не сможет входить в систему, его открытая отметка рабочего времени '
-            'будет закрыта. История продаж и смен сохранится. Активировать можно в любой момент.',
-        ok: 'Деактивировать',
+        title: l.staffDeactivateTitle(user.name),
+        message: l.staffDeactivateMessage,
+        ok: l.staffDeactivate,
         destructive: true,
       );
       if (!ok || !context.mounted) return;
       await runGuarded(
         context,
         () => svc.setActive(user.id, false, actor: actor),
-        success: '${user.name} деактивирован(а)',
+        success: l.staffDeactivated(user.name),
       );
     } else {
       final pin = await showPinDialog(
         context,
-        title: 'Активировать ${user.name}',
-        message: 'Задайте новый PIN — старый мог быть выдан другому сотруднику.',
+        title: l.staffActivateTitle(user.name),
+        message: l.staffActivateMessage,
       );
       if (pin == null || !context.mounted) return;
       await runGuarded(
         context,
         () => svc.setActive(user.id, true, actor: actor, newPin: pin),
-        success: '${user.name} снова активен(на)',
+        success: l.staffReactivated(user.name),
       );
     }
   }
@@ -179,6 +180,7 @@ class _UserTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final role = Role.parse(user.role);
     final session = ref.watch(sessionProvider);
     final actorRole = session?.role ?? Role.cashier;
@@ -187,7 +189,7 @@ class _UserTile extends ConsumerWidget {
     final muted = t.colorScheme.onSurfaceVariant;
     final details = [
       if ((user.phone ?? '').isNotEmpty) user.phone!,
-      user.lastLoginAt == null ? 'ещё не входил(а)' : 'вход ${formatDateTime(user.lastLoginAt!)}',
+      user.lastLoginAt == null ? l.staffNeverLoggedIn : l.staffLastLogin(formatDateTime(user.lastLoginAt!)),
     ].join(' · ');
 
     return ListTile(
@@ -212,10 +214,10 @@ class _UserTile extends ConsumerWidget {
               decoration: user.isActive ? null : TextDecoration.lineThrough,
             ),
           ),
-          StatusChip(role.label, color: roleColor(role)),
-          if (isMe) const StatusChip('Вы', color: AppColors.info),
-          if (!user.isActive) StatusChip('Неактивен', color: muted),
-          if (onShift) const StatusChip('На работе', color: AppColors.success),
+          StatusChip(role.labelIn(l), color: roleColor(role)),
+          if (isMe) StatusChip(l.staffYou, color: AppColors.info),
+          if (!user.isActive) StatusChip(l.staffInactiveChip, color: muted),
+          if (onShift) StatusChip(l.staffAtWork, color: AppColors.success),
         ],
       ),
       subtitle: Text(details, maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -233,22 +235,22 @@ class _UserTile extends ConsumerWidget {
                   formatDuration(worked),
                   style: t.textTheme.titleSmall?.copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
                 ),
-                Text('сегодня', style: t.textTheme.bodySmall),
+                Text(l.staffTodayLower, style: t.textTheme.bodySmall),
               ],
             ),
           PopupMenuButton<String>(
-            tooltip: editable ? 'Действия' : 'Изменять данные владельца может только владелец',
+            tooltip: editable ? l.commonActions : l.staffErrOwnerEditOnlyOwner,
             enabled: editable,
             onSelected: (v) {
               if (v == 'edit') showUserFormDialog(context, user: user);
               if (v == 'toggle') _toggleActive(context, ref);
             },
             itemBuilder: (_) => [
-              const PopupMenuItem(value: 'edit', child: Text('Редактировать')),
+              PopupMenuItem(value: 'edit', child: Text(l.staffEditAction)),
               PopupMenuItem(
                 value: 'toggle',
                 enabled: !isMe,
-                child: Text(user.isActive ? 'Деактивировать' : 'Активировать'),
+                child: Text(user.isActive ? l.staffDeactivate : l.staffActivate),
               ),
             ],
           ),

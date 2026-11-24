@@ -12,6 +12,7 @@ import '../../core/money.dart';
 import '../../core/providers.dart';
 import '../../core/widgets/widgets.dart' show formatDate, formatTime;
 import '../reports/data/insights.dart' show loadOverdueDebtors;
+import '../../l10n/l10n.dart';
 
 /// Notification kinds produced by the engine (plus 'system' / 'task' from elsewhere).
 abstract final class NotificationKind {
@@ -66,6 +67,8 @@ Future<int> runNotificationChecks(AppDatabase db, {DateTime? now}) async =>
 
 Future<NotificationCheckResult> runNotificationChecksDetailed(AppDatabase db, {DateTime? now}) async {
   final at = now ?? DateTime.now();
+  // Title/body are stored in the DB, written in the UI language of the run.
+  final l = L.current;
   final candidates = <_Candidate>[];
 
   // ---- stock: low (0 < stock ≤ min) and out (stock ≤ 0, ever stocked or min set)
@@ -87,12 +90,12 @@ Future<NotificationCheckResult> runNotificationChecksDetailed(AppDatabase db, {D
     final min = (r.data['min'] as num).toDouble();
     if (stock <= 0) {
       outIds.add(id);
-      candidates.add(_Candidate(NotificationKind.outOfStock, 'product', id, 'Закончился товар: $name',
-          'Остаток ${Qty.format(stock, unit)}. Оформите закупку, чтобы не терять продажи.'));
+      candidates.add(_Candidate(NotificationKind.outOfStock, 'product', id, l.notifOutOfStockTitle(name),
+          l.notifOutOfStockBody(Qty.format(stock, unit, l))));
     } else {
       lowIds.add(id);
-      candidates.add(_Candidate(NotificationKind.lowStock, 'product', id, 'Мало товара: $name',
-          'Остаток ${Qty.format(stock, unit)}, минимальный — ${Qty.format(min, unit)}.'));
+      candidates.add(_Candidate(NotificationKind.lowStock, 'product', id, l.notifLowStockTitle(name),
+          l.notifLowStockBody(Qty.format(stock, unit, l), Qty.format(min, unit, l))));
     }
   }
 
@@ -102,10 +105,10 @@ Future<NotificationCheckResult> runNotificationChecksDetailed(AppDatabase db, {D
   for (final d in overdue) {
     debtIds.add(d.customerId);
     candidates.add(_Candidate(NotificationKind.debtDue, 'customer', d.customerId,
-        'Просрочен долг: ${d.name}',
-        'Просрочено ${Money.format(d.overdue)}'
-            '${d.debt > d.overdue ? ' из ${Money.format(d.debt)}' : ''}, '
-            'срок оплаты истёк ${formatDate(d.oldestDue)}. Напомните клиенту об оплате.'));
+        l.notifDebtTitle(d.name),
+        d.debt > d.overdue
+            ? l.notifDebtBodyPartial(Money.format(d.overdue), Money.format(d.debt), formatDate(d.oldestDue))
+            : l.notifDebtBody(Money.format(d.overdue), formatDate(d.oldestDue))));
   }
 
   // ---- birthdays today
@@ -121,8 +124,8 @@ Future<NotificationCheckResult> runNotificationChecksDetailed(AppDatabase db, {D
       final id = r.read(db.customers.id)!;
       birthdayIds.add(id);
       candidates.add(_Candidate(NotificationKind.birthday, 'customer', id,
-          'День рождения: ${r.read(db.customers.name)}',
-          '${age > 0 && age < 120 ? 'Исполняется $age. ' : ''}Поздравьте клиента и предложите подарок или бонусы.'));
+          l.notifBirthdayTitle('${r.read(db.customers.name)}'),
+          age > 0 && age < 120 ? l.notifBirthdayBodyAge('$age') : l.notifBirthdayBody));
     }
   }
 
@@ -138,9 +141,8 @@ Future<NotificationCheckResult> runNotificationChecksDetailed(AppDatabase db, {D
     shiftIds.add(s.id);
     final h = at.difference(s.openedAt).inHours;
     candidates.add(_Candidate(NotificationKind.shift, 'shift', s.id,
-        'Смена №${s.number} открыта $h ч',
-        'Открыта ${formatDate(s.openedAt)} в ${formatTime(s.openedAt)}. '
-            'Закройте смену и сверьте наличные в кассе.'));
+        l.notifShiftTitle('${s.number}', '$h'),
+        l.notifShiftBody(formatDate(s.openedAt), formatTime(s.openedAt))));
   }
 
   return db.transaction(() async {

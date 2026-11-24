@@ -6,6 +6,7 @@ import '../../core/money.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
+import '../../l10n/l10n.dart';
 import 'shift_logic.dart';
 import 'shift_providers.dart';
 import 'z_report.dart';
@@ -17,12 +18,12 @@ Future<bool> showCloseShiftDialog(BuildContext context, String shiftId) async {
   final navContext = Navigator.of(context).context;
   final closed = await showFormDialog<bool>(
     context,
-    title: 'Закрытие смены',
+    title: context.l10n.shiftClosingTitle,
     width: 620,
     child: _CloseShiftForm(shiftId: shiftId),
   );
   if (closed == true && navContext.mounted) {
-    await showZReportDialog(navContext, shiftId, title: 'Смена закрыта');
+    await showZReportDialog(navContext, shiftId, title: navContext.l10n.shiftClosed);
   }
   return closed == true;
 }
@@ -62,23 +63,25 @@ class _CloseShiftFormState extends ConsumerState<_CloseShiftForm> {
 
   Future<void> _submit(int expected) async {
     if (_busy) return;
-    final err = validateClose(counted: _counted, expected: expected, note: _note.text, collection: _collection);
+    final l = context.l10n;
+    final err = validateClose(
+        counted: _counted, expected: expected, note: _note.text, collection: _collection, l: l);
     setState(() => _error = err);
     if (err != null) return;
     final counted = _counted!;
     final diff = counted - expected;
     final ok = await confirm(
       context,
-      title: 'Закрыть смену?',
+      title: l.shiftCloseConfirmTitle,
       message: [
-        'Пересчитано: ${Money.format(counted)}',
-        'Ожидалось: ${Money.format(expected)}',
-        if (diff != 0) '${diff < 0 ? 'Недостача' : 'Излишек'}: ${Money.format(diff.abs())}',
-        if (_collection > 0) 'Инкассация при закрытии: ${Money.format(_collection)}',
+        l.shiftCountedValue(Money.format(counted)),
+        l.shiftExpectedValue(Money.format(expected)),
+        if (diff != 0) '${diff < 0 ? l.shiftShortage : l.shiftSurplus}: ${Money.format(diff.abs())}',
+        if (_collection > 0) l.shiftCollectionAtCloseValue(Money.format(_collection)),
         '',
-        'После закрытия продажи будут недоступны до открытия новой смены.',
+        l.shiftCloseConfirmMessage,
       ].join('\n'),
-      ok: 'Закрыть смену',
+      ok: l.shiftCloseAction,
     );
     if (!ok || !mounted) return;
     final session = ref.read(sessionProvider);
@@ -87,7 +90,8 @@ class _CloseShiftFormState extends ConsumerState<_CloseShiftForm> {
     final collection = _collection;
     final parts = <String>[
       if (_note.text.trim().isNotEmpty) _note.text.trim(),
-      if (_byDenomination && _count.pieces > 0) 'Купюры: ${_count.describe(Money.currency)}',
+      // Written to the shift note in the DB: not translated.
+      if (_byDenomination && _count.pieces > 0) 'Купюры: ${_count.describe(Money.currency)}', // l10n-ignore
     ];
     setState(() => _busy = true);
     final success = await runGuarded(
@@ -117,6 +121,7 @@ class _CloseShiftFormState extends ConsumerState<_CloseShiftForm> {
 
   Widget _form(BuildContext context, int expected, {int giftCashNet = 0}) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final counted = _counted;
     final diff = counted == null ? null : counted - expected;
     final kind = counted == null ? null : classifyDiff(counted, expected);
@@ -140,14 +145,16 @@ class _CloseShiftFormState extends ConsumerState<_CloseShiftForm> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    'Пересчитайте наличные в денежном ящике.',
+                    l.shiftCountCashHint,
                     style: t.textTheme.bodyMedium?.copyWith(color: t.colorScheme.onSurfaceVariant),
                   ),
                   const SizedBox(height: Gap.m),
                   SegmentedButton<bool>(
-                    segments: const [
-                      ButtonSegment(value: true, icon: Icon(Icons.payments_outlined), label: Text('По купюрам')),
-                      ButtonSegment(value: false, icon: Icon(Icons.calculate_outlined), label: Text('Общей суммой')),
+                    segments: [
+                      ButtonSegment(
+                          value: true, icon: const Icon(Icons.payments_outlined), label: Text(l.shiftByDenomination)),
+                      ButtonSegment(
+                          value: false, icon: const Icon(Icons.calculate_outlined), label: Text(l.shiftByTotal)),
                     ],
                     selected: {_byDenomination},
                     onSelectionChanged: (s) => setState(() {
@@ -186,7 +193,7 @@ class _CloseShiftFormState extends ConsumerState<_CloseShiftForm> {
                   else
                     MoneyField(
                       key: const ValueKey('close_total'),
-                      label: 'Наличные в кассе',
+                      label: l.shiftCashInDrawer,
                       controller: _totalCtl,
                       autofocus: true,
                       onChanged: (v) => setState(() => _total = v),
@@ -199,21 +206,21 @@ class _CloseShiftFormState extends ConsumerState<_CloseShiftForm> {
                       padding: const EdgeInsets.all(Gap.l),
                       child: Column(
                         children: [
-                          _kv(context, 'Ожидается в кассе', Money.format(expected)),
+                          _kv(context, l.shiftExpectedInDrawer, Money.format(expected)),
                           if (giftCashNet != 0)
                             _kv(
                               context,
-                              'в т.ч. сертификаты (нал.)',
+                              l.shiftInclGiftCash,
                               '${giftCashNet < 0 ? '−' : '+'}${Money.format(giftCashNet.abs())}',
                             ),
-                          _kv(context, 'Пересчитано', counted == null ? '—' : Money.format(counted), bold: true),
+                          _kv(context, l.shiftCounted, counted == null ? '—' : Money.format(counted), bold: true),
                           const Divider(height: Gap.l),
                           _kv(
                             context,
                             switch (kind) {
-                              CashDiff.shortage => 'Недостача',
-                              CashDiff.surplus => 'Излишек',
-                              _ => 'Расхождение',
+                              CashDiff.shortage => l.shiftShortage,
+                              CashDiff.surplus => l.shiftSurplus,
+                              _ => l.shiftDifference,
                             },
                             diff == null ? '—' : Money.format(diff.abs()),
                             color: diffColor,
@@ -229,7 +236,7 @@ class _CloseShiftFormState extends ConsumerState<_CloseShiftForm> {
                     minLines: 1,
                     maxLines: 3,
                     decoration: InputDecoration(
-                      labelText: diff != null && diff != 0 ? 'Причина расхождения *' : 'Примечание (необязательно)',
+                      labelText: diff != null && diff != 0 ? l.shiftDiffReasonLabel : l.shiftNoteOptional,
                     ),
                     onChanged: (_) {
                       if (_error != null) setState(() => _error = null);
@@ -238,18 +245,18 @@ class _CloseShiftFormState extends ConsumerState<_CloseShiftForm> {
                   const SizedBox(height: Gap.m),
                   ExpansionTile(
                     tilePadding: EdgeInsets.zero,
-                    title: const Text('Инкассация при закрытии'),
+                    title: Text(l.shiftCollectionAtClose),
                     subtitle: Text(
                       _collection > 0
-                          ? 'Сдать ${Money.format(_collection)}, оставить '
-                                '${Money.format((counted ?? 0) - _collection)} на размен'
-                          : 'Сдать часть выручки и оставить размен на следующую смену',
+                          ? l.shiftCollectionSummary(
+                              Money.format(_collection), Money.format((counted ?? 0) - _collection))
+                          : l.shiftCollectionHint,
                       style: t.textTheme.bodySmall,
                     ),
                     children: [
                       MoneyField(
                         key: const ValueKey('close_collection'),
-                        label: 'Сумма инкассации',
+                        label: l.shiftCollectionAmount,
                         controller: _collectionCtl,
                         onChanged: (v) => setState(() => _collection = v ?? 0),
                       ),
@@ -263,7 +270,7 @@ class _CloseShiftFormState extends ConsumerState<_CloseShiftForm> {
                                   _collection = counted;
                                   _collectionCtl.text = Money.toInput(counted);
                                 }),
-                          child: const Text('Сдать всё'),
+                          child: Text(l.shiftCollectAll),
                         ),
                       ),
                     ],
@@ -292,12 +299,13 @@ class _CloseShiftFormState extends ConsumerState<_CloseShiftForm> {
                 spacing: Gap.m,
                 runSpacing: 2,
                 children: [
-                  Text('Пересчитано: ${counted == null ? '—' : Money.format(counted)}', style: t.textTheme.titleSmall),
+                  Text(l.shiftCountedValue(counted == null ? '—' : Money.format(counted)),
+                      style: t.textTheme.titleSmall),
                   if (diff != null)
                     Text(
                       diff == 0
-                          ? 'без расхождений'
-                          : '${diff < 0 ? 'недостача' : 'излишек'} ${Money.format(diff.abs())}',
+                          ? l.shiftNoDifference
+                          : '${diff < 0 ? l.shiftShortageLower : l.shiftSurplusLower} ${Money.format(diff.abs())}',
                       style: t.textTheme.bodySmall?.copyWith(color: diffColor, fontWeight: FontWeight.w600),
                     ),
                 ],
@@ -310,14 +318,14 @@ class _CloseShiftFormState extends ConsumerState<_CloseShiftForm> {
               overflowAlignment: OverflowBarAlignment.end,
               spacing: Gap.s,
               children: [
-                TextButton(onPressed: _busy ? null : () => Navigator.pop(context, false), child: const Text('Отмена')),
+                TextButton(onPressed: _busy ? null : () => Navigator.pop(context, false), child: Text(l.commonCancel)),
                 FilledButton.icon(
                   key: const ValueKey('close_submit'),
                   onPressed: _busy ? null : () => _submit(expected),
                   icon: _busy
                       ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                       : const Icon(Icons.lock_clock),
-                  label: const Text('Закрыть смену'),
+                  label: Text(l.shiftCloseAction),
                 ),
               ],
             ),

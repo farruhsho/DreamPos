@@ -18,6 +18,7 @@ import '../reports/tabs/insights_tab.dart' show canOpenRoute;
 import '../reports/widgets/charts.dart';
 import '../reports/widgets/kpi.dart';
 import 'dashboard_providers.dart';
+import '../../l10n/l10n.dart';
 
 /// Обзор — home screen for the owner/manager: today's KPIs vs yesterday,
 /// 14-day revenue, top products, payment split, alerts and recent receipts.
@@ -49,17 +50,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l = context.l10n;
     final session = ref.watch(sessionProvider);
     final progress = ref.watch(storeProgressProvider);
     final name = session?.user.name;
     return PageScaffold(
-      title: 'Обзор',
-      subtitle: 'Сегодня, ${formatDate(_now)}${name == null ? '' : ' · $name'}',
+      title: l.dashTitle,
+      subtitle: l.dashTodayDate(formatDate(_now)) + (name == null ? '' : ' · $name'),
       padding: EdgeInsets.zero,
       actions: [
         if (session?.can(Perm.viewReports) ?? false)
           IconButton(
-            tooltip: 'Отчёты',
+            tooltip: l.dashReports,
             icon: const Icon(Icons.insights_outlined),
             onPressed: () => context.go('/reports'),
           ),
@@ -69,7 +71,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             child: FilledButton.icon(
               onPressed: () => context.go('/pos'),
               icon: const Icon(Icons.point_of_sale, size: 18),
-              label: const Text('Касса'),
+              label: Text(l.dashPos),
               style: FilledButton.styleFrom(minimumSize: const Size(0, 40)),
             ),
           ),
@@ -96,36 +98,37 @@ class _Onboarding extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final session = ref.watch(sessionProvider);
     final shift = ref.watch(currentShiftProvider).value;
     final steps = [
       (
         done: progress.products > 0,
-        title: 'Добавьте товары',
+        title: l.dashOnbProductsTitle,
         text: progress.products > 0
-            ? 'В каталоге ${progress.products} тов. Можно добавить ещё или загрузить остатки.'
-            : 'Заведите товары с ценами и остатками — вручную или сканером штрихкодов.',
+            ? l.dashOnbProductsDone('${progress.products}')
+            : l.dashOnbProductsText,
         icon: Icons.inventory_2_outlined,
         route: '/products',
-        button: 'К товарам',
+        button: l.dashOnbProductsButton,
       ),
       (
         done: progress.shifts > 0,
-        title: 'Откройте смену',
+        title: l.dashOnbShiftTitle,
         text: shift != null
-            ? 'Смена №${shift.number} открыта — можно продавать.'
-            : 'Укажите сумму размена в кассе, чтобы вечером сверить наличные.',
+            ? l.dashOnbShiftDone('${shift.number}')
+            : l.dashOnbShiftText,
         icon: Icons.schedule_outlined,
         route: '/shifts',
-        button: 'Открыть смену',
+        button: l.dashOnbShiftButton,
       ),
       (
         done: progress.sales > 0,
-        title: 'Сделайте первую продажу',
-        text: 'Отсканируйте товар или выберите его в кассе и примите оплату.',
+        title: l.dashOnbSaleTitle,
+        text: l.dashOnbSaleText,
         icon: Icons.point_of_sale_outlined,
         route: '/pos',
-        button: 'Перейти в кассу',
+        button: l.dashOnbSaleButton,
       ),
     ];
     final next = steps.indexWhere((s) => !s.done);
@@ -137,11 +140,11 @@ class _Onboarding extends ConsumerWidget {
             const SizedBox(height: Gap.l),
             Icon(Icons.rocket_launch_outlined, size: 48, color: t.colorScheme.primary),
             const SizedBox(height: Gap.m),
-            Text('Добро пожаловать в DreamPOS!',
+            Text(l.dashWelcome,
                 textAlign: TextAlign.center, style: t.textTheme.headlineSmall),
             const SizedBox(height: Gap.s),
             Text(
-              'Три шага — и здесь появятся выручка, прибыль, лучшие товары и подсказки.',
+              l.dashWelcomeText,
               textAlign: TextAlign.center,
               style: t.textTheme.bodyMedium?.copyWith(color: t.colorScheme.onSurfaceVariant),
             ),
@@ -152,7 +155,7 @@ class _Onboarding extends ConsumerWidget {
               borderRadius: BorderRadius.circular(3),
             ),
             const SizedBox(height: Gap.xs),
-            Text('Выполнено ${progress.stepsDone} из 3',
+            Text(l.dashStepsDone('${progress.stepsDone}', '3'),
                 textAlign: TextAlign.end, style: t.textTheme.labelSmall),
             const SizedBox(height: Gap.m),
             for (var i = 0; i < steps.length; i++) ...[
@@ -216,7 +219,7 @@ class _StepButton extends StatelessWidget {
         : primary
             ? FilledButton(onPressed: onPressed, child: Text(label))
             : OutlinedButton(onPressed: onPressed, child: Text(label));
-    return onPressed == null ? Tooltip(message: 'Нет доступа к разделу', child: b) : b;
+    return onPressed == null ? Tooltip(message: context.l10n.dashNoAccess, child: b) : b;
   }
 }
 
@@ -328,34 +331,35 @@ class _Kpis extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = context.l10n;
     final withCost = ref.watch(sessionProvider)?.can(Perm.viewCost) ?? false;
     final today = ref.watch(summaryProvider(_today(now)));
     final yest = ref.watch(summaryProvider(_yesterdaySoFar(now))).value;
     return AsyncView<SalesSummary>(
       value: today,
       data: (s) {
-        String? y(int? v) => v == null ? null : 'вчера к этому часу: ${Money.format(v)}';
+        String? y(int? v) => v == null ? null : l.dashYesterdaySoFar(Money.format(v));
         return ResponsiveGrid(minTile: 160, maxColumns: 5, stretchLast: true, children: [
           KpiTile(
             key: const ValueKey('kpi-revenue'),
-            label: 'Выручка сегодня',
+            label: l.dashRevenueToday,
             value: Money.format(s.net),
             icon: Icons.payments_outlined,
             current: s.net,
             previous: yest?.net,
             previousLabel: y(yest?.net),
-            tooltip: 'Продажи минус возвраты (аннулированные чеки не учитываются)',
+            tooltip: l.dashRevenueTooltip,
           ),
           KpiTile(
-            label: 'Чеков',
+            label: l.dashReceipts,
             value: '${s.receipts}',
             icon: Icons.receipt_long_outlined,
             current: s.receipts,
             previous: yest?.receipts,
-            previousLabel: yest == null ? null : 'вчера к этому часу: ${yest.receipts}',
+            previousLabel: yest == null ? null : l.dashYesterdaySoFar('${yest.receipts}'),
           ),
           KpiTile(
-            label: 'Средний чек',
+            label: l.dashAvgCheck,
             value: Money.format(s.avgCheck),
             icon: Icons.functions,
             current: s.avgCheck,
@@ -364,7 +368,7 @@ class _Kpis extends ConsumerWidget {
           ),
           if (withCost)
             KpiTile(
-              label: 'Валовая прибыль',
+              label: l.dashGrossProfit,
               value: Money.format(s.profit),
               icon: Icons.trending_up,
               color: AppColors.success,
@@ -372,18 +376,17 @@ class _Kpis extends ConsumerWidget {
               previous: yest?.profit,
               previousLabel: s.net == 0
                   ? y(yest?.profit)
-                  : 'маржа ${s.marginPct.toStringAsFixed(1).replaceAll('.', ',')}%',
+                  : l.dashMargin(s.marginPct.toStringAsFixed(1).replaceAll('.', ',')),
             ),
           KpiTile(
-            label: 'Возвраты',
+            label: l.dashReturns,
             value: Money.format(s.returnsTotal),
             icon: Icons.assignment_return_outlined,
             color: AppColors.warning,
             current: s.returnsTotal,
             previous: yest?.returnsTotal,
             inverse: true,
-            previousLabel: '${s.returnsCount} шт.'
-                '${s.voids > 0 ? ' · аннулировано чеков: ${s.voids}' : ''}',
+            previousLabel: l.dashPcs('${s.returnsCount}') + (s.voids > 0 ? l.dashVoidedSuffix('${s.voids}') : ''),
           ),
         ]);
       },
@@ -399,11 +402,12 @@ class _RevenueChart extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final p = ReportPeriod(DateTime(now.year, now.month, now.day - 13),
         DateTime(now.year, now.month, now.day + 1));
+    final l = context.l10n;
     final days = ref.watch(byDayProvider(p));
     final session = ref.watch(sessionProvider);
     return SectionCard(
-      title: 'Выручка за 14 дней',
-      trailing: _headerLink(context, 'Подробнее', _nav(context, session, '/reports')),
+      title: l.dashRevenue14,
+      trailing: _headerLink(context, l.commonDetails, _nav(context, session, '/reports')),
       child: AsyncView<List<DayPoint>>(
         value: days,
         data: (list) {
@@ -411,7 +415,7 @@ class _RevenueChart extends ConsumerWidget {
           final active = list.where((d) => d.receipts > 0).length;
           return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Text(
-              'Итого ${Money.format(total)} · в среднем ${Money.format(active == 0 ? 0 : total ~/ active)} в торговый день',
+              l.dashRevenueSummary(Money.format(total), Money.format(active == 0 ? 0 : total ~/ active)),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant),
             ),
@@ -425,8 +429,8 @@ class _RevenueChart extends ConsumerWidget {
                     label: '${d.day.day}',
                     value: d.net,
                     highlight: dayKey(d.day) == dayKey(now),
-                    tooltip: '${weekdayShort[d.day.weekday - 1]}, ${formatDate(d.day)}\n'
-                        'Выручка: ${Money.format(d.net)}\nЧеков: ${d.receipts}',
+                    tooltip: '${weekdayShortIn(l)[d.day.weekday - 1]}, ${formatDate(d.day)}\n'
+                        '${l.dashBarTooltip(Money.format(d.net), '${d.receipts}')}',
                   ),
               ],
             ),
@@ -444,6 +448,7 @@ class _ShiftCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final session = ref.watch(sessionProvider);
     final shift = ref.watch(currentShiftProvider);
     return AsyncView<Shift?>(
@@ -455,10 +460,10 @@ class _ShiftCard extends ConsumerWidget {
               leading: const CircleAvatar(
                   backgroundColor: Color(0x22B45309),
                   child: Icon(Icons.lock_clock, color: AppColors.warning)),
-              title: const Text('Смена закрыта'),
-              subtitle: const Text('Продажи невозможны, пока смена не открыта'),
+              title: Text(l.dashShiftClosed),
+              subtitle: Text(l.dashShiftClosedText),
               trailing: FilledButton.tonal(
-                  onPressed: _nav(context, session, '/shifts'), child: const Text('Открыть')),
+                  onPressed: _nav(context, session, '/shifts'), child: Text(l.commonOpen)),
             ),
           );
         }
@@ -476,26 +481,26 @@ class _ShiftCard extends ConsumerWidget {
                   Icon(Icons.schedule, color: long ? AppColors.warning : AppColors.success),
                   const SizedBox(width: Gap.s),
                   Expanded(
-                      child: Text('Смена №${s.number} открыта',
+                      child: Text(l.dashShiftOpen('${s.number}'),
                           style: t.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600))),
-                  StatusChip(long ? 'Долго открыта' : 'Идёт',
+                  StatusChip(long ? l.dashShiftLong : l.dashShiftRunning,
                       color: long ? AppColors.warning : AppColors.success),
                 ]),
                 const SizedBox(height: Gap.s),
                 Text(
-                  'С ${formatTime(s.openedAt)}'
+                  '${l.dashShiftSince(formatTime(s.openedAt))}'
                   '${dayKey(s.openedAt) != dayKey(now) ? ' (${formatDate(s.openedAt)})' : ''}'
-                  ' · ${dur.inHours} ч ${dur.inMinutes % 60} мин'
+                  ' · ${l.dashDuration('${dur.inHours}', '${dur.inMinutes % 60}')}'
                   '${totals?.cashier == null ? '' : ' · ${totals!.cashier}'}',
                   style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant),
                 ),
                 if (totals != null) ...[
                   const SizedBox(height: Gap.s),
-                  Text('Чеков: ${totals.receipts} · выручка ${Money.format(totals.revenue)}'),
+                  Text(l.dashShiftTotals('${totals.receipts}', Money.format(totals.revenue))),
                 ],
                 if (long) ...[
                   const SizedBox(height: Gap.s),
-                  Text('Смена открыта больше 16 часов — закройте её и сверьте кассу.',
+                  Text(l.dashShiftLongText,
                       style: t.textTheme.bodySmall?.copyWith(color: AppColors.warning)),
                 ],
               ]),
@@ -512,6 +517,7 @@ class _Alerts extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = context.l10n;
     final session = ref.watch(sessionProvider);
     final stock = ref.watch(stockAlertsProvider).value;
     final debt = ref.watch(debtTotalProvider).value;
@@ -521,11 +527,11 @@ class _Alerts extends ConsumerWidget {
         icon: Icons.inventory_outlined,
         color: (stock?.total ?? 0) > 0 ? AppColors.danger : AppColors.success,
         title: stock == null
-            ? 'Остатки…'
+            ? l.dashStockLoading
             : stock.total == 0
-                ? 'Остатков достаточно'
-                : 'Заканчиваются: ${stock.low} · нет в наличии: ${stock.out}',
-        subtitle: 'Товары с остатком ниже минимального',
+                ? l.dashStockOk
+                : l.dashStockLow('${stock.low}', '${stock.out}'),
+        subtitle: l.dashStockSubtitle,
         onTap: _nav(context, session, '/inventory'),
       ),
       const SizedBox(height: Gap.m),
@@ -534,11 +540,11 @@ class _Alerts extends ConsumerWidget {
         icon: Icons.account_balance_wallet_outlined,
         color: (debt?.total ?? 0) > 0 ? AppColors.warning : AppColors.success,
         title: debt == null
-            ? 'Долги…'
+            ? l.dashDebtLoading
             : debt.total == 0
-                ? 'Долгов нет'
-                : 'Долг клиентов: ${Money.format(debt.total)}',
-        subtitle: debt == null || debt.total == 0 ? 'Все клиенты рассчитались' : 'Должников: ${debt.customers}',
+                ? l.dashDebtNone
+                : l.dashDebtTotal(Money.format(debt.total)),
+        subtitle: debt == null || debt.total == 0 ? l.dashDebtAllPaid : l.dashDebtors('${debt.customers}'),
         onTap: _nav(context, session, '/customers'),
       ),
     ]);
@@ -582,7 +588,7 @@ class _AlertTile extends StatelessWidget {
             trailing: onTap == null ? null : const Icon(Icons.chevron_right),
           ),
         );
-    return onTap == null ? Tooltip(message: 'Нет доступа к разделу', child: card) : card;
+    return onTap == null ? Tooltip(message: context.l10n.dashNoAccess, child: card) : card;
   }
 }
 
@@ -603,9 +609,10 @@ class _TopProductsState extends ConsumerState<_TopProducts> {
     final p = _week
         ? ReportPeriod(DateTime(n.year, n.month, n.day - 6), DateTime(n.year, n.month, n.day + 1))
         : _today(n);
+    final l = context.l10n;
     final rows = ref.watch(byProductProvider(p));
     return SectionCard(
-      title: 'Топ-5 товаров',
+      title: l.dashTop5,
       trailing: SegmentedButton<bool>(
         showSelectedIcon: false,
         style: ButtonStyle(
@@ -613,9 +620,9 @@ class _TopProductsState extends ConsumerState<_TopProducts> {
           tapTargetSize:
               _isPhone(context) ? MaterialTapTargetSize.padded : MaterialTapTargetSize.shrinkWrap,
         ),
-        segments: const [
-          ButtonSegment(value: false, label: Text('Сегодня')),
-          ButtonSegment(value: true, label: Text('7 дн.')),
+        segments: [
+          ButtonSegment(value: false, label: Text(l.commonToday)),
+          ButtonSegment(value: true, label: Text(l.dash7Days)),
         ],
         selected: {_week},
         onSelectionChanged: (s) => setState(() => _week = s.first),
@@ -625,7 +632,7 @@ class _TopProductsState extends ConsumerState<_TopProducts> {
         data: (list) {
           final top = list.where((r) => r.revenue > 0).take(5).toList();
           if (top.isEmpty) {
-            return const _Muted('Продаж пока нет');
+            return _Muted(l.dashNoSales);
           }
           return ShareBars(relativeToMax: true, items: [
             for (final r in top)
@@ -644,18 +651,19 @@ class _PaymentSplit extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = context.l10n;
     final rows = ref.watch(paymentsProvider(_today(now)));
     return SectionCard(
-      title: 'Оплаты сегодня',
+      title: l.dashPaymentsToday,
       child: AsyncView<List<PaymentRow>>(
         value: rows,
         data: (list) {
           final items = list.where((r) => r.net != 0).toList();
           final total = items.fold<int>(0, (s, r) => s + r.net);
-          if (items.isEmpty) return const _Muted('Оплат сегодня ещё не было');
+          if (items.isEmpty) return _Muted(l.dashNoPaymentsToday);
           return ShareBars(items: [
             for (final r in items)
-              ShareItem(paymentMethodLabel(r.method), r.net,
+              ShareItem(paymentMethodLabel(r.method, l), r.net,
                   trailing:
                       '${Money.format(r.net)} · ${total == 0 ? 0 : (r.net * 100 / total).round()}%',
                   color: paymentMethodColor(r.method)),
@@ -674,20 +682,21 @@ class _RecentReceipts extends ConsumerWidget {
     final session = ref.watch(sessionProvider);
     final rows = ref.watch(recentSalesProvider);
     final t = Theme.of(context);
+    final l = context.l10n;
     return SectionCard(
-      title: 'Последние чеки',
-      trailing: _headerLink(context, 'Все чеки', _nav(context, session, '/sales')),
+      title: l.dashRecentReceipts,
+      trailing: _headerLink(context, l.dashAllReceipts, _nav(context, session, '/sales')),
       child: AsyncView<List<RecentSale>>(
         value: rows,
         data: (list) {
-          if (list.isEmpty) return const _Muted('Чеков пока нет');
+          if (list.isEmpty) return _Muted(l.dashNoReceipts);
           return Column(children: [
             for (final r in list)
               ListTile(
                 dense: true,
                 contentPadding: EdgeInsets.zero,
                 onTap: _nav(context, session, '/sales'),
-                title: Text('Чек №${r.sale.number}',
+                title: Text(l.dashReceiptNumber('${r.sale.number}'),
                     style: r.sale.status == 'voided'
                         ? const TextStyle(decoration: TextDecoration.lineThrough)
                         : null),
@@ -708,7 +717,7 @@ class _RecentReceipts extends ConsumerWidget {
                   children: [
                     Text(Money.format(r.sale.total),
                         style: t.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
-                    if (_statusLabel(r.sale.status) case final st?)
+                    if (_statusLabel(l, r.sale.status) case final st?)
                       Text(st.$1, style: TextStyle(fontSize: 11, color: st.$2)),
                   ],
                 ),
@@ -719,10 +728,10 @@ class _RecentReceipts extends ConsumerWidget {
     );
   }
 
-  (String, Color)? _statusLabel(String s) => switch (s) {
-        'voided' => ('аннулирован', AppColors.danger),
-        'returned' => ('возврат', AppColors.warning),
-        'partially_returned' => ('частичный возврат', AppColors.warning),
+  (String, Color)? _statusLabel(AppLocalizations l, String s) => switch (s) {
+        'voided' => (l.dashStatusVoided, AppColors.danger),
+        'returned' => (l.dashStatusReturned, AppColors.warning),
+        'partially_returned' => (l.dashStatusPartReturned, AppColors.warning),
         _ => null,
       };
 }

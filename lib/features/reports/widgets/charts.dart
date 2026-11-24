@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../core/theme.dart';
+import '../../../l10n/l10n.dart';
 
 class BarDatum {
   const BarDatum({required this.label, required this.value, this.tooltip, this.highlight = false});
@@ -166,7 +167,12 @@ class ShareBars extends StatelessWidget {
   }
 }
 
-const weekdayShort = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+/// Short weekday names, Monday first.
+List<String> weekdayShortIn(AppLocalizations l) =>
+    [l.repWdMon, l.repWdTue, l.repWdWed, l.repWdThu, l.repWdFri, l.repWdSat, l.repWdSun];
+
+/// [weekdayShortIn] in the UI language.
+List<String> get weekdayShort => weekdayShortIn(L.current);
 
 /// Weekday × hour heatmap. [values] is indexed [weekday-1][hour].
 class HourHeatmap extends StatelessWidget {
@@ -214,7 +220,7 @@ class HourHeatmap extends StatelessWidget {
                 height: cellH + 2,
                 child: Align(
                     alignment: Alignment.centerLeft,
-                    child: Text(weekdayShort[wd], style: labelStyle))),
+                    child: Text(weekdayShortIn(context.l10n)[wd], style: labelStyle))),
             for (final h in hours)
               Tooltip(
                 message: tooltip(wd + 1, h, values[wd][h]),
@@ -250,7 +256,7 @@ class DeltaBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (previous == 0) {
-      return Text(current == 0 ? '—' : 'новое',
+      return Text(current == 0 ? '—' : context.l10n.repDeltaNew,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
               color: Theme.of(context).colorScheme.onSurfaceVariant));
     }

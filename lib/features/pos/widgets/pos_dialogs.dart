@@ -10,6 +10,7 @@ import '../../../core/permissions.dart';
 import '../../../core/providers.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets/widgets.dart';
+import '../../../l10n/l10n.dart';
 import '../cart_controller.dart';
 import '../parked_carts.dart';
 import '../pos_providers.dart';
@@ -60,6 +61,7 @@ class _QtyDialogState extends State<_QtyDialog> {
   @override
   Widget build(BuildContext context) {
     final unit = widget.unit;
+    final l = context.l10n;
     return AlertDialog(
       title: Text(widget.title),
       content: Form(
@@ -73,18 +75,18 @@ class _QtyDialogState extends State<_QtyDialog> {
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
             decoration: InputDecoration(
-              labelText: Qty.isFractional(unit) ? 'Количество / вес' : 'Количество',
-              suffixText: Qty.unitLabel(unit),
-              helperText: Qty.isFractional(unit) ? 'Например: 0,75' : null,
+              labelText: Qty.isFractional(unit) ? l.posQtyWeight : l.commonQty,
+              suffixText: Qty.unitLabel(unit, l),
+              helperText: Qty.isFractional(unit) ? l.posQtyExample : null,
             ),
-            validator: (v) => validateQty(QtyField.parse(v ?? ''), unit),
+            validator: (v) => validateQty(QtyField.parse(v ?? ''), unit, l),
             onFieldSubmitted: (_) => _submit(),
           ),
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')),
-        FilledButton(onPressed: _submit, child: const Text('OK')),
+        TextButton(onPressed: () => Navigator.pop(context), child: Text(l.commonCancel)),
+        FilledButton(onPressed: _submit, child: Text(l.commonOk)),
       ],
     );
   }
@@ -129,8 +131,9 @@ class _PriceDialogState extends State<_PriceDialog> {
   Widget build(BuildContext context) {
     final line = widget.line;
     final t = Theme.of(context);
+    final l = context.l10n;
     return AlertDialog(
-      title: const Text('Цена продажи'),
+      title: Text(l.posSalePrice),
       content: Form(
         key: _key,
         child: SizedBox(
@@ -141,10 +144,10 @@ class _PriceDialogState extends State<_PriceDialog> {
             children: [
               Text(line.name, style: t.textTheme.titleSmall),
               const SizedBox(height: Gap.xs),
-              Text('Цена по прайсу: ${Money.format(line.basePrice)}', style: t.textTheme.bodySmall),
+              Text(l.posListPrice(Money.format(line.basePrice)), style: t.textTheme.bodySmall),
               const SizedBox(height: Gap.m),
               MoneyField(
-                label: 'Новая цена',
+                label: l.posNewPrice,
                 controller: _ctl,
                 autofocus: true,
                 required: true,
@@ -158,10 +161,10 @@ class _PriceDialogState extends State<_PriceDialog> {
         if (line.priceEdited)
           TextButton(
             onPressed: () => Navigator.pop(context, line.basePrice),
-            child: const Text('Вернуть цену прайса'),
+            child: Text(l.posRestoreListPrice),
           ),
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')),
-        FilledButton(onPressed: _submit, child: const Text('Применить')),
+        TextButton(onPressed: () => Navigator.pop(context), child: Text(l.commonCancel)),
+        FilledButton(onPressed: _submit, child: Text(l.commonApply)),
       ],
     );
   }
@@ -246,16 +249,17 @@ class _DiscountDialogState extends State<_DiscountDialog> {
   double get _effectivePct => discountPercentOf(_discount, widget.base);
 
   String? _validate(String? v) {
+    final l = context.l10n;
     if (_percent) {
       final p = QtyField.parse((v ?? '').isEmpty ? '0' : v!);
-      if (p == null) return 'Введите число';
-      if (p < 0) return 'Не может быть отрицательной';
-      if (p > 100) return 'Не больше 100%';
+      if (p == null) return l.commonEnterNumber;
+      if (p < 0) return l.commonCannotBeNegative;
+      if (p > 100) return l.posNotMore100;
     } else {
       final a = (v ?? '').trim().isEmpty ? 0 : Money.parse(v!);
-      if (a == null) return 'Неверная сумма';
-      if (a < 0) return 'Не может быть отрицательной';
-      if (a > widget.base) return 'Больше суммы (${Money.format(widget.base)})';
+      if (a == null) return l.commonInvalidAmount;
+      if (a < 0) return l.commonCannotBeNegative;
+      if (a > widget.base) return l.posMoreThanAmount(Money.format(widget.base));
     }
     return null;
   }
@@ -274,6 +278,7 @@ class _DiscountDialogState extends State<_DiscountDialog> {
   Widget build(BuildContext context) {
     final t = Theme.of(context);
     final over = !withinDiscountLimit(_effectivePct, widget.limitPercent);
+    final l = context.l10n;
     return AlertDialog(
       title: Text(widget.title),
       content: Form(
@@ -284,12 +289,12 @@ class _DiscountDialogState extends State<_DiscountDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('Сумма: ${Money.format(widget.base)}', style: t.textTheme.bodyMedium),
+              Text(l.posAmountValue(Money.format(widget.base)), style: t.textTheme.bodyMedium),
               const SizedBox(height: Gap.m),
               SegmentedButton<bool>(
-                segments: const [
-                  ButtonSegment(value: true, label: Text('Процент, %')),
-                  ButtonSegment(value: false, label: Text('Сумма')),
+                segments: [
+                  ButtonSegment(value: true, label: Text(l.posPercentSeg)),
+                  ButtonSegment(value: false, label: Text(l.commonAmount)),
                 ],
                 selected: {_percent},
                 onSelectionChanged: (s) => setState(() {
@@ -304,7 +309,7 @@ class _DiscountDialogState extends State<_DiscountDialog> {
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,\s]'))],
                 decoration: InputDecoration(
-                  labelText: _percent ? 'Скидка, %' : 'Скидка, сумма',
+                  labelText: _percent ? l.posDiscountPct : l.posDiscountAmount,
                   suffixText: _percent ? '%' : Money.currency.symbol,
                 ),
                 validator: _validate,
@@ -313,15 +318,15 @@ class _DiscountDialogState extends State<_DiscountDialog> {
               ),
               const SizedBox(height: Gap.m),
               Text(
-                'Скидка: ${Money.format(_discount)} (${_fmtPct(_effectivePct)}%) · '
-                'к оплате ${Money.format(widget.base - _discount)}',
+                l.posDiscountSummary(
+                    Money.format(_discount), _fmtPct(_effectivePct), Money.format(widget.base - _discount)),
                 style: t.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: Gap.xs),
               Text(
                 over
-                    ? 'Превышает ваш лимит ${_fmtPct(widget.limitPercent)}% — потребуется PIN менеджера'
-                    : 'Ваш лимит скидки: ${_fmtPct(widget.limitPercent)}%',
+                    ? l.posOverLimit(_fmtPct(widget.limitPercent))
+                    : l.posYourLimit(_fmtPct(widget.limitPercent)),
                 style: t.textTheme.bodySmall?.copyWith(
                   color: over ? AppColors.warning : t.colorScheme.onSurfaceVariant,
                 ),
@@ -334,10 +339,10 @@ class _DiscountDialogState extends State<_DiscountDialog> {
         if (widget.currentAmount > 0 || widget.currentPercent > 0)
           TextButton(
             onPressed: () => Navigator.pop(context, const DiscountInput()),
-            child: const Text('Убрать скидку'),
+            child: Text(l.posRemoveDiscount),
           ),
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')),
-        FilledButton(onPressed: _submit, child: const Text('Применить')),
+        TextButton(onPressed: () => Navigator.pop(context), child: Text(l.commonCancel)),
+        FilledButton(onPressed: _submit, child: Text(l.commonApply)),
       ],
     );
   }
@@ -347,17 +352,18 @@ class _DiscountDialogState extends State<_DiscountDialog> {
 
 /// Pure approval rule (unit-tested): may [approver] authorise a manual
 /// discount of [percent] requested by [cashier]? Returns an error or null.
-String? approvalError(User approver, User cashier, double percent) {
+String? approvalError(User approver, User cashier, double percent, [AppLocalizations? l]) {
+  final t = l ?? L.current;
   final role = Role.parse(approver.role);
   if (!role.can(Perm.applyDiscount)) {
-    return '${approver.name}: нет права подтверждать скидки';
+    return t.posApproverNoPerm(approver.name);
   }
   if (approver.maxDiscountPercent <= cashier.maxDiscountPercent) {
-    return '${approver.name}: лимит скидки не выше, чем у кассира';
+    return t.posApproverLimitNotHigher(approver.name);
   }
   if (!withinDiscountLimit(percent, approver.maxDiscountPercent)) {
-    return 'Лимит ${approver.name} — ${approver.maxDiscountPercent.toStringAsFixed(0)}%, '
-        'запрошено ${percent.toStringAsFixed(1)}%';
+    return t.posApproverLimit(
+        approver.name, approver.maxDiscountPercent.toStringAsFixed(0), percent.toStringAsFixed(1));
   }
   return null;
 }
@@ -397,11 +403,12 @@ class _ApprovalDialogState extends ConsumerState<_ApprovalDialog> {
       _error = null;
     });
     String? err;
+    final l = context.l10n;
     try {
       final u = await ref.read(authServiceProvider).verifyApprover(pin);
       err = u.id == widget.cashier.id
-          ? 'Нужен PIN другого сотрудника (менеджера или владельца)'
-          : approvalError(u, widget.cashier, widget.percent);
+          ? l.posOtherPinNeeded
+          : approvalError(u, widget.cashier, widget.percent, l);
       if (err == null) {
         if (mounted) Navigator.pop(context, u);
         return;
@@ -419,17 +426,17 @@ class _ApprovalDialogState extends ConsumerState<_ApprovalDialog> {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final l = context.l10n;
     return AlertDialog(
-      title: const Text('Подтверждение менеджера'),
+      title: Text(l.posManagerApproval),
       content: SizedBox(
         width: 340,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              '${widget.what}: ${widget.percent.toStringAsFixed(1)}% — больше лимита кассира '
-              '(${widget.cashier.maxDiscountPercent.toStringAsFixed(0)}%).\n'
-              'Менеджер или владелец вводит свой PIN.',
+              l.posApprovalMessage(widget.what, widget.percent.toStringAsFixed(1),
+                  widget.cashier.maxDiscountPercent.toStringAsFixed(0)),
               style: t.textTheme.bodyMedium,
               textAlign: TextAlign.center,
             ),
@@ -438,7 +445,7 @@ class _ApprovalDialogState extends ConsumerState<_ApprovalDialog> {
           ],
         ),
       ),
-      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена'))],
+      actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text(l.commonCancel))],
     );
   }
 }
@@ -484,8 +491,9 @@ class _OpenShiftDialogState extends ConsumerState<_OpenShiftDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l = context.l10n;
     return AlertDialog(
-      title: const Text('Открыть смену'),
+      title: Text(l.posOpenShift),
       content: Form(
         key: _key,
         child: SizedBox(
@@ -494,13 +502,13 @@ class _OpenShiftDialogState extends ConsumerState<_OpenShiftDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Пересчитайте наличные в денежном ящике и введите сумму размена.'),
+              Text(l.posOpenShiftHint),
               const SizedBox(height: Gap.l),
               MoneyField(
-                label: 'Размен в кассе',
+                label: l.posOpeningCash,
                 initial: 0,
                 autofocus: true,
-                helper: 'Можно 0, если ящик пуст',
+                helper: l.posOpeningCashHelper,
                 onChanged: (v) => _cash = v ?? 0,
                 onSubmitted: (_) => _submit(),
               ),
@@ -509,13 +517,13 @@ class _OpenShiftDialogState extends ConsumerState<_OpenShiftDialog> {
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Отмена')),
+        TextButton(onPressed: () => Navigator.pop(context, false), child: Text(l.commonCancel)),
         FilledButton.icon(
           onPressed: _busy ? null : _submit,
           icon: _busy
               ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
               : const Icon(Icons.lock_open),
-          label: const Text('Открыть смену'),
+          label: Text(l.posOpenShift),
         ),
       ],
     );
@@ -528,7 +536,7 @@ class _OpenShiftDialogState extends ConsumerState<_OpenShiftDialog> {
 Future<String?> pickSeller(BuildContext context, {String? current}) {
   return showFormDialog<String>(
     context,
-    title: 'Продавец-консультант',
+    title: context.l10n.posSellerConsultant,
     width: 420,
     child: Consumer(
       builder: (context, ref, _) {
@@ -541,7 +549,7 @@ Future<String?> pickSeller(BuildContext context, {String? current}) {
               children: [
                 ListTile(
                   leading: const Icon(Icons.person_outline),
-                  title: const Text('Кассир (по умолчанию)'),
+                  title: Text(context.l10n.posCashierDefault),
                   selected: current == null,
                   onTap: () => Navigator.pop(context, ''),
                 ),
@@ -550,7 +558,7 @@ Future<String?> pickSeller(BuildContext context, {String? current}) {
                   ListTile(
                     leading: CircleAvatar(child: Text(u.name.characters.first.toUpperCase())),
                     title: Text(u.name),
-                    subtitle: Text(Role.parse(u.role).label),
+                    subtitle: Text(Role.parse(u.role).labelIn(context.l10n)),
                     selected: u.id == current,
                     trailing: u.id == current ? const Icon(Icons.check) : null,
                     onTap: () => Navigator.pop(context, u.id),
@@ -571,7 +579,7 @@ Future<String?> pickSeller(BuildContext context, {String? current}) {
 Future<ParkedCart?> showParkedList(BuildContext context) {
   return showFormDialog<ParkedCart>(
     context,
-    title: 'Отложенные чеки',
+    title: context.l10n.posParkedReceipts,
     width: 560,
     child: const _ParkedList(),
   );
@@ -584,18 +592,19 @@ class _ParkedList extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final parked = ref.watch(parkedCartsProvider);
     final t = Theme.of(context);
+    final l = context.l10n;
     return Padding(
       padding: const EdgeInsets.fromLTRB(Gap.l, 0, Gap.s, Gap.l),
       child: AsyncView(
         value: parked,
         data: (list) {
           if (list.isEmpty) {
-            return const SizedBox(
+            return SizedBox(
               height: 260,
               child: EmptyState(
                 icon: Icons.pause_circle_outline,
-                title: 'Нет отложенных чеков',
-                message: 'Отложите текущий чек (F8), чтобы обслужить следующего покупателя',
+                title: l.posNoParked,
+                message: l.posNoParkedHint,
               ),
             );
           }
@@ -607,7 +616,7 @@ class _ParkedList extends ConsumerWidget {
               Padding(
                 padding: const EdgeInsets.fromLTRB(Gap.s, Gap.xs, Gap.s, Gap.s),
                 child: Text(
-                  'Нажмите на чек, чтобы вернуть его в кассу',
+                  l.posParkedTapHint,
                   style: t.textTheme.bodyMedium?.copyWith(color: t.colorScheme.onSurfaceVariant),
                 ),
               ),
@@ -620,7 +629,7 @@ class _ParkedList extends ConsumerWidget {
                     final p = sorted[i];
                     final n = p.cart.lines.length;
                     final names = p.cart.lines.map((l) => l.name).take(3).join(', ');
-                    final more = n > 3 ? ' и ещё ${n - 3}' : '';
+                    final more = n > 3 ? ' ${l.posAndMore('${n - 3}')}' : '';
                     return ListTile(
                       autofocus: i == 0,
                       contentPadding: const EdgeInsets.only(left: Gap.s),
@@ -631,7 +640,7 @@ class _ParkedList extends ConsumerWidget {
                         children: [
                           Expanded(
                             child: Text(
-                              p.note ?? p.cart.customerName ?? 'Чек от ${formatTime(p.createdAt)}',
+                              p.note ?? p.cart.customerName ?? l.posReceiptFrom(formatTime(p.createdAt)),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: t.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
@@ -648,7 +657,7 @@ class _ParkedList extends ConsumerWidget {
                         [
                           [
                             formatDateTime(p.createdAt),
-                            '$n поз.',
+                            l.posPositions('$n'),
                             if (p.cashierName != null) p.cashierName!,
                           ].join(' · '),
                           '$names$more',
@@ -658,14 +667,14 @@ class _ParkedList extends ConsumerWidget {
                       ),
                       isThreeLine: true,
                       trailing: IconButton(
-                        tooltip: 'Удалить отложенный чек',
+                        tooltip: l.posDeleteParked,
                         icon: const Icon(Icons.delete_outline),
                         onPressed: () async {
                           final ok = await confirm(
                             context,
-                            title: 'Удалить отложенный чек?',
-                            message: 'Товары из этого чека будут потеряны.',
-                            ok: 'Удалить',
+                            title: l.posDeleteParkedQ,
+                            message: l.posDeleteParkedMessage,
+                            ok: l.commonDelete,
                             destructive: true,
                           );
                           if (ok) await ref.read(parkedCartsProvider.notifier).remove(p.id);

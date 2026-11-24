@@ -7,6 +7,7 @@ import '../../core/permissions.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
+import '../../l10n/l10n.dart';
 import 'bulk_dialogs.dart';
 import 'categories_dialog.dart';
 import 'import_export.dart';
@@ -107,10 +108,11 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
     final canEdit = ref.read(sessionProvider)?.can(Perm.editProducts) ?? false;
     final looksLikeBarcode = RegExp(r'^\d{8,14}$').hasMatch(code);
     if (canEdit && looksLikeBarcode) {
+      final l = context.l10n;
       final ok = await confirm(context,
-          title: 'Товар не найден',
-          message: 'Штрихкода $code нет в каталоге. Создать новый товар с этим штрихкодом?',
-          ok: 'Создать');
+          title: l.prodNotFoundTitle,
+          message: l.prodBarcodeNotInCatalog(code),
+          ok: l.commonCreate);
       if (ok && mounted) await _create(barcode: code);
     }
   }
@@ -131,9 +133,10 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
     final count = ref.watch(productCountProvider(_q.unlimited)).value;
     final cats = ref.watch(productCategoriesProvider).value ?? const <Category>[];
     final catById = {for (final c in cats) c.id: c};
+    final l = context.l10n;
 
     final menu = PopupMenuButton<String>(
-      tooltip: 'Ещё',
+      tooltip: l.commonMore,
       icon: const Icon(Icons.more_vert),
       onSelected: (v) {
         switch (v) {
@@ -147,19 +150,19 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
       },
       itemBuilder: (_) => [
         if (compact)
-          const PopupMenuItem(
+          PopupMenuItem(
               value: 'categories',
-              child: ListTile(leading: Icon(Icons.category_outlined), title: Text('Категории'))),
+              child: ListTile(leading: const Icon(Icons.category_outlined), title: Text(l.prodCategories))),
         if (canEdit)
-          const PopupMenuItem(
+          PopupMenuItem(
               value: 'import',
-              child: ListTile(leading: Icon(Icons.upload_file_outlined), title: Text('Импорт из CSV'))),
+              child: ListTile(leading: const Icon(Icons.upload_file_outlined), title: Text(l.prodImportFromCsv))),
         PopupMenuItem(
             value: 'export',
             child: ListTile(
                 leading: const Icon(Icons.download_outlined),
-                title: const Text('Экспорт в CSV'),
-                subtitle: Text(_q.isFiltered ? 'по текущему фильтру' : 'весь каталог'))),
+                title: Text(l.prodExportToCsv),
+                subtitle: Text(_q.isFiltered ? l.prodByCurrentFilter : l.prodWholeCatalog))),
       ],
     );
 
@@ -168,7 +171,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
         TextButton.icon(
           onPressed: () => showCategoriesManager(context),
           icon: const Icon(Icons.category_outlined),
-          label: const Text('Категории'),
+          label: Text(l.prodCategories),
         ),
       menu,
       if (canEdit && !compact) ...[
@@ -178,7 +181,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
           child: FilledButton.icon(
             onPressed: _create,
             icon: const Icon(Icons.add),
-            label: const Text('Новый товар'),
+            label: Text(l.prodNewProduct),
           ),
         ),
       ],
@@ -248,12 +251,12 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
       child: Focus(
         autofocus: true,
         child: PageScaffold(
-          title: 'Товары',
+          title: l.commonProducts,
           padding: EdgeInsets.zero,
           actions: actions,
           fab: canEdit && compact && !_selectionMode
               ? FloatingActionButton(
-                  onPressed: _create, tooltip: 'Новый товар', child: const Icon(Icons.add))
+                  onPressed: _create, tooltip: l.prodNewProduct, child: const Icon(Icons.add))
               : null,
           body: body,
         ),
@@ -264,65 +267,66 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
   // ------------------------------------------------------------- filter bar
 
   Widget _filterBar(List<Category> cats, bool compact) {
+    final l = context.l10n;
     final cat = _q.categoryId == null
         ? null
         : _q.categoryId == noCategoryId
-            ? 'Без категории'
+            ? l.prodNoCategory
             : cats.where((c) => c.id == _q.categoryId).firstOrNull?.name;
     final search = SearchField(
       controller: _searchCtl,
       focusNode: _searchFocus,
       // Phones have no Ctrl+F; a shorter hint fits 360–390px without an ellipsis.
-      hint: compact ? 'Название, артикул, штрихкод' : 'Название, артикул или штрихкод (Ctrl+F)',
+      hint: compact ? l.prodSearchHintShort : l.prodSearchHint,
       onChanged: (v) => _setQuery(_q.copyWith(search: v)),
       onSubmitted: _onSearchSubmitted,
     );
     final chips = <Widget>[
       _MenuChip<String?>(
         icon: Icons.category_outlined,
-        label: cat ?? 'Все категории',
+        label: cat ?? l.prodAllCategories,
         active: _q.categoryId != null,
         items: [
-          const _MenuItem(null, 'Все категории'),
-          const _MenuItem(noCategoryId, 'Без категории', leading: CategoryDot()),
+          _MenuItem(null, l.prodAllCategories),
+          _MenuItem(noCategoryId, l.prodNoCategory, leading: const CategoryDot()),
           for (final c in cats) _MenuItem(c.id, c.name, leading: CategoryDot(color: c.color)),
         ],
         onSelected: (v) => _setQuery(_q.copyWith(categoryId: () => v)),
       ),
       _MenuChip<StockFilter>(
         icon: Icons.warehouse_outlined,
-        label: _q.stock.label,
+        label: _q.stock.labelIn(l),
         active: _q.stock != StockFilter.all,
-        items: [for (final s in StockFilter.values) _MenuItem(s, s.label)],
+        items: [for (final s in StockFilter.values) _MenuItem(s, s.labelIn(l))],
         onSelected: (v) => _setQuery(_q.copyWith(stock: v)),
       ),
       _MenuChip<ActiveFilter>(
         icon: Icons.inventory_outlined,
-        label: _q.active.label,
+        label: _q.active.labelIn(l),
         active: _q.active != ActiveFilter.active,
-        items: [for (final a in ActiveFilter.values) _MenuItem(a, a.label)],
+        items: [for (final a in ActiveFilter.values) _MenuItem(a, a.labelIn(l))],
         onSelected: (v) => _setQuery(_q.copyWith(active: v)),
       ),
       _ChipShell(
         icon: _q.favoritesOnly ? Icons.star : Icons.star_outline,
-        label: 'Избранные',
+        label: l.prodFavorites,
         active: _q.favoritesOnly,
         onTap: () => _setQuery(_q.copyWith(favoritesOnly: !_q.favoritesOnly)),
       ),
       _MenuChip<ProductSort>(
         icon: _q.descending ? Icons.arrow_downward : Icons.arrow_upward,
-        label: _q.sort.label,
+        label: _q.sort.labelIn(l),
         active: _q.sort != ProductSort.name || _q.descending,
-        items: [for (final s in ProductSort.values) _MenuItem(s, s.label)],
+        items: [for (final s in ProductSort.values) _MenuItem(s, s.labelIn(l))],
         onSelected: (v) => _setQuery(
             v == _q.sort ? _q.copyWith(descending: !_q.descending) : _q.copyWith(sort: v, descending: false)),
-        tooltip: 'Сортировка (повторный выбор — обратный порядок)',
+        tooltip: l.prodSortTooltip,
       ),
       if (_q.isFiltered)
         TextButton.icon(
           onPressed: _resetFilters,
           icon: const Icon(Icons.filter_alt_off_outlined, size: 18),
-          label: const Text('Сбросить'),
+          label: Text(l.commonReset),
         ),
     ];
     return Padding(
@@ -354,18 +358,19 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
 
   Widget _summaryBar(int? count, bool canEdit, bool canPrices) {
     final t = Theme.of(context);
+    final l = context.l10n;
     if (!_selectionMode) {
       return Padding(
         padding: const EdgeInsets.fromLTRB(Gap.l, 0, Gap.s, Gap.xs),
         child: Row(children: [
           Expanded(
-            child: Text(count == null ? 'Загрузка…' : 'Товаров: $count',
+            child: Text(count == null ? l.commonLoading : l.prodCountLabel('$count'),
                 style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant)),
           ),
           TextButton.icon(
             onPressed: () => setState(() => _selectionMode = true),
             icon: const Icon(Icons.checklist, size: 18),
-            label: const Text('Выбрать'),
+            label: Text(l.prodSelect),
           ),
         ]),
       );
@@ -373,23 +378,23 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
     final ids = Set<String>.of(_checked);
     final none = ids.isEmpty;
     final buttons = <(IconData, String, VoidCallback?, String?)>[
-      (Icons.category_outlined, 'Категория', !canEdit || none ? null : () => _afterBulk(showBulkCategoryDialog(context, ref, ids)),
-          canEdit ? null : 'Нет права редактировать товары'),
-      (Icons.price_change_outlined, 'Цены, %', !canPrices || none ? null : () => _afterBulk(showBulkPriceDialog(context, ids)),
-          canPrices ? null : 'Нет права менять цены'),
-      (Icons.local_offer_outlined, 'Ценники', none ? null : () => showPriceLabelsDialog(context, ids), null),
-      (Icons.archive_outlined, 'В архив', !canEdit || none ? null : () => _bulkActive(ids, false),
-          canEdit ? null : 'Нет права редактировать товары'),
-      (Icons.unarchive_outlined, 'Вернуть', !canEdit || none ? null : () => _bulkActive(ids, true),
-          canEdit ? null : 'Нет права редактировать товары'),
-      (Icons.download_outlined, 'Экспорт', none ? null : () => exportProductsCsv(context, ref, _q, ids: ids), null),
+      (Icons.category_outlined, l.commonCategory, !canEdit || none ? null : () => _afterBulk(showBulkCategoryDialog(context, ref, ids)),
+          canEdit ? null : l.prodNoEditPerm),
+      (Icons.price_change_outlined, l.prodPricesPercent, !canPrices || none ? null : () => _afterBulk(showBulkPriceDialog(context, ids)),
+          canPrices ? null : l.prodNoPricePerm),
+      (Icons.local_offer_outlined, l.prodPriceLabels, none ? null : () => showPriceLabelsDialog(context, ids), null),
+      (Icons.archive_outlined, l.prodToArchive, !canEdit || none ? null : () => _bulkActive(ids, false),
+          canEdit ? null : l.prodNoEditPerm),
+      (Icons.unarchive_outlined, l.prodRestore, !canEdit || none ? null : () => _bulkActive(ids, true),
+          canEdit ? null : l.prodNoEditPerm),
+      (Icons.download_outlined, l.commonExport, none ? null : () => exportProductsCsv(context, ref, _q, ids: ids), null),
     ];
     return Container(
       color: t.colorScheme.primaryContainer.withValues(alpha: 0.5),
       padding: const EdgeInsets.symmetric(horizontal: Gap.s, vertical: Gap.xs),
       child: Row(children: [
-        IconButton(tooltip: 'Отменить выбор (Esc)', onPressed: _exitSelection, icon: const Icon(Icons.close)),
-        Text('Выбрано: ${ids.length}', style: const TextStyle(fontWeight: FontWeight.w600)),
+        IconButton(tooltip: l.prodCancelSelection, onPressed: _exitSelection, icon: const Icon(Icons.close)),
+        Text(l.prodSelectedCount('${ids.length}'), style: const TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(width: Gap.s),
         Expanded(
           child: LayoutBuilder(builder: (context, c) {
@@ -405,7 +410,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                     icon: Icon(buttons[i].$1),
                   ),
                 PopupMenuButton<int>(
-                  tooltip: 'Действия',
+                  tooltip: l.commonActions,
                   icon: const Icon(Icons.more_vert),
                   onSelected: (i) => buttons[i].$3?.call(),
                   itemBuilder: (_) => [
@@ -448,6 +453,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
 
   Widget _list(AsyncValue<List<Product>> async, Map<String, Category> catById, bool canCost, bool canEdit) {
     final list = _last;
+    final l = context.l10n;
     if (async.hasError && !async.isLoading) {
       return ErrorView(error: async.error!, onRetry: () => ref.invalidate(productListProvider(_q)));
     }
@@ -459,29 +465,27 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
       if (_q.isFiltered) {
         return EmptyState(
           icon: Icons.search_off,
-          title: 'Ничего не найдено',
-          message: _q.search.isEmpty ? 'Попробуйте изменить фильтры' : 'По запросу «${_q.search}» товаров нет',
+          title: l.commonNothingFound,
+          message: _q.search.isEmpty ? l.prodTryOtherFilters : l.prodNoResultsFor(_q.search),
           action: OutlinedButton.icon(
             onPressed: _resetFilters,
             icon: const Icon(Icons.filter_alt_off_outlined),
-            label: const Text('Сбросить фильтры'),
+            label: Text(l.prodResetFilters),
           ),
         );
       }
       return EmptyState(
         icon: Icons.inventory_2_outlined,
-        title: 'Каталог пуст',
-        message: canEdit
-            ? 'Добавьте первый товар или загрузите список из Excel (CSV).'
-            : 'Товары добавляет менеджер или администратор.',
+        title: l.prodCatalogEmpty,
+        message: canEdit ? l.prodEmptyHintEditor : l.prodEmptyHintViewer,
         action: !canEdit
             ? null
             : Wrap(spacing: Gap.s, runSpacing: Gap.s, alignment: WrapAlignment.center, children: [
-                FilledButton.icon(onPressed: _create, icon: const Icon(Icons.add), label: const Text('Новый товар')),
+                FilledButton.icon(onPressed: _create, icon: const Icon(Icons.add), label: Text(l.prodNewProduct)),
                 OutlinedButton.icon(
                   onPressed: () => showImportDialog(context),
                   icon: const Icon(Icons.upload_file_outlined),
-                  label: const Text('Импорт CSV'),
+                  label: Text(l.prodImportCsv),
                 ),
               ]),
       );

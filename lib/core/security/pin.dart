@@ -3,6 +3,8 @@ import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 
+import '../../l10n/l10n.dart';
+
 /// PIN hashing: PBKDF-like iterated SHA-256 with per-user salt.
 /// PINs are short, so this mainly protects against casual DB inspection;
 /// online brute force is limited by lockout in AuthService.
@@ -36,10 +38,10 @@ class PinHasher {
   }
 
   static String? validate(String pin) {
-    if (!RegExp(r'^\d{4,8}$').hasMatch(pin)) return 'PIN — от 4 до 8 цифр';
-    if (RegExp(r'^(\d)\1+$').hasMatch(pin)) return 'Слишком простой PIN';
+    if (!RegExp(r'^\d{4,8}$').hasMatch(pin)) return L.current.corePinFormat;
+    if (RegExp(r'^(\d)\1+$').hasMatch(pin)) return L.current.corePinTooSimple;
     if ('0123456789'.contains(pin) || '9876543210'.contains(pin)) {
-      return 'Слишком простой PIN';
+      return L.current.corePinTooSimple;
     }
     return null;
   }

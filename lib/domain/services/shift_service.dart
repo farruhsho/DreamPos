@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 
+import '../../l10n/l10n.dart';
 import '../../core/db/database.dart';
 import '../errors.dart';
 
@@ -100,11 +101,11 @@ class ShiftService {
   }
 
   Future<Shift> open({required String userId, required int openingCash, String? registerId}) async {
-    if (openingCash < 0) throw BusinessException('Сумма не может быть отрицательной');
+    if (openingCash < 0) throw BusinessException(L.current.errAmountNegative);
     return db.transaction(() async {
       final existing = await currentShift(registerId: registerId);
       if (existing != null) {
-        throw BusinessException('Смена №${existing.number} уже открыта');
+        throw BusinessException(L.current.errShiftAlreadyOpen('${existing.number}'));
       }
       final id = newId();
       final number = await db.nextNumber('shift');
@@ -130,17 +131,17 @@ class ShiftService {
     String? reason,
     String? expenseCategory,
   }) async {
-    if (amount <= 0) throw BusinessException('Сумма должна быть больше нуля');
+    if (amount <= 0) throw BusinessException(L.current.errAmountMustBePositive);
     if (!const ['pay_in', 'pay_out', 'expense', 'collection'].contains(kind)) {
-      throw BusinessException('Неизвестная операция');
+      throw BusinessException(L.current.errUnknownOperation);
     }
     await db.transaction(() async {
       final shift = await (db.select(db.shifts)..where((s) => s.id.equals(shiftId))).getSingle();
-      if (shift.status != 'open') throw BusinessException('Смена закрыта');
+      if (shift.status != 'open') throw BusinessException(L.current.errShiftClosed);
       if (kind != 'pay_in') {
         final rep = await report(shiftId);
         if (amount > rep.expectedCash) {
-          throw BusinessException('В кассе недостаточно наличных');
+          throw BusinessException(L.current.errNotEnoughCash);
         }
       }
       await db.into(db.cashMovements).insert(CashMovementsCompanion.insert(
@@ -255,10 +256,10 @@ class ShiftService {
     required int countedCash,
     String? note,
   }) async {
-    if (countedCash < 0) throw BusinessException('Сумма не может быть отрицательной');
+    if (countedCash < 0) throw BusinessException(L.current.errAmountNegative);
     return db.transaction(() async {
       final shift = await (db.select(db.shifts)..where((s) => s.id.equals(shiftId))).getSingle();
-      if (shift.status != 'open') throw BusinessException('Смена уже закрыта');
+      if (shift.status != 'open') throw BusinessException(L.current.errShiftAlreadyClosed);
       final rep = await report(shiftId);
       await (db.update(db.shifts)..where((s) => s.id.equals(shiftId))).write(ShiftsCompanion(
             status: const Value('closed'),

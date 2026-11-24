@@ -7,6 +7,7 @@ import '../../../core/printing/receipt.dart';
 import '../../../core/providers.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets/widgets.dart';
+import '../../../l10n/l10n.dart';
 import '../../../domain/services/sale_service.dart';
 import '../pos_providers.dart';
 
@@ -82,7 +83,7 @@ class _SaleSuccessDialogState extends ConsumerState<SaleSuccessDialog> {
       await printReceipt(ref.read(databaseProvider), widget.result.sale.id);
       if (mounted) setState(() => _printed = true);
     } catch (e) {
-      if (mounted) showError(context, 'Не удалось напечатать чек: ${errorText(e)}');
+      if (mounted) showError(context, context.l10n.posPrintFailed(errorText(e)));
     } finally {
       if (mounted) setState(() => _printing = false);
     }
@@ -93,19 +94,20 @@ class _SaleSuccessDialogState extends ConsumerState<SaleSuccessDialog> {
     final t = Theme.of(context);
     final sale = widget.result.sale;
     final change = widget.result.changeDue;
+    final l = context.l10n;
     return Focus(
       onKeyEvent: _onKey,
       child: AlertDialog(
       icon: const Icon(Icons.check_circle, color: AppColors.success, size: 56),
-      title: Text('Чек №${sale.number} проведён'),
+      title: Text(l.posSaleDone('${sale.number}')),
       content: SizedBox(
         width: 380,
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text('Сумма чека: ${Money.format(sale.total)}', style: t.textTheme.titleMedium),
+          Text(l.posReceiptSum(Money.format(sale.total)), style: t.textTheme.titleMedium),
           if (sale.discountTotal > 0)
-            Text('Скидка: ${Money.format(sale.discountTotal)}', style: t.textTheme.bodyMedium),
+            Text(l.posDiscountValue(Money.format(sale.discountTotal)), style: t.textTheme.bodyMedium),
           if (sale.bonusEarned > 0)
-            Text('Начислено бонусов: ${Money.format(sale.bonusEarned)}',
+            Text(l.posBonusEarned(Money.format(sale.bonusEarned)),
                 style: t.textTheme.bodyMedium?.copyWith(color: AppColors.success)),
           const SizedBox(height: Gap.l),
           Container(
@@ -116,7 +118,7 @@ class _SaleSuccessDialogState extends ConsumerState<SaleSuccessDialog> {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Column(children: [
-              Text(change > 0 ? 'Сдача' : 'Без сдачи', style: t.textTheme.titleMedium),
+              Text(change > 0 ? l.commonChange : l.posNoChange, style: t.textTheme.titleMedium),
               FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Text(Money.format(change),
@@ -136,13 +138,13 @@ class _SaleSuccessDialogState extends ConsumerState<SaleSuccessDialog> {
           icon: _printing
               ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
               : Icon(_printed ? Icons.done : Icons.print_outlined),
-          label: Text(_printed ? 'Ещё раз' : 'Печать чека'),
+          label: Text(_printed ? l.posPrintAgain : l.posPrintReceipt),
         ),
         FilledButton.icon(
           autofocus: true,
           onPressed: _close,
           icon: const Icon(Icons.add_shopping_cart),
-          label: const Text('Новая продажа (Enter)'),
+          label: Text(l.posNewSale),
         ),
       ],
     ),

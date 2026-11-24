@@ -5,6 +5,7 @@ import '../../core/money.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
+import '../../l10n/l10n.dart';
 import 'shift_logic.dart';
 
 IconData cashKindIcon(String k) => switch (k) {
@@ -22,13 +23,16 @@ Color cashKindColor(String k) => switch (k) {
   _ => AppColors.danger,
 };
 
-String cashKindHint(String k) => switch (k) {
-  'pay_in' => 'Размен, возврат подотчёта и т.п.',
-  'pay_out' => 'Выдача наличных из кассы (подотчёт, аванс)',
-  'expense' => 'Оплата расходов магазина из кассы',
-  'collection' => 'Сдача выручки владельцу / в банк',
-  _ => '',
-};
+String cashKindHint(String k, [AppLocalizations? l]) {
+  final t = l ?? L.current;
+  return switch (k) {
+    'pay_in' => t.shiftKindPayInHint,
+    'pay_out' => t.shiftKindPayOutHint,
+    'expense' => t.shiftKindExpenseHint,
+    'collection' => t.shiftKindCollectionHint,
+    _ => '',
+  };
+}
 
 /// Records a cash movement for [shiftId]. Returns true on success.
 Future<bool> showCashOperationDialog(
@@ -39,7 +43,7 @@ Future<bool> showCashOperationDialog(
 }) async {
   final r = await showFormDialog<bool>(
     context,
-    title: cashKindLabel(kind),
+    title: cashKindLabel(kind, context.l10n),
     width: 480,
     child: _CashOpForm(shiftId: shiftId, kind: kind, cashInDrawer: cashInDrawer),
   );
@@ -75,7 +79,7 @@ class _CashOpFormState extends ConsumerState<_CashOpForm> {
   Future<void> _submit() async {
     if (_busy || !_form.currentState!.validate()) return;
     if (_isExpense && _category == null) {
-      showError(context, 'Выберите категорию расхода');
+      showError(context, context.l10n.shiftPickExpenseCategory);
       return;
     }
     final session = ref.read(sessionProvider);
@@ -94,7 +98,7 @@ class _CashOpFormState extends ConsumerState<_CashOpForm> {
             reason: reason.isEmpty ? (_isExpense ? _category : null) : reason,
             expenseCategory: _isExpense ? _category : null,
           ),
-      success: '${cashKindLabel(widget.kind)}: ${Money.format(_amount!)}',
+      success: '${cashKindLabel(widget.kind, context.l10n)}: ${Money.format(_amount!)}',
     );
     if (!mounted) return;
     setState(() => _busy = false);
@@ -104,7 +108,8 @@ class _CashOpFormState extends ConsumerState<_CashOpForm> {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
-    final reasonRequired = widget.kind == 'pay_out' || (_isExpense && _category == 'Прочее');
+    final l = context.l10n;
+    final reasonRequired = widget.kind == 'pay_out' || (_isExpense && _category == otherExpenseCategory);
     return Form(
       key: _form,
       child: Column(
@@ -119,34 +124,34 @@ class _CashOpFormState extends ConsumerState<_CashOpForm> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    cashKindHint(widget.kind),
+                    cashKindHint(widget.kind, l),
                     style: t.textTheme.bodyMedium?.copyWith(color: t.colorScheme.onSurfaceVariant),
                   ),
                   if (_isOut)
                     Padding(
                       padding: const EdgeInsets.only(top: Gap.xs),
-                      child: Text('В кассе сейчас: ${Money.format(widget.cashInDrawer)}', style: t.textTheme.bodySmall),
+                      child: Text(l.shiftCashInDrawerNow(Money.format(widget.cashInDrawer)), style: t.textTheme.bodySmall),
                     ),
                   const SizedBox(height: Gap.l),
                   MoneyField(
                     key: const ValueKey('cash_amount'),
-                    label: 'Сумма',
+                    label: l.commonAmount,
                     required: true,
                     allowZero: false,
                     autofocus: true,
                     onChanged: (v) => _amount = v,
                     onSubmitted: (_) => _submit(),
                     validator: (v) {
-                      if (v == null) return 'Введите сумму';
+                      if (v == null) return l.shiftEnterAmount;
                       if (_isOut && v > widget.cashInDrawer) {
-                        return 'В кассе только ${Money.format(widget.cashInDrawer)}';
+                        return l.shiftOnlyInDrawer(Money.format(widget.cashInDrawer));
                       }
                       return null;
                     },
                   ),
                   if (_isExpense) ...[
                     const SizedBox(height: Gap.l),
-                    Text('Категория расхода', style: t.textTheme.labelLarge),
+                    Text(l.shiftExpenseCategory, style: t.textTheme.labelLarge),
                     const SizedBox(height: Gap.s),
                     Wrap(
                       spacing: Gap.s,
@@ -154,7 +159,7 @@ class _CashOpFormState extends ConsumerState<_CashOpForm> {
                       children: [
                         for (final c in expenseCategories)
                           ChoiceChip(
-                            label: Text(c),
+                            label: Text(expenseCategoryLabel(c, l)),
                             selected: _category == c,
                             onSelected: (_) => setState(() => _category = c),
                           ),
@@ -165,10 +170,10 @@ class _CashOpFormState extends ConsumerState<_CashOpForm> {
                   TextFormField(
                     controller: _reason,
                     decoration: InputDecoration(
-                      labelText: reasonRequired ? 'Основание / комментарий *' : 'Комментарий',
-                      hintText: widget.kind == 'pay_out' ? 'Кому и зачем выданы деньги' : null,
+                      labelText: reasonRequired ? l.shiftReasonRequired : l.commonComment,
+                      hintText: widget.kind == 'pay_out' ? l.shiftPayOutHint : null,
                     ),
-                    validator: (v) => reasonRequired && (v == null || v.trim().isEmpty) ? 'Укажите основание' : null,
+                    validator: (v) => reasonRequired && (v == null || v.trim().isEmpty) ? l.shiftEnterReason : null,
                     onFieldSubmitted: (_) => _submit(),
                   ),
                 ],
@@ -182,11 +187,11 @@ class _CashOpFormState extends ConsumerState<_CashOpForm> {
               overflowAlignment: OverflowBarAlignment.end,
               spacing: Gap.s,
               children: [
-                TextButton(onPressed: _busy ? null : () => Navigator.pop(context, false), child: const Text('Отмена')),
+                TextButton(onPressed: _busy ? null : () => Navigator.pop(context, false), child: Text(l.commonCancel)),
                 FilledButton(
                   key: const ValueKey('cash_submit'),
                   onPressed: _busy ? null : _submit,
-                  child: Text(_busy ? 'Сохранение…' : 'Провести'),
+                  child: Text(_busy ? l.shiftSaving : l.shiftPost),
                 ),
               ],
             ),

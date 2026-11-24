@@ -4,6 +4,7 @@
 // ShiftService.report (giftSalesByMethod / giftRefundsByMethod).
 import 'package:drift/drift.dart';
 
+import '../../l10n/l10n.dart';
 import '../../core/db/database.dart';
 import '../errors.dart';
 import 'sale_service.dart' show normalizeGiftCode;
@@ -163,10 +164,10 @@ class GiftCardService {
   /// Validates and normalises a certificate code; throws on a bad one.
   static String validateCode(String raw) {
     final c = normalizeGiftCode(raw);
-    if (c.length < 6) throw BusinessException('Код сертификата — минимум 6 символов');
-    if (c.length > 32) throw BusinessException('Код сертификата слишком длинный');
+    if (c.length < 6) throw BusinessException(L.current.errGiftCodeTooShort);
+    if (c.length > 32) throw BusinessException(L.current.errGiftCodeTooLong);
     if (!RegExp(r'^[A-Z0-9]+$').hasMatch(c)) {
-      throw BusinessException('Код: только латинские буквы и цифры');
+      throw BusinessException(L.current.errGiftCodeChars);
     }
     return c;
   }
@@ -175,29 +176,29 @@ class GiftCardService {
   Future<GiftSaleResult> sell(GiftCardSaleRequest r) async {
     final now = r.now ?? DateTime.now();
     final code = validateCode(r.code);
-    if (r.amount <= 0) throw BusinessException('Номинал должен быть больше нуля');
+    if (r.amount <= 0) throw BusinessException(L.current.errFaceValuePositive);
     if (r.expiresAt != null && r.expiresAt!.isBefore(now)) {
-      throw BusinessException('Срок действия уже истёк');
+      throw BusinessException(L.current.errExpiryPassed);
     }
-    if (r.shiftId == null) throw BusinessException('Откройте смену, чтобы продать сертификат');
-    if (r.payments.isEmpty) throw BusinessException('Выберите способ оплаты');
+    if (r.shiftId == null) throw BusinessException(L.current.errOpenShiftToSellGift);
+    if (r.payments.isEmpty) throw BusinessException(L.current.errChoosePaymentMethod);
     for (final p in r.payments) {
       if (!giftSaleMethods.contains(p.method)) {
-        throw BusinessException('Сертификат можно оплатить только наличными, картой или переводом');
+        throw BusinessException(L.current.errGiftPaymentMethods);
       }
-      if (p.amount <= 0) throw BusinessException('Сумма оплаты должна быть больше нуля');
+      if (p.amount <= 0) throw BusinessException(L.current.errPaymentMustBePositive);
     }
     final paid = r.payments.fold<int>(0, (s, p) => s + p.amount);
     if (paid != r.amount) {
-      throw BusinessException('Сумма оплат не совпадает с номиналом сертификата');
+      throw BusinessException(L.current.errGiftPaymentsMismatch);
     }
     final cashPart = r.payments.where((p) => p.method == 'cash').fold<int>(0, (s, p) => s + p.amount);
     var change = 0;
     if (r.cashTendered != null) {
       if (cashPart == 0) {
-        if (r.cashTendered! > 0) throw BusinessException('Наличные не входят в оплату');
+        if (r.cashTendered! > 0) throw BusinessException(L.current.errCashNotInPayment);
       } else {
-        if (r.cashTendered! < cashPart) throw BusinessException('Получено наличных меньше суммы к оплате');
+        if (r.cashTendered! < cashPart) throw BusinessException(L.current.errCashTenderedLess);
         change = r.cashTendered! - cashPart;
       }
     }
@@ -206,13 +207,13 @@ class GiftCardService {
     return db.transaction(() async {
       final shift = await (db.select(db.shifts)..where((s) => s.id.equals(r.shiftId!))).getSingleOrNull();
       if (shift == null || shift.status != 'open') {
-        throw BusinessException('Откройте смену, чтобы продать сертификат');
+        throw BusinessException(L.current.errOpenShiftToSellGift);
       }
       final taken = await (db.select(db.giftCards)..where((g) => g.code.equals(code))).get();
-      if (taken.isNotEmpty) throw BusinessException('Сертификат с кодом $code уже существует');
+      if (taken.isNotEmpty) throw BusinessException(L.current.errGiftCodeExists(code));
       if (r.customerId != null) {
         final c = await (db.select(db.customers)..where((c) => c.id.equals(r.customerId!))).getSingleOrNull();
-        if (c == null || c.deletedAt != null) throw BusinessException('Клиент не найден');
+        if (c == null || c.deletedAt != null) throw BusinessException(L.current.commonCustomerNotFound);
       }
 
       final cardId = newId();
@@ -275,11 +276,11 @@ class GiftCardService {
   /// Used by the UI to disable the button with a tooltip.
   Future<String?> voidBlockReason(String giftSaleId) async {
     final sale = await (db.select(db.giftCardSales)..where((s) => s.id.equals(giftSaleId))).getSingleOrNull();
-    if (sale == null || sale.deletedAt != null) return 'Документ не найден';
-    if (sale.status != GiftSaleStatus.completed) return 'Продажа уже аннулирована';
+    if (sale == null || sale.deletedAt != null) return L.current.errDocumentNotFound;
+    if (sale.status != GiftSaleStatus.completed) return L.current.errGiftSaleAlreadyVoided;
     final card = await (db.select(db.giftCards)..where((g) => g.id.equals(sale.giftCardId))).getSingleOrNull();
-    if (card == null) return 'Сертификат не найден';
-    if (await _isUsed(card)) return 'Сертификат уже использован — аннулирование невозможно';
+    if (card == null) return L.current.errGiftNotFound;
+    if (await _isUsed(card)) return L.current.errGiftUsedCannotVoid;
     return null;
   }
 
@@ -302,22 +303,22 @@ class GiftCardService {
     DateTime? now,
   }) async {
     final why = reason.trim();
-    if (why.isEmpty) throw BusinessException('Укажите причину аннулирования');
-    if (shiftId == null) throw BusinessException('Откройте смену, чтобы аннулировать продажу');
+    if (why.isEmpty) throw BusinessException(L.current.errVoidReasonRequired);
+    if (shiftId == null) throw BusinessException(L.current.errOpenShiftToVoid);
     final at = now ?? DateTime.now();
     await db.transaction(() async {
       final shift = await (db.select(db.shifts)..where((s) => s.id.equals(shiftId))).getSingleOrNull();
       if (shift == null || shift.status != 'open') {
-        throw BusinessException('Откройте смену, чтобы аннулировать продажу');
+        throw BusinessException(L.current.errOpenShiftToVoid);
       }
       final sale = await (db.select(db.giftCardSales)..where((s) => s.id.equals(giftSaleId))).getSingleOrNull();
-      if (sale == null || sale.deletedAt != null) throw BusinessException('Документ не найден');
+      if (sale == null || sale.deletedAt != null) throw BusinessException(L.current.errDocumentNotFound);
       if (sale.status != GiftSaleStatus.completed) {
-        throw BusinessException('Продажа сертификата №${sale.number} уже аннулирована');
+        throw BusinessException(L.current.errGiftSaleNumberVoided('${sale.number}'));
       }
       final card = await (db.select(db.giftCards)..where((g) => g.id.equals(sale.giftCardId))).getSingle();
       if (await _isUsed(card)) {
-        throw BusinessException('Сертификат уже использован — аннулирование невозможно');
+        throw BusinessException(L.current.errGiftUsedCannotVoid);
       }
       await (db.update(db.giftCardSales)..where((s) => s.id.equals(sale.id))).write(GiftCardSalesCompanion(
             status: const Value(GiftSaleStatus.voided),

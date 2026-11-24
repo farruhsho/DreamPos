@@ -4,19 +4,23 @@ import 'package:dreampos/domain/services/gift_card_service.dart';
 import 'package:dreampos/domain/services/shift_service.dart';
 import 'package:dreampos/features/notifications/notification_engine.dart';
 import 'package:dreampos/features/notifications/notifications_screen.dart';
+import 'package:dreampos/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../ux/harness.dart';
 
-const _reportTabs = [
-  'Продажи',
-  'Товары',
-  'Сотрудники',
-  'Оплаты',
-  'Склад',
-  'Прогноз спроса',
-  'AI-аналитика',
+/// Strings of the screenshot language (SCREENSHOTS_LOCALE), ru by default.
+final AppLocalizations _l = L.of(screenshotsLocale);
+
+final _reportTabs = [
+  _l.repTabSales,
+  _l.commonProducts,
+  _l.repTabStaff,
+  _l.repTabPayments,
+  _l.repTabStock,
+  _l.repTabForecast,
+  _l.repTabInsights,
 ];
 
 void main() {
@@ -73,7 +77,7 @@ void main() {
           await tester.drag(sc.first, const Offset(0, -700), warnIfMissed: false);
           await h.settle();
           await shot('reports_${i}_scrolled');
-          if (_reportTabs[i] == 'Оплаты') {
+          if (_reportTabs[i] == _l.repTabPayments) {
             await tester.drag(sc.first, const Offset(0, -3000), warnIfMissed: false);
             await h.settle();
             await shot('reports_payments_gifts');
@@ -97,7 +101,7 @@ void main() {
       await tester.runAsync(() => setNotificationsRead(h.db, ids, read: true));
       await h.settle();
       await shot('notifications_read');
-      await tester.tap(find.textContaining('Непрочитанные'));
+      await tester.tap(find.textContaining(_l.notifFilterUnread('').split('(').first.trim()));
       await h.settle();
       await shot('notifications_filter_empty');
       // nothing at all -> empty state
@@ -122,12 +126,12 @@ void main() {
     await h.settle();
     final e = await h.shot('dashboard_cold');
     await h.go('/reports');
-    final f = find.descendant(of: find.byType(TabBar), matching: find.text('Прогноз спроса'));
+    final f = find.descendant(of: find.byType(TabBar), matching: find.text(_l.repTabForecast));
     await tester.ensureVisible(f.first);
     await h.settle(2);
     await tester.tap(f.first);
     await h.settle(10);
-    await tester.tap(find.text('Как считается прогноз'));
+    await tester.tap(find.text(_l.repForecastHow));
     await h.settle();
     final e2 = await h.shot('reports_forecast_help_open');
     await h.finish();

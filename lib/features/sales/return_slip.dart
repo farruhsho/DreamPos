@@ -9,6 +9,7 @@ import '../../core/money.dart';
 import '../../core/printing/pdf_fonts.dart';
 import '../../core/widgets/widgets.dart' show formatDateTime;
 import '../../domain/services/sale_service.dart' show paymentMethodLabel;
+import '../../l10n/l10n.dart';
 
 class ReturnSlipData {
   ReturnSlipData({
@@ -60,6 +61,9 @@ Future<Uint8List> buildReturnSlipPdf(ReturnSlipData d) async {
   final theme = await PdfFonts.theme();
   final doc = pw.Document(theme: theme);
   final store = d.settings['store_name'] ?? 'DreamPOS';
+  // Customer document: printed in the receipt language (store setting).
+  final l = L.forReceipt(d.settings);
+  String p(String s) => L.printable(s);
   pw.Widget kv(String k, String v) => pw.Padding(
     padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
     child: pw.Row(
@@ -82,26 +86,26 @@ Future<Uint8List> buildReturnSlipPdf(ReturnSlipData d) async {
         children: [
           pw.Text(store, style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
           if ((d.settings['store_address'] ?? '').isNotEmpty) pw.Text(d.settings['store_address']!),
-          if ((d.settings['store_phone'] ?? '').isNotEmpty) pw.Text('Тел: ${d.settings['store_phone']}'),
+          if ((d.settings['store_phone'] ?? '').isNotEmpty) pw.Text(p(l.corePrintPhone(d.settings['store_phone']!))),
           pw.SizedBox(height: 14),
           pw.Center(
             child: pw.Text(
-              'АКТ ВОЗВРАТА ТОВАРА №${d.ret.number}',
+              p(l.salesSlipTitle('${d.ret.number}')),
               style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold),
             ),
           ),
           pw.SizedBox(height: 10),
-          kv('Дата', formatDateTime(d.ret.createdAt)),
-          kv('По чеку', '№${d.sale.number} от ${formatDateTime(d.sale.createdAt)}'),
-          if (d.customerName != null) kv('Покупатель', d.customerName!),
-          kv('Способ возврата', paymentMethodLabel(d.ret.refundMethod)),
-          kv('Причина', d.ret.reason ?? '—'),
-          kv('На склад', d.ret.restock ? 'да' : 'нет (брак / не подлежит продаже)'),
+          kv(p(l.commonDate), formatDateTime(d.ret.createdAt)),
+          kv(p(l.salesSlipBySale), p(l.salesSlipSaleRef('${d.sale.number}', formatDateTime(d.sale.createdAt)))),
+          if (d.customerName != null) kv(p(l.salesSlipBuyer), d.customerName!),
+          kv(p(l.salesSlipMethod), p(paymentMethodLabel(d.ret.refundMethod, l))),
+          kv(p(l.commonReason), d.ret.reason ?? '—'),
+          kv(p(l.salesSlipRestock), p(d.ret.restock ? l.salesSlipYes : l.salesSlipNoRestock)),
           pw.SizedBox(height: 10),
           pw.TableHelper.fromTextArray(
-            headers: ['Товар', 'Кол-во', 'Сумма'],
+            headers: [p(l.commonProduct), p(l.salesSlipQty), p(l.commonAmount)],
             data: [
-              for (final l in d.lines) [l.$1, Qty.format(l.$2, l.$4), Money.format(l.$3)],
+              for (final x in d.lines) [x.$1, p(Qty.format(x.$2, x.$4, l)), Money.format(x.$3)],
             ],
             headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
             cellAlignments: {1: pw.Alignment.centerRight, 2: pw.Alignment.centerRight},
@@ -115,16 +119,16 @@ Future<Uint8List> buildReturnSlipPdf(ReturnSlipData d) async {
           pw.Align(
             alignment: pw.Alignment.centerRight,
             child: pw.Text(
-              'Итого к возврату: ${Money.format(d.ret.total)}',
+              p(l.salesSlipTotal(Money.format(d.ret.total))),
               style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
             ),
           ),
           pw.Spacer(),
           pw.Row(
             children: [
-              pw.Expanded(child: pw.Text('Выдал: ${d.userName ?? ''} ____________')),
+              pw.Expanded(child: pw.Text(p(l.salesSlipIssued(d.userName ?? '')))),
               pw.SizedBox(width: 12),
-              pw.Expanded(child: pw.Text('Получил: ____________')),
+              pw.Expanded(child: pw.Text(p(l.salesSlipReceived))),
             ],
           ),
         ],
@@ -137,7 +141,7 @@ Future<Uint8List> buildReturnSlipPdf(ReturnSlipData d) async {
 Future<void> printReturnSlip(AppDatabase db, String returnId) async {
   final data = await ReturnSlipData.load(db, returnId);
   await Printing.layoutPdf(
-    name: 'Возврат ${data.ret.number}',
+    name: L.printable(L.forReceipt(data.settings).salesSlipJobName('${data.ret.number}')),
     format: PdfPageFormat.a5,
     onLayout: (_) => buildReturnSlipPdf(data),
   );

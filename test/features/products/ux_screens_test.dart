@@ -1,5 +1,6 @@
 import 'package:dreampos/features/products/product_detail.dart';
 import 'package:dreampos/features/products/product_widgets.dart';
+import 'package:dreampos/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -9,6 +10,8 @@ import '../../ux/harness.dart';
 void main() {
   testWidgets('products UX screens', (tester) async {
     final h = await UxHarness.start(tester);
+    // Finders use the screenshot language (SCREENSHOTS_LOCALE), ru by default.
+    final l = L.of(h.locale);
     final errors = <String, List<String>>{};
     Future<void> shot(String name) async {
       final e = await h.shot(name);
@@ -22,8 +25,8 @@ void main() {
     }
 
     Future<void> closeDialog() async {
-      final close = find.byTooltip('Закрыть');
-      final cancel = find.text('Отмена');
+      final close = find.byTooltip(l.commonClose);
+      final cancel = find.text(l.commonCancel);
       if (cancel.evaluate().isNotEmpty) {
         await tap(cancel.last);
       } else if (close.evaluate().isNotEmpty) {
@@ -44,7 +47,7 @@ void main() {
       await tap(find.byType(ProductRow).first);
       await shot('products_detail');
       // Existing product editor from detail.
-      final edit = find.text('Изменить');
+      final edit = find.text(l.commonEdit);
       if (edit.evaluate().isNotEmpty) {
         await tap(edit.first);
         await shot('products_editor_existing');
@@ -54,7 +57,7 @@ void main() {
         await closeDialog();
       }
       // Scroll the detail down to the movements section.
-      final movements = find.text('Движение товара');
+      final movements = find.text(l.prodMovements);
       final detailScroll = find
           .descendant(
               of: find.byType(size == 'phone' ? ProductDetailPage : ProductDetailView),
@@ -77,7 +80,7 @@ void main() {
       if (size == 'phone') {
         await tap(find.byType(FloatingActionButton));
       } else {
-        await tap(find.text('Новый товар').first);
+        await tap(find.text(l.prodNewProduct).first);
       }
       await shot('products_editor_new');
       await tester.scrollUntilVisible(find.byKey(const ValueKey('generate-barcode')), 200,
@@ -87,48 +90,48 @@ void main() {
       await shot('products_editor_new_codes');
       await closeDialog();
       // Leaving a dirty editor asks for confirmation.
-      if (find.text('Закрыть без сохранения?').evaluate().isNotEmpty) {
-        await tap(find.text('Закрыть').last);
+      if (find.text(l.prodCloseUnsavedQ).evaluate().isNotEmpty) {
+        await tap(find.text(l.commonClose).last);
       }
 
       // Categories manager.
       if (size == 'phone') {
-        await tap(find.byTooltip('Ещё'));
-        await tap(find.text('Категории').last);
+        await tap(find.byTooltip(l.commonMore));
+        await tap(find.text(l.prodCategories).last);
       } else {
-        await tap(find.text('Категории').first);
+        await tap(find.text(l.prodCategories).first);
       }
       await shot('products_categories');
-      await tap(find.text('Новая категория').first);
+      await tap(find.text(l.prodNewCategory).first);
       await shot('products_category_edit');
       await closeDialog();
       await closeDialog();
 
       // Import dialog.
-      await tap(find.byTooltip('Ещё'));
-      await tap(find.text('Импорт из CSV'));
+      await tap(find.byTooltip(l.commonMore));
+      await tap(find.text(l.prodImportFromCsv));
       await shot('products_import');
       await closeDialog();
 
       // Bulk select bar.
-      await tap(find.text('Выбрать'));
+      await tap(find.text(l.prodSelect));
       await tap(find.byType(ProductRow).at(0));
       await tap(find.byType(ProductRow).at(1));
       await shot('products_bulk');
 
       // Labels dialog.
       if (size == 'phone') {
-        await tap(find.byTooltip('Действия'));
+        await tap(find.byTooltip(l.commonActions));
         await shot('products_bulk_menu');
         await tester.tapAt(const Offset(5, 400));
         await h.settle();
-        await tap(find.byTooltip('Ценники'));
+        await tap(find.byTooltip(l.prodPriceLabels));
       } else {
-        await tap(find.text('Ценники').first);
+        await tap(find.text(l.prodPriceLabels).first);
       }
       await shot('products_labels');
       await closeDialog();
-      await tap(find.byTooltip('Отменить выбор (Esc)'));
+      await tap(find.byTooltip(l.prodCancelSelection));
 
       // Empty search result.
       await tester.enterText(find.byType(TextField).first, 'zzzнетттакого');

@@ -1,0 +1,21 @@
+{
+  "navDashboard": "Сереп",
+  "navPos": "Касса",
+  "navSales": "Чектер",
+  "navShifts": "Смена",
+  "navProducts": "Товарлар",
+  "navInventory": "Кампа",
+  "navPurchasing": "Сатып алуулар",
+  "navCustomers": "Кардарлар",
+  "navMarketing": "Маркетинг",
+  "navWarranty": "Кепилдик",
+  "navReports": "Отчеттор",
+  "navStaff": "Кызматкерлер",
+  "navSettings": "Жөндөөлөр",
+  "navNotifications": "Билдирмелер",
+  "appMenu": "Меню",
+  "appShiftClosed": "Смена жабык",
+  "appShiftChip": "Смена №{number} · ачылды {time}",
+  "appProfile": "Профиль",
+  "appLockSwitch": "Бөгөттөө / кассирди алмаштыруу"
+}

@@ -4,21 +4,27 @@ import 'package:drift/drift.dart';
 
 import '../../core/db/database.dart';
 import '../../core/money.dart';
+import '../../l10n/l10n.dart';
 import '../errors.dart';
 import '../pricing.dart';
 import 'stock_service.dart';
 
 const paymentMethods = ['cash', 'card', 'transfer', 'bonus', 'debt', 'gift_card'];
 
-String paymentMethodLabel(String m) => switch (m) {
-      'cash' => 'Наличные',
-      'card' => 'Карта',
-      'transfer' => 'Перевод',
-      'bonus' => 'Бонусы',
-      'debt' => 'В долг',
-      'gift_card' => 'Сертификат',
-      _ => m,
-    };
+/// Payment method name in [l] (default: UI language; pass the receipt
+/// language on printed documents).
+String paymentMethodLabel(String m, [AppLocalizations? l]) {
+  final t = l ?? L.current;
+  return switch (m) {
+    'cash' => t.payCash,
+    'card' => t.payCard,
+    'transfer' => t.payTransfer,
+    'bonus' => t.payBonus,
+    'debt' => t.payDebt,
+    'gift_card' => t.payGiftCard,
+    _ => m,
+  };
+}
 
 /// Gift card codes are stored uppercase without separators.
 String normalizeGiftCode(String raw) =>
@@ -196,17 +202,17 @@ class SaleService {
   /// The single entry point that records a sale. Everything happens in one
   /// transaction: either the whole sale is stored or nothing is.
   Future<CheckoutResult> checkout(CheckoutRequest r) async {
-    if (r.lines.isEmpty) throw BusinessException('Чек пуст');
+    if (r.lines.isEmpty) throw BusinessException(L.current.errCartEmpty);
     for (final l in r.lines) {
       if (l.qty <= 0 || l.qty.isNaN) {
-        throw BusinessException('Количество должно быть больше нуля');
+        throw BusinessException(L.current.errQtyMustBePositive);
       }
-      if (l.unitPrice < 0) throw BusinessException('Цена не может быть отрицательной');
+      if (l.unitPrice < 0) throw BusinessException(L.current.errPriceNegative);
     }
     for (final p in r.payments) {
-      if (p.amount < 0) throw BusinessException('Сумма оплаты не может быть отрицательной');
+      if (p.amount < 0) throw BusinessException(L.current.errPaymentNegative);
       if (!paymentMethods.contains(p.method)) {
-        throw BusinessException('Неизвестный способ оплаты: ${p.method}');
+        throw BusinessException(L.current.errUnknownPaymentMethodNamed(p.method));
       }
     }
     final now = r.now ?? DateTime.now();
@@ -215,11 +221,11 @@ class SaleService {
       // --- shift
       final requireShift = (await db.getSetting('require_shift')) != '0';
       if (requireShift) {
-        if (r.shiftId == null) throw BusinessException('Откройте смену, чтобы продавать');
+        if (r.shiftId == null) throw BusinessException(L.current.errOpenShiftToSell);
         final shift = await (db.select(db.shifts)..where((s) => s.id.equals(r.shiftId!)))
             .getSingleOrNull();
         if (shift == null || shift.status != 'open') {
-          throw BusinessException('Смена закрыта. Откройте новую смену');
+          throw BusinessException(L.current.errShiftClosedOpenNew);
         }
       }
 
@@ -227,7 +233,7 @@ class SaleService {
       for (final l in r.lines) {
         final p = products[l.productId];
         if (p == null || p.deletedAt != null) {
-          throw BusinessException('Товар не найден или удалён');
+          throw BusinessException(L.current.errProductNotFoundOrDeleted);
         }
       }
       final promos = await activePromotions(r.now);
@@ -235,7 +241,7 @@ class SaleService {
       final roundingStep = await _roundingStep(r);
       final priced = _price(r, products, promos, customerPct, roundingStep: roundingStep);
       if (r.promoCode != null && r.promoCode!.trim().isNotEmpty && priced.promoCodeValid != true) {
-        throw BusinessException('Промокод недействителен');
+        throw BusinessException(L.current.errPromoInvalid);
       }
       final total = priced.total;
 
@@ -258,7 +264,7 @@ class SaleService {
         }
         if (pct > limit + 0.01) {
           throw BusinessException(
-              'Ручная скидка ${pct.toStringAsFixed(1)}% превышает допустимую (${limit.toStringAsFixed(0)}%). Нужно подтверждение менеджера',
+              L.current.errManualDiscountLimit(pct.toStringAsFixed(1), limit.toStringAsFixed(0)),
               code: 'discount_limit');
         }
         if (r.discountApprovedBy != null) {
@@ -273,7 +279,7 @@ class SaleService {
       if (r.customerId != null) {
         customer = await (db.select(db.customers)..where((c) => c.id.equals(r.customerId!)))
             .getSingleOrNull();
-        if (customer == null) throw BusinessException('Клиент не найден');
+        if (customer == null) throw BusinessException(L.current.commonCustomerNotFound);
       }
 
       // --- payments validation
@@ -287,12 +293,12 @@ class SaleService {
           .fold(0, (s, e) => s + e.value);
       final cashTendered = byMethod['cash'] ?? 0;
       if (nonCash > total) {
-        throw BusinessException('Безналичная оплата превышает сумму чека');
+        throw BusinessException(L.current.errNonCashExceedsTotal);
       }
       final cashNeeded = total - nonCash;
       if (cashTendered < cashNeeded) {
         throw BusinessException(
-            'Недостаточно оплаты: не хватает ${Money.format(cashNeeded - cashTendered)}');
+            L.current.errInsufficientPayment(Money.format(cashNeeded - cashTendered)));
       }
       final change = cashTendered - cashNeeded;
       final cashApplied = cashNeeded;
@@ -300,26 +306,25 @@ class SaleService {
       final loyalty = await LoyaltyConfig.load(db);
       final bonusPay = byMethod['bonus'] ?? 0;
       if (bonusPay > 0) {
-        if (customer == null) throw BusinessException('Для оплаты бонусами выберите клиента');
-        if (!loyalty.enabled) throw BusinessException('Бонусная программа выключена');
+        if (customer == null) throw BusinessException(L.current.errBonusNeedsCustomer);
+        if (!loyalty.enabled) throw BusinessException(L.current.errLoyaltyDisabled);
         if (bonusPay > customer.bonusBalance) {
-          throw BusinessException('Недостаточно бонусов: доступно ${Money.format(customer.bonusBalance)}');
+          throw BusinessException(L.current.errInsufficientBonus(Money.format(customer.bonusBalance)));
         }
         final maxRedeem = Money.percent(total, loyalty.maxRedeemPercent);
         if (bonusPay > maxRedeem) {
-          throw BusinessException('Бонусами можно оплатить не более ${Money.format(maxRedeem)}');
+          throw BusinessException(L.current.errBonusMaxRedeem(Money.format(maxRedeem)));
         }
       }
       final debtPay = byMethod['debt'] ?? 0;
       if (debtPay > 0) {
-        if (customer == null) throw BusinessException('Для продажи в долг выберите клиента');
+        if (customer == null) throw BusinessException(L.current.errDebtNeedsCustomer);
         if (customer.debtLimit > 0 && customer.debtBalance + debtPay > customer.debtLimit) {
           throw BusinessException(
-              'Превышен кредитный лимит клиента (${Money.format(customer.debtLimit)}). '
-              'Текущий долг: ${Money.format(customer.debtBalance)}');
+              L.current.errCreditLimitExceeded(Money.format(customer.debtLimit), Money.format(customer.debtBalance)));
         }
         if (customer.debtLimit == 0 && (await db.getSetting('debt_requires_limit')) == '1') {
-          throw BusinessException('Клиенту не открыт кредит');
+          throw BusinessException(L.current.errNoCredit);
         }
       }
       final giftPays = r.payments.where((p) => p.method == 'gift_card' && p.amount > 0).toList();
@@ -329,13 +334,13 @@ class SaleService {
         final card = await (db.select(db.giftCards)
               ..where((g) => g.code.equals(code) & g.deletedAt.isNull()))
             .getSingleOrNull();
-        if (card == null) throw BusinessException('Сертификат $code не найден');
-        if (card.status != 'active') throw BusinessException('Сертификат $code не активен');
+        if (card == null) throw BusinessException(L.current.errGiftCardNotFound(code));
+        if (card.status != 'active') throw BusinessException(L.current.errGiftCardInactive(code));
         if (card.expiresAt != null && now.isAfter(card.expiresAt!)) {
-          throw BusinessException('Срок действия сертификата $code истёк');
+          throw BusinessException(L.current.errGiftCardExpired(code));
         }
         if (card.balance < gp.amount) {
-          throw BusinessException('На сертификате $code только ${Money.format(card.balance)}');
+          throw BusinessException(L.current.errGiftCardInsufficient(code, Money.format(card.balance)));
         }
         giftCardsUsed[card] = gp.amount;
       }
@@ -506,17 +511,17 @@ class SaleService {
   }) async {
     final at = now ?? DateTime.now();
     final wanted = lines.where((l) => l.qty > 0).toList();
-    if (wanted.isEmpty) throw BusinessException('Выберите товары для возврата');
+    if (wanted.isEmpty) throw BusinessException(L.current.errSelectReturnItems);
     return db.transaction(() async {
       final sale = await (db.select(db.sales)..where((s) => s.id.equals(saleId)))
           .getSingleOrNull();
-      if (sale == null) throw BusinessException('Чек не найден');
+      if (sale == null) throw BusinessException(L.current.errSaleNotFound);
       if (sale.status == 'voided' || sale.status == 'returned') {
-        throw BusinessException('По этому чеку уже оформлен полный возврат');
+        throw BusinessException(L.current.errFullyReturned);
       }
       final days = int.tryParse(await db.getSetting('return_days') ?? '') ?? 14;
       if (days > 0 && at.difference(sale.createdAt).inDays > days) {
-        throw BusinessException('Срок возврата ($days дн.) истёк');
+        throw BusinessException(L.current.errReturnPeriodExpired('$days'));
       }
       final items = await (db.select(db.saleItems)..where((i) => i.saleId.equals(saleId))).get();
       final byId = {for (final i in items) i.id: i};
@@ -526,10 +531,10 @@ class SaleService {
       final rows = <ReturnItemsCompanion>[];
       for (final l in wanted) {
         final it = byId[l.saleItemId];
-        if (it == null) throw BusinessException('Позиция не из этого чека');
+        if (it == null) throw BusinessException(L.current.errLineNotInSale);
         final available = Qty.round(it.qty - it.returnedQty);
         if (l.qty > available + 1e-9) {
-          throw BusinessException('«${it.productName}»: можно вернуть не более ${Qty.format(available)}');
+          throw BusinessException(L.current.errReturnQtyExceeded(it.productName, Qty.format(available)));
         }
         final isLast = (available - l.qty).abs() < 1e-9;
         final alreadyRefunded = (it.total * it.returnedQty / it.qty).round();
@@ -573,12 +578,12 @@ class SaleService {
             .getSingleOrNull();
       }
       if (refundMethod == 'debt' || refundMethod == 'bonus') {
-        if (customer == null) throw BusinessException('В чеке нет клиента');
+        if (customer == null) throw BusinessException(L.current.errSaleNoCustomer);
       }
       if (refundMethod == 'cash' || refundMethod == 'card' || refundMethod == 'transfer') {
         // money back out of the till requires an open shift
         if (refundMethod == 'cash' && shiftId == null) {
-          throw BusinessException('Для возврата наличными откройте смену');
+          throw BusinessException(L.current.errOpenShiftForCashRefund);
         }
       }
 
@@ -665,14 +670,14 @@ class SaleService {
   /// with the original payment split. Only allowed in the same open shift.
   Future<void> voidSale(String saleId,
       {required String userId, required String reason, String? shiftId}) async {
-    if (reason.trim().isEmpty) throw BusinessException('Укажите причину аннулирования');
+    if (reason.trim().isEmpty) throw BusinessException(L.current.errVoidReasonRequired);
     await db.transaction(() async {
       final sale = await (db.select(db.sales)..where((s) => s.id.equals(saleId))).getSingle();
       if (sale.status != 'completed') {
-        throw BusinessException('Аннулировать можно только чек без возвратов');
+        throw BusinessException(L.current.errVoidOnlyWithoutReturns);
       }
       if (sale.shiftId != null && sale.shiftId != shiftId) {
-        throw BusinessException('Чек из другой смены — оформите возврат');
+        throw BusinessException(L.current.errSaleOtherShift);
       }
       final items = await (db.select(db.saleItems)..where((i) => i.saleId.equals(saleId))).get();
       final payments = await (db.select(db.salePayments)..where((p) => p.saleId.equals(saleId))).get();

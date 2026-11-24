@@ -9,6 +9,7 @@ import '../../core/permissions.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
+import '../../l10n/l10n.dart';
 import 'cash_operation_dialog.dart';
 import 'close_shift_dialog.dart';
 import 'shift_logic.dart';
@@ -74,7 +75,7 @@ class _OpenShiftPanelState extends ConsumerState<OpenShiftPanel> {
     await runGuarded(
       context,
       () => ref.read(shiftServiceProvider).open(userId: session.user.id, openingCash: amount),
-      success: 'Смена открыта. Размен: ${Money.format(amount)}',
+      success: context.l10n.shiftOpenedToast(Money.format(amount)),
     );
     if (mounted) setState(() => _busy = false);
   }
@@ -82,6 +83,7 @@ class _OpenShiftPanelState extends ConsumerState<OpenShiftPanel> {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final suggestion = ref.watch(openingSuggestionProvider);
     final can = ref.watch(sessionProvider)?.can(Perm.openCloseShift) ?? false;
     final sug = suggestion.value;
@@ -99,34 +101,34 @@ class _OpenShiftPanelState extends ConsumerState<OpenShiftPanel> {
                   children: [
                     Icon(Icons.lock_open_rounded, size: 48, color: t.colorScheme.primary),
                     const SizedBox(height: Gap.m),
-                    Text('Смена закрыта', textAlign: TextAlign.center, style: t.textTheme.headlineSmall),
+                    Text(l.shiftClosed, textAlign: TextAlign.center, style: t.textTheme.headlineSmall),
                     const SizedBox(height: Gap.s),
                     Text(
-                      'Чтобы начать продавать, откройте смену и укажите сумму размена в кассе.',
+                      l.shiftOpenHint,
                       textAlign: TextAlign.center,
                       style: t.textTheme.bodyMedium?.copyWith(color: t.colorScheme.onSurfaceVariant),
                     ),
                     const SizedBox(height: Gap.xl),
                     MoneyField(
                       key: const ValueKey('opening_cash'),
-                      label: 'Размен на начало смены',
+                      label: l.shiftOpeningCash,
                       controller: _ctl,
                       autofocus: true,
                       helper: sug != null && sug > 0
-                          ? 'Предложено: остаток после прошлой смены'
-                          : 'Наличные в денежном ящике сейчас',
+                          ? l.shiftOpeningSuggested
+                          : l.shiftOpeningCashNow,
                       onChanged: (v) => _value = v,
                       onSubmitted: (_) => _open(),
                     ),
                     const SizedBox(height: Gap.xl),
                     Tooltip(
-                      message: can ? '' : 'Нет права открывать смену',
+                      message: can ? '' : l.shiftNoRightOpen,
                       child: FilledButton.icon(
                         key: const ValueKey('open_shift'),
                         style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56)),
                         onPressed: !can || _busy ? null : _open,
                         icon: const Icon(Icons.play_arrow_rounded),
-                        label: const Text('Открыть смену'),
+                        label: Text(l.shiftOpenAction),
                       ),
                     ),
                   ],
@@ -148,6 +150,7 @@ class OpenShiftDashboard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = context.l10n;
     final figs = ref.watch(shiftFiguresProvider(shift.id));
     final session = ref.watch(sessionProvider);
     final users = ref.watch(shiftUsersProvider).value ?? const <String, User>{};
@@ -177,33 +180,29 @@ class OpenShiftDashboard extends ConsumerWidget {
             final w = (c.maxWidth - Gap.m * (cols - 1)) / cols;
             final cards = [
               StatCard(
-                label: 'Продажи',
+                label: l.shiftSales,
                 value: Money.format(r.salesTotal),
-                hint:
-                    '${r.salesCount} ${pluralRu(r.salesCount, 'чек', 'чека', 'чеков')} · '
-                    'средний ${Money.format(f.averageCheck)}',
+                hint: l.shiftSalesHint(l.commonReceiptsCount(r.salesCount), Money.format(f.averageCheck)),
                 icon: Icons.shopping_cart_outlined,
               ),
               StatCard(
-                label: 'Возвраты',
+                label: l.shiftReturns,
                 value: Money.format(r.returnsTotal),
-                hint: r.returnsCount == 0
-                    ? 'Возвратов не было'
-                    : '${r.returnsCount} ${pluralRu(r.returnsCount, 'возврат', 'возврата', 'возвратов')}',
+                hint: r.returnsCount == 0 ? l.shiftNoReturns : l.commonReturnsCount(r.returnsCount),
                 icon: Icons.undo,
                 color: AppColors.warning,
               ),
               StatCard(
-                label: profit ? 'Валовая прибыль' : 'Выручка без возвратов',
+                label: profit ? l.shiftGrossProfit : l.shiftNetRevenue,
                 value: Money.format(profit ? f.grossProfit : f.netRevenue),
-                hint: profit ? 'Выручка ${Money.format(f.netRevenue)}' : null,
+                hint: profit ? l.shiftRevenueValue(Money.format(f.netRevenue)) : null,
                 icon: Icons.trending_up,
                 color: AppColors.success,
               ),
               StatCard(
-                label: 'Ожидается в кассе',
+                label: l.shiftExpectedInDrawer,
                 value: Money.format(f.expectedCash),
-                hint: 'Наличные · размен ${Money.format(shift.openingCash)}',
+                hint: l.shiftExpectedHint(Money.format(shift.openingCash)),
                 icon: Icons.point_of_sale,
                 color: AppColors.info,
               ),
@@ -216,7 +215,7 @@ class OpenShiftDashboard extends ConsumerWidget {
           },
         );
         final report = SectionCard(
-          title: 'X-отчёт',
+          title: l.shiftXReport,
           trailing: PrintReportButton(shiftId: shift.id),
           child: ReportSectionsView(
             data: ZReportData(
@@ -315,6 +314,7 @@ class _ShiftHeaderState extends State<_ShiftHeader> {
     final canClose = widget.canClose;
     final onClose = widget.onClose;
     final t = Theme.of(context);
+    final l = context.l10n;
     final dur = DateTime.now().difference(shift.openedAt);
     final h = dur.inHours, m = dur.inMinutes % 60;
     final info = Column(
@@ -325,26 +325,26 @@ class _ShiftHeaderState extends State<_ShiftHeader> {
           runSpacing: Gap.xs,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            Text('Смена №${shift.number}', style: t.textTheme.titleLarge),
-            const StatusChip('Открыта', color: AppColors.success),
+            Text(l.shiftNumber('${shift.number}'), style: t.textTheme.titleLarge),
+            StatusChip(l.shiftStatusOpen, color: AppColors.success),
           ],
         ),
         const SizedBox(height: 2),
         Text(
-          'Открыта ${formatDateTime(shift.openedAt)} · $openedBy · '
-          '${dur.inMinutes < 1 ? 'только что' : 'идёт ${h > 0 ? '$h ч ' : ''}$m мин'}',
+          '${l.shiftOpenedAt(formatDateTime(shift.openedAt))} · $openedBy · '
+          '${dur.inMinutes < 1 ? l.shiftJustNow : l.shiftRunning(h > 0 ? l.shiftHoursMinutes('$h', '$m') : l.shiftMinutes('$m'))}',
           style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant),
         ),
       ],
     );
     final btn = Tooltip(
-      message: canClose ? 'Пересчитать кассу и закрыть смену (Z-отчёт)' : 'Нет права закрывать смену',
+      message: canClose ? l.shiftCloseTooltip : l.shiftNoRightClose,
       child: FilledButton.icon(
         key: const ValueKey('close_shift'),
         style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
         onPressed: canClose ? onClose : null,
         icon: const Icon(Icons.lock_clock),
-        label: const Text('Закрыть смену'),
+        label: Text(l.shiftCloseAction),
       ),
     );
     return Card(
@@ -383,8 +383,9 @@ class _CashPanel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final moves = ref.watch(shiftMovementsProvider(shift.id));
     final t = Theme.of(context);
+    final l = context.l10n;
     return SectionCard(
-      title: 'Кассовые операции',
+      title: l.shiftCashOperations,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -399,7 +400,7 @@ class _CashPanel extends ConsumerWidget {
                     SizedBox(
                       width: w,
                       child: Tooltip(
-                        message: canCash ? cashKindHint(k) : 'Нет права на кассовые операции',
+                        message: canCash ? cashKindHint(k, l) : l.shiftNoRightCash,
                         child: OutlinedButton.icon(
                           key: ValueKey('cash_$k'),
                           style: OutlinedButton.styleFrom(foregroundColor: cashKindColor(k)),
@@ -412,7 +413,7 @@ class _CashPanel extends ConsumerWidget {
                                 )
                               : null,
                           icon: Icon(cashKindIcon(k)),
-                          label: Text(cashKindLabel(k), overflow: TextOverflow.ellipsis),
+                          label: Text(cashKindLabel(k, l), overflow: TextOverflow.ellipsis),
                         ),
                       ),
                     ),
@@ -421,7 +422,7 @@ class _CashPanel extends ConsumerWidget {
             },
           ),
           const SizedBox(height: Gap.l),
-          Text('Операции за смену', style: t.textTheme.labelLarge),
+          Text(l.shiftOperationsList, style: t.textTheme.labelLarge),
           const SizedBox(height: Gap.s),
           AsyncView(
             value: moves,
@@ -429,7 +430,7 @@ class _CashPanel extends ConsumerWidget {
                 ? Padding(
                     padding: const EdgeInsets.symmetric(vertical: Gap.l),
                     child: Text(
-                      'Внесений и выплат ещё не было',
+                      l.shiftNoOperations,
                       textAlign: TextAlign.center,
                       style: t.textTheme.bodyMedium?.copyWith(color: t.colorScheme.onSurfaceVariant),
                     ),
@@ -446,7 +447,10 @@ class _CashPanel extends ConsumerWidget {
                             child: Icon(cashKindIcon(m.kind), size: 18, color: cashKindColor(m.kind)),
                           ),
                           title: Text(
-                            [cashKindLabel(m.kind), if (m.expenseCategory != null) m.expenseCategory!].join(' · '),
+                            [
+                              cashKindLabel(m.kind, l),
+                              if (m.expenseCategory != null) expenseCategoryLabel(m.expenseCategory!, l),
+                            ].join(' · '),
                           ),
                           subtitle: Text(
                             [

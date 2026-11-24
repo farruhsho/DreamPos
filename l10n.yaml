@@ -1,0 +1,11 @@
+# gen-l10n config. Do not edit lib/l10n/app_*.arb by hand: they are merged from
+# lib/l10n/src/<module>/<lang>.arb by `dart run tool/l10n_merge.dart`
+# (which also runs gen-l10n). See docs/L10N.md.
+arb-dir: lib/l10n
+template-arb-file: app_ru.arb
+output-dir: lib/l10n/gen
+output-localization-file: app_localizations.dart
+output-class: AppLocalizations
+nullable-getter: false
+format: true
+preferred-supported-locales: [ru]

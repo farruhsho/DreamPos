@@ -1,18 +1,29 @@
 import '../../../core/widgets/widgets.dart' show formatDate;
+import '../../../l10n/l10n.dart';
 
 /// Report period presets shown in the period picker.
 enum PeriodPreset {
-  today('Сегодня'),
-  yesterday('Вчера'),
-  week('Неделя'),
-  month('Месяц'),
-  lastMonth('Прошлый месяц'),
-  quarter('Квартал'),
-  year('Год'),
-  custom('Произвольный');
+  today,
+  yesterday,
+  week,
+  month,
+  lastMonth,
+  quarter,
+  year,
+  custom;
 
-  const PeriodPreset(this.label);
-  final String label;
+  String labelIn(AppLocalizations l) => switch (this) {
+        PeriodPreset.today => l.commonToday,
+        PeriodPreset.yesterday => l.commonYesterday,
+        PeriodPreset.week => l.commonWeek,
+        PeriodPreset.month => l.commonMonth,
+        PeriodPreset.lastMonth => l.repPeriodLastMonth,
+        PeriodPreset.quarter => l.repPeriodQuarter,
+        PeriodPreset.year => l.commonYear,
+        PeriodPreset.custom => l.repPeriodCustom,
+      };
+
+  String get label => labelIn(L.current);
 }
 
 /// Half-open time interval `[start, end)` in local time.
@@ -94,8 +105,10 @@ class ReportPeriod {
         : '${formatDate(start)} – ${formatDate(last)}';
   }
 
-  String get label =>
-      preset == PeriodPreset.custom ? rangeLabel : '${preset.label} · $rangeLabel';
+  String labelIn(AppLocalizations l) =>
+      preset == PeriodPreset.custom ? rangeLabel : '${preset.labelIn(l)} · $rangeLabel';
+
+  String get label => labelIn(L.current);
 
   @override
   bool operator ==(Object other) =>

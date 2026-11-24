@@ -8,6 +8,7 @@ import '../../core/permissions.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
+import '../../l10n/l10n.dart';
 import 'product_logic.dart';
 import 'product_widgets.dart';
 import 'products_repo.dart';
@@ -15,20 +16,21 @@ import 'products_repo.dart';
 /// Moves the selected products to another category. Returns true if applied.
 Future<bool> showBulkCategoryDialog(BuildContext context, WidgetRef ref, Set<String> ids) async {
   final cats = ref.read(productCategoriesProvider).value ?? const <Category>[];
+  final l = context.l10n;
   String? target;
   final ok = await showDialog<bool>(
     context: context,
     builder: (c) => StatefulBuilder(
       builder: (c, setS) => AlertDialog(
-        title: Text('Категория для ${ids.length} товаров'),
+        title: Text(l.prodBulkCategoryTitle('${ids.length}')),
         content: SizedBox(
           width: 400,
           child: DropdownButtonFormField<String?>(
             initialValue: target,
             isExpanded: true,
-            decoration: const InputDecoration(labelText: 'Новая категория'),
+            decoration: InputDecoration(labelText: l.prodNewCategory),
             items: [
-              const DropdownMenuItem(value: null, child: Text('Без категории')),
+              DropdownMenuItem(value: null, child: Text(l.prodNoCategory)),
               for (final cat in cats)
                 DropdownMenuItem(
                   value: cat.id,
@@ -43,8 +45,8 @@ Future<bool> showBulkCategoryDialog(BuildContext context, WidgetRef ref, Set<Str
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Отмена')),
-          FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Применить')),
+          TextButton(onPressed: () => Navigator.pop(c, false), child: Text(l.commonCancel)),
+          FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(l.commonApply)),
         ],
       ),
     ),
@@ -55,14 +57,14 @@ Future<bool> showBulkCategoryDialog(BuildContext context, WidgetRef ref, Set<Str
     () => ref
         .read(productsRepoProvider)
         .setCategory(ids, target, userId: ref.read(sessionProvider)?.user.id),
-    success: 'Категория изменена у ${ids.length} товаров',
+    success: l.prodBulkCategoryDone('${ids.length}'),
   );
 }
 
 /// Bulk retail price change by percent with rounding, preview and confirm.
 Future<bool> showBulkPriceDialog(BuildContext context, Set<String> ids) async {
   final r = await showFormDialog<bool>(context,
-      title: 'Изменить цены на %', width: 720, child: _BulkPriceDialog(ids: ids));
+      title: context.l10n.prodBulkPriceTitle, width: 720, child: _BulkPriceDialog(ids: ids));
   return r ?? false;
 }
 
@@ -96,8 +98,9 @@ class _BulkPriceDialogState extends ConsumerState<_BulkPriceDialog> {
   Future<void> _apply(List<Product> products) async {
     if (_busy) return; // Enter pressed twice
     final pct = _percent;
+    final l = context.l10n;
     if (pct == null || pct == 0) {
-      showError(context, 'Введите процент от −99 до 1000, например 10 или −5');
+      showError(context, l.prodBulkPctError);
       return;
     }
     final map = {
@@ -105,15 +108,14 @@ class _BulkPriceDialogState extends ConsumerState<_BulkPriceDialog> {
     };
     final changed = products.where((p) => map[p.id] != p.price).length;
     if (changed == 0) {
-      showError(context, 'Цены не изменятся — попробуйте другой процент или округление');
+      showError(context, l.prodBulkNoChange);
       return;
     }
     _busy = true;
     final ok = await confirm(context,
-        title: 'Изменить цены у $changed товаров?',
-        message: 'Каждое изменение будет записано в журнал аудита. '
-            'Ценники нужно будет перепечатать.',
-        ok: 'Изменить цены');
+        title: l.prodBulkPriceConfirmQ('$changed'),
+        message: l.prodBulkPriceConfirmMessage,
+        ok: l.prodChangePrices);
     if (!mounted) return;
     if (!ok) {
       setState(() => _busy = false);
@@ -125,8 +127,10 @@ class _BulkPriceDialogState extends ConsumerState<_BulkPriceDialog> {
       context,
       () => ref.read(productsRepoProvider).applyPrices(map,
           userId: ref.read(sessionProvider)?.user.id,
-          note: 'массово $sign${formatPercent(pct)}, ${roundingStepLabel(_step, Money.currency).toLowerCase()}'),
-      success: 'Цены обновлены у $changed товаров',
+          // Audit note is stored in the DB: stays Russian.
+          note: 'массово $sign${formatPercent(pct)}, ' // l10n-ignore
+              '${roundingStepLabel(_step, Money.currency, L.of('ru')).toLowerCase()}'),
+      success: l.prodBulkPriceDone('$changed'),
     );
     if (!mounted) return;
     if (success) {
@@ -140,6 +144,7 @@ class _BulkPriceDialogState extends ConsumerState<_BulkPriceDialog> {
   Widget build(BuildContext context) {
     final t = Theme.of(context);
     final canCost = ref.watch(sessionProvider)?.can(Perm.viewCost) ?? false;
+    final l = context.l10n;
     final steps = roundingStepsMinor(Money.currency);
     if (!steps.contains(_step)) _step = steps.first;
     return Padding(
@@ -165,10 +170,10 @@ class _BulkPriceDialogState extends ConsumerState<_BulkPriceDialog> {
                 keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
                 inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,\-−]'))],
                 decoration: InputDecoration(
-                  labelText: 'Изменение, %',
-                  hintText: 'например 10 или -5',
-                  helperText: 'Плюс — подорожание, минус — скидка',
-                  errorText: _pct.text.isNotEmpty && pct == null ? 'От −99 до 1000' : null,
+                  labelText: l.prodChangePct,
+                  hintText: l.prodChangePctHint,
+                  helperText: l.prodChangePctHelper,
+                  errorText: _pct.text.isNotEmpty && pct == null ? l.prodChangePctRange : null,
                 ),
                 onChanged: (v) {
                   if (v.contains('−')) _pct.text = v.replaceAll('−', '-');
@@ -178,10 +183,10 @@ class _BulkPriceDialogState extends ConsumerState<_BulkPriceDialog> {
               ),
               DropdownButtonFormField<int>(
                 initialValue: _step,
-                decoration: const InputDecoration(labelText: 'Округление'),
+                decoration: InputDecoration(labelText: l.prodRounding),
                 items: [
                   for (final st in steps)
-                    DropdownMenuItem(value: st, child: Text(roundingStepLabel(st, Money.currency))),
+                    DropdownMenuItem(value: st, child: Text(roundingStepLabel(st, Money.currency, l))),
                 ],
                 onChanged: (v) => setState(() => _step = v ?? 1),
               ),
@@ -189,16 +194,16 @@ class _BulkPriceDialogState extends ConsumerState<_BulkPriceDialog> {
             const SizedBox(height: Gap.m),
             if (_step > 1)
               SegmentedButton<RoundMode>(
-                segments: [for (final m in RoundMode.values) ButtonSegment(value: m, label: Text(m.label))],
+                segments: [for (final m in RoundMode.values) ButtonSegment(value: m, label: Text(m.labelIn(l)))],
                 selected: {_mode},
                 onSelectionChanged: (v) => setState(() => _mode = v.first),
               ),
             const SizedBox(height: Gap.m),
             Wrap(spacing: Gap.s, runSpacing: Gap.s, children: [
-              StatusChip('Выбрано: ${products.length}'),
-              StatusChip('Изменится: $changed', color: AppColors.info),
+              StatusChip(l.prodSelectedCount('${products.length}')),
+              StatusChip(l.prodWillChange('$changed'), color: AppColors.info),
               if (canCost && belowCost > 0)
-                StatusChip('Ниже себестоимости: $belowCost', color: AppColors.danger),
+                StatusChip(l.prodBelowCostCount('$belowCost'), color: AppColors.danger),
             ]),
             const SizedBox(height: Gap.s),
             Flexible(
@@ -220,7 +225,9 @@ class _BulkPriceDialogState extends ConsumerState<_BulkPriceDialog> {
                       dense: true,
                       title: Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis),
                       subtitle: canCost
-                          ? Text('себест. ${Money.format(p.costPrice)} · маржа ${formatPercent(marginPercent(np, p.costPrice))}',
+                          ? Text(
+                              l.prodCostMarginLine(
+                                  Money.format(p.costPrice), formatPercent(marginPercent(np, p.costPrice))),
                               style: below ? const TextStyle(color: AppColors.danger) : null)
                           : null,
                       trailing: Text.rich(TextSpan(children: [
@@ -241,12 +248,12 @@ class _BulkPriceDialogState extends ConsumerState<_BulkPriceDialog> {
             ),
             const SizedBox(height: Gap.l),
             Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Отмена')),
+              TextButton(onPressed: () => Navigator.pop(context, false), child: Text(l.commonCancel)),
               const SizedBox(width: Gap.s),
               FilledButton.icon(
                 onPressed: _busy || pct == null || changed == 0 ? null : () => _apply(products),
                 icon: const Icon(Icons.price_change_outlined),
-                label: Text(changed == 0 ? 'Применить' : 'Применить к $changed'),
+                label: Text(changed == 0 ? l.commonApply : l.prodApplyTo('$changed')),
               ),
             ]),
           ]);

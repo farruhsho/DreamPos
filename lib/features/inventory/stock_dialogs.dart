@@ -12,12 +12,13 @@ import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
 import 'inventory_logic.dart';
 import 'receipt_document.dart';
+import '../../l10n/l10n.dart';
 
 String? _uid(WidgetRef ref) => ref.read(sessionProvider)?.user.id;
 
 /// Quick receipt of one product (manual, no supplier debt).
 Future<void> showQuickReceiptDialog(BuildContext context, Product p) =>
-    showFormDialog<void>(context, title: 'Приход: ${p.name}', width: 440, child: _QuickReceipt(p));
+    showFormDialog<void>(context, title: context.l10n.invQuickReceiptTitle(p.name), width: 440, child: _QuickReceipt(p));
 
 class _QuickReceipt extends ConsumerStatefulWidget {
   const _QuickReceipt(this.p);
@@ -60,6 +61,7 @@ class _QuickReceiptState extends ConsumerState<_QuickReceipt> {
 
   @override
   Widget build(BuildContext context) {
+    final l = context.l10n;
     final canCost = ref.watch(sessionProvider)?.can(Perm.viewCost) ?? false;
     return Form(
       key: _key,
@@ -69,13 +71,13 @@ class _QuickReceiptState extends ConsumerState<_QuickReceipt> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Текущий остаток: ${Qty.format(widget.p.stockQty, widget.p.unit)}'),
+            Text(l.invCurrentStock(Qty.format(widget.p.stockQty, widget.p.unit))),
             const SizedBox(height: Gap.m),
             QtyField(controller: _qty, unit: widget.p.unit, autofocus: true, onSubmitted: (_) => _save()),
             const SizedBox(height: Gap.m),
             if (canCost)
               MoneyField(
-                label: 'Цена закупки за ед. *',
+                label: l.invUnitCostRequired,
                 initial: widget.p.costPrice,
                 required: true,
                 onChanged: (v) => _cost = v,
@@ -85,7 +87,7 @@ class _QuickReceiptState extends ConsumerState<_QuickReceipt> {
             FilledButton.icon(
               onPressed: _busy ? null : _save,
               icon: const Icon(Icons.add_box_outlined),
-              label: const Text('Оприходовать'),
+              label: Text(l.invPostIn),
             ),
           ],
         ),
@@ -112,10 +114,15 @@ class _WriteOffFormState extends ConsumerState<WriteOffForm> {
   final _qty = TextEditingController();
   final _comment = TextEditingController();
   late Product? _p = widget.product;
-  String? _reason;
+  /// Index into [writeOffReasonsOf]; the last reason is «Другое».
+  int? _reason;
   bool _busy = false;
 
   double? get _q => QtyField.parse(_qty.text);
+
+  bool get _isOther => _reason == writeOffReasonsOf(L.current).length - 1;
+
+  String? _reasonText(AppLocalizations l) => _reason == null ? null : writeOffReasonsOf(l)[_reason!];
 
   Future<void> _choose() async {
     final p = await widget.pickProduct?.call();
@@ -124,38 +131,37 @@ class _WriteOffFormState extends ConsumerState<WriteOffForm> {
 
   Future<void> _save() async {
     final p = _p;
+    final l = context.l10n;
     if (_busy) return;
     if (p == null) {
-      showError(context, 'Выберите товар');
+      showError(context, l.invSelectProduct);
       return;
     }
     if (!_key.currentState!.validate()) return;
     if (_reason == null) {
-      showError(context, 'Укажите причину списания');
+      showError(context, l.invSpecifyWriteoffReason);
       return;
     }
-    if (_reason == 'Другое' && _comment.text.trim().isEmpty) {
-      showError(context, 'Опишите причину в комментарии');
+    if (_isOther && _comment.text.trim().isEmpty) {
+      showError(context, l.invDescribeReason);
       return;
     }
     final q = _q!;
     final value = lineValue(q, p.costPrice);
     final ok = await confirm(
       context,
-      title: 'Списать товар?',
-      message:
-          '${p.name}\n${Qty.format(q, p.unit)} на сумму ${Money.format(value)} (по себестоимости)\n'
-          'Причина: $_reason',
-      ok: 'Списать',
+      title: l.invWriteoffConfirmTitle,
+      message: l.invWriteoffConfirmMessage(p.name, Qty.format(q, p.unit), Money.format(value), _reasonText(l)!),
+      ok: l.invWriteoffAction,
       destructive: true,
     );
     if (!ok || !mounted) return;
     setState(() => _busy = true);
-    final reason = [_reason!, if (_comment.text.trim().isNotEmpty) _comment.text.trim()].join(': ');
+    final reason = [_reasonText(l)!, if (_comment.text.trim().isNotEmpty) _comment.text.trim()].join(': ');
     final done = await runGuarded(
       context,
       () => ref.read(stockServiceProvider).writeOff(productId: p.id, qty: q, reason: reason, userId: _uid(ref)),
-      success: 'Списано ${Qty.format(q, p.unit)} «${p.name}»',
+      success: l.invWrittenOff(Qty.format(q, p.unit), p.name),
     );
     if (!mounted) return;
     setState(() {
@@ -173,6 +179,8 @@ class _WriteOffFormState extends ConsumerState<WriteOffForm> {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final l = context.l10n;
+    final reasons = writeOffReasonsOf(l);
     final canCost = ref.watch(sessionProvider)?.can(Perm.viewCost) ?? false;
     // Live product (stock may change while the form is open).
     final live = _p == null ? null : ref.watch(invProductMapProvider).value?[_p!.id] ?? _p;
@@ -189,14 +197,15 @@ class _WriteOffFormState extends ConsumerState<WriteOffForm> {
               icon: const Icon(Icons.search),
               label: Align(
                 alignment: Alignment.centerLeft,
-                child: Text(live?.name ?? 'Выбрать товар…', overflow: TextOverflow.ellipsis),
+                child: Text(live?.name ?? l.invChooseProduct, overflow: TextOverflow.ellipsis),
               ),
             ),
           if (live != null) ...[
             const SizedBox(height: Gap.s),
             Text(
-              'Остаток: ${Qty.format(live.stockQty, live.unit)}'
-              '${canCost ? ' · себестоимость ${Money.format(live.costPrice)}' : ''}',
+              canCost
+                  ? l.invStockLineWithCost(Qty.format(live.stockQty, live.unit), Money.format(live.costPrice))
+                  : l.invStockLine(Qty.format(live.stockQty, live.unit)),
               style: t.textTheme.bodyMedium?.copyWith(color: t.colorScheme.onSurfaceVariant),
             ),
           ],
@@ -208,20 +217,20 @@ class _WriteOffFormState extends ConsumerState<WriteOffForm> {
             onSubmitted: (_) => _save(),
           ),
           const SizedBox(height: Gap.m),
-          Text('Причина', style: t.textTheme.labelLarge),
+          Text(l.commonReason, style: t.textTheme.labelLarge),
           const SizedBox(height: Gap.s),
           Wrap(
             spacing: Gap.s,
             runSpacing: Gap.s,
             children: [
-              for (final r in writeOffReasons)
-                ChoiceChip(label: Text(r), selected: _reason == r, onSelected: (_) => setState(() => _reason = r)),
+              for (final (i, r) in reasons.indexed)
+                ChoiceChip(label: Text(r), selected: _reason == i, onSelected: (_) => setState(() => _reason = i)),
             ],
           ),
           const SizedBox(height: Gap.m),
           TextField(
             controller: _comment,
-            decoration: InputDecoration(labelText: _reason == 'Другое' ? 'Комментарий *' : 'Комментарий'),
+            decoration: InputDecoration(labelText: _isOther ? l.invCommentRequired : l.commonComment),
             onSubmitted: (_) => _save(),
           ),
           const SizedBox(height: Gap.l),
@@ -234,7 +243,7 @@ class _WriteOffFormState extends ConsumerState<WriteOffForm> {
                   if (canCost)
                     Expanded(
                       child: Text(
-                        'Сумма списания: ${Money.format(v)}',
+                        l.invWriteoffSum(Money.format(v)),
                         style: t.textTheme.titleMedium?.copyWith(
                           color: v > 0 ? AppColors.danger : t.colorScheme.onSurfaceVariant,
                         ),
@@ -246,7 +255,7 @@ class _WriteOffFormState extends ConsumerState<WriteOffForm> {
                     style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
                     onPressed: _busy ? null : _save,
                     icon: const Icon(Icons.delete_sweep_outlined),
-                    label: const Text('Списать'),
+                    label: Text(l.invWriteoffAction),
                   ),
                 ],
               );
@@ -260,7 +269,7 @@ class _WriteOffFormState extends ConsumerState<WriteOffForm> {
 
 Future<void> showWriteOffDialog(BuildContext context, Product p) => showFormDialog<void>(
   context,
-  title: 'Списание',
+  title: context.l10n.invWriteoff,
   width: 520,
   child: Builder(
     builder: (c) => SingleChildScrollView(
@@ -281,12 +290,13 @@ Future<void> showAdjustDialog(BuildContext context, WidgetRef ref, Product p) as
   final key = GlobalKey<FormState>();
   final qty = TextEditingController(text: Qty.format(p.stockQty));
   final reason = TextEditingController();
+  final l = context.l10n;
   var busy = false;
   Future<void> submit(BuildContext c) async {
     if (busy || !key.currentState!.validate()) return;
     final n = QtyField.parse(qty.text)!;
     if (Qty.round(n - p.stockQty) == 0) {
-      showError(c, 'Остаток не изменился');
+      showError(c, l.invStockUnchanged);
       return;
     }
     busy = true;
@@ -295,7 +305,7 @@ Future<void> showAdjustDialog(BuildContext context, WidgetRef ref, Product p) as
       () => ref
           .read(stockServiceProvider)
           .setStock(productId: p.id, newQty: n, reason: reason.text.trim(), userId: ref.read(sessionProvider)?.user.id),
-      success: 'Остаток исправлен',
+      success: l.invStockCorrected,
     );
     busy = false;
     if (ok && c.mounted) Navigator.pop(c);
@@ -303,7 +313,7 @@ Future<void> showAdjustDialog(BuildContext context, WidgetRef ref, Product p) as
 
   await showFormDialog<void>(
     context,
-    title: 'Корректировка остатка',
+    title: l.invAdjustTitle,
     width: 440,
     child: Builder(
       builder: (c) => Form(
@@ -315,11 +325,11 @@ Future<void> showAdjustDialog(BuildContext context, WidgetRef ref, Product p) as
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(p.name, style: Theme.of(c).textTheme.titleMedium),
-              Text('Учётный остаток: ${Qty.format(p.stockQty, p.unit)}'),
+              Text(l.invBookStock(Qty.format(p.stockQty, p.unit))),
               const SizedBox(height: Gap.m),
               QtyField(
                 controller: qty,
-                label: 'Фактический остаток',
+                label: l.invActualStock,
                 unit: p.unit,
                 allowZero: true,
                 autofocus: true,
@@ -328,14 +338,14 @@ Future<void> showAdjustDialog(BuildContext context, WidgetRef ref, Product p) as
               const SizedBox(height: Gap.m),
               TextFormField(
                 controller: reason,
-                decoration: const InputDecoration(labelText: 'Причина *'),
-                validator: (v) => (v ?? '').trim().isEmpty ? 'Укажите причину корректировки' : null,
+                decoration: InputDecoration(labelText: l.invReasonRequired),
+                validator: (v) => (v ?? '').trim().isEmpty ? l.invSpecifyAdjustReason : null,
                 onFieldSubmitted: (_) => submit(c),
               ),
               const SizedBox(height: Gap.s),
-              Text('Для полной проверки остатков используйте инвентаризацию.', style: Theme.of(c).textTheme.bodySmall),
+              Text(l.invUseCountHint, style: Theme.of(c).textTheme.bodySmall),
               const SizedBox(height: Gap.l),
-              FilledButton(onPressed: () => submit(c), child: const Text('Сохранить')),
+              FilledButton(onPressed: () => submit(c), child: Text(l.commonSave)),
             ],
           ),
         ),
@@ -346,7 +356,7 @@ Future<void> showAdjustDialog(BuildContext context, WidgetRef ref, Product p) as
 
 /// Last movements of a product.
 Future<void> showProductHistoryDialog(BuildContext context, Product p) =>
-    showFormDialog<void>(context, title: 'Движения: ${p.name}', width: 640, child: _ProductHistory(p));
+    showFormDialog<void>(context, title: context.l10n.invHistoryTitle(p.name), width: 640, child: _ProductHistory(p));
 
 final _productMovesProvider = StreamProvider.family<List<StockMovement>, String>((ref, id) {
   final db = ref.watch(databaseProvider);
@@ -369,9 +379,9 @@ class _ProductHistory extends ConsumerWidget {
       child: AsyncView(
         value: ref.watch(_productMovesProvider(p.id)),
         data: (list) => list.isEmpty
-            ? const SizedBox(
+            ? SizedBox(
                 height: 240,
-                child: EmptyState(icon: Icons.swap_vert, title: 'Движений пока нет'),
+                child: EmptyState(icon: Icons.swap_vert, title: context.l10n.invNoMovementsYet),
               )
             : ListView.separated(
                 shrinkWrap: true,
@@ -429,6 +439,7 @@ class MovementTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final sign = m.qty > 0 ? '+' : '';
     // On phones the type moves into the subtitle so the product name keeps
     // the width; wider layouts show a fixed-width chip column.
@@ -436,7 +447,7 @@ class MovementTile extends StatelessWidget {
     final details = [
       if (productName != null) formatDateTime(m.createdAt),
       if (m.reason != null && m.reason!.isNotEmpty) m.reason!,
-      if (m.unitCost > 0 && (m.type == 'receipt' || m.type == 'receipt_reversal')) 'цена ${Money.format(m.unitCost)}',
+      if (m.unitCost > 0 && (m.type == 'receipt' || m.type == 'receipt_reversal')) l.invPriceDetail(Money.format(m.unitCost)),
       ?userName,
     ].join(' · ');
     final color = movementColor(m.type);
@@ -453,7 +464,7 @@ class MovementTile extends StatelessWidget {
           children: [
             if (showType && compact)
               TextSpan(
-                text: details.isEmpty ? movementLabel(m.type) : '${movementLabel(m.type)} · ',
+                text: details.isEmpty ? movementLabel(m.type, l) : '${movementLabel(m.type, l)} · ',
                 style: TextStyle(color: color, fontWeight: FontWeight.w600),
               ),
             if (reference != null) ...[
@@ -479,7 +490,12 @@ class MovementTile extends StatelessWidget {
               width: 128,
               child: Align(
                 alignment: Alignment.centerLeft,
-                child: StatusChip(movementLabel(m.type), color: color),
+                // Longer uz/ky labels scale down instead of overflowing the slot.
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: StatusChip(movementLabel(m.type, l), color: color),
+                ),
               ),
             )
           : null,
@@ -495,7 +511,7 @@ class MovementTile extends StatelessWidget {
             ),
           ),
           Text(
-            'остаток ${Qty.format(m.qtyAfter, unit)}',
+            l.invStockAfter(Qty.format(m.qtyAfter, unit)),
             style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant),
           ),
         ],

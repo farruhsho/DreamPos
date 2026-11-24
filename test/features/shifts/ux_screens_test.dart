@@ -1,6 +1,7 @@
 import 'package:dreampos/domain/services/gift_card_service.dart';
 import 'package:dreampos/domain/services/shift_service.dart';
 import 'package:dreampos/features/shifts/z_report.dart';
+import 'package:dreampos/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -57,6 +58,8 @@ void main() {
       ));
       await gifts.voidSale(v.saleId, reason: 'Ошибка кассира', userId: h.owner.id, shiftId: shift.id);
     });
+    // Texts of the run's language (SCREENSHOTS_LOCALE).
+    final l = L.of(h.locale);
     final errs = <String>[];
     for (final size in ['desktop', 'tablet', 'phone']) {
       h.setSize(size);
@@ -79,14 +82,14 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('cash_expense')));
       await h.settle();
       errs.addAll(await h.shot('shifts_cash_expense'));
-      await tester.tap(find.text('Отмена').last);
+      await tester.tap(find.text(l.commonCancel).last);
       await h.settle();
       await reveal(tester, find.byKey(const ValueKey('cash_pay_in')));
       await h.settle();
       await tester.tap(find.byKey(const ValueKey('cash_pay_in')));
       await h.settle();
       errs.addAll(await h.shot('shifts_cash_pay_in'));
-      await tester.tap(find.text('Отмена').last);
+      await tester.tap(find.text(l.commonCancel).last);
       await h.settle();
 
       await reveal(tester, find.byKey(const ValueKey('close_shift')));
@@ -100,13 +103,13 @@ void main() {
       );
       await h.settle();
       errs.addAll(await h.shot('shifts_close_counted'));
-      await tester.tap(find.text('Отмена').last);
+      await tester.tap(find.text(l.commonCancel).last);
       await h.settle();
 
-      await tester.tap(find.text('История смен'));
+      await tester.tap(find.text(l.shiftTabHistory));
       await h.settle();
       errs.addAll(await h.shot('shifts_history'));
-      await tester.tap(find.text('Смена №1').hitTestable().last);
+      await tester.tap(find.text(l.shiftNumber('1')).hitTestable().last);
       await h.settle();
       errs.addAll(await h.shot('shifts_history_selected'));
       if (size == 'phone') {
@@ -114,7 +117,7 @@ void main() {
         Navigator.of(tester.element(find.byType(ZReportPanel))).pop();
         await h.settle();
       }
-      await tester.tap(find.text('Текущая смена'));
+      await tester.tap(find.text(l.shiftTabCurrent));
       await h.settle();
     }
     await h.finish();

@@ -5,28 +5,39 @@ import 'dart:math';
 
 import '../../core/db/database.dart';
 import '../../core/money.dart';
+import '../../l10n/l10n.dart';
 
 // ------------------------------------------------------------------ segments
 
 enum CustomerSegment {
-  all('Все'),
-  debtors('Должники'),
-  overdue('Просрочка'),
-  vip('VIP'),
-  sleeping('Спящие'),
-  birthdays('Именинники');
+  all,
+  debtors,
+  overdue,
+  vip,
+  sleeping,
+  birthdays;
 
-  const CustomerSegment(this.label);
-  final String label;
-
-  String get hint => switch (this) {
-        all => 'Все клиенты',
-        debtors => 'Клиенты с непогашенным долгом',
-        overdue => 'Срок оплаты долга прошёл',
-        vip => 'Топ-10% клиентов по сумме покупок',
-        sleeping => 'Не покупали больше $sleepingDays дней',
-        birthdays => 'День рождения в ближайшие $birthdayWindowDays дней',
+  String labelIn(AppLocalizations l) => switch (this) {
+        all => l.commonAll,
+        debtors => l.custSegDebtors,
+        overdue => l.custSegOverdue,
+        vip => l.custSegVip,
+        sleeping => l.custSegSleeping,
+        birthdays => l.custSegBirthdays,
       };
+
+  String get label => labelIn(L.current);
+
+  String hintIn(AppLocalizations l) => switch (this) {
+        all => l.custSegAllHint,
+        debtors => l.custSegDebtorsHint,
+        overdue => l.custSegOverdueHint,
+        vip => l.custSegVipHint,
+        sleeping => l.custSegSleepingHint('$sleepingDays'),
+        birthdays => l.custSegBirthdaysHint('$birthdayWindowDays'),
+      };
+
+  String get hint => hintIn(L.current);
 }
 
 const sleepingDays = 60;
@@ -131,15 +142,23 @@ DateTime? earliestUnpaidDue(Iterable<DebtCharge> charges, int debtBalance) {
 // ------------------------------------------------------------------ query
 
 enum CustomerSort {
-  name('По имени'),
-  lastVisit('По последнему визиту'),
-  spent('По сумме покупок'),
-  debt('По долгу'),
-  bonus('По бонусам'),
-  created('Сначала новые');
+  name,
+  lastVisit,
+  spent,
+  debt,
+  bonus,
+  created;
 
-  const CustomerSort(this.label);
-  final String label;
+  String labelIn(AppLocalizations l) => switch (this) {
+        name => l.custSortName,
+        lastVisit => l.custSortLastVisit,
+        spent => l.custSortSpent,
+        debt => l.custSortDebt,
+        bonus => l.custSortBonus,
+        created => l.custSortCreated,
+      };
+
+  String get label => labelIn(L.current);
 }
 
 class CustomerQuery {
@@ -306,30 +325,38 @@ extension on String {
 
 // ------------------------------------------------------------------ labels
 
-String ledgerKindLabel(String kind) => switch (kind) {
-      'debt_sale' => 'Продажа в долг',
-      'debt_payment' => 'Погашение долга',
-      'debt_adjust' => 'Корректировка долга',
-      'bonus_earn' => 'Начисление бонусов',
-      'bonus_spend' => 'Списание бонусов',
-      'bonus_adjust' => 'Корректировка бонусов',
-      _ => kind,
-    };
+String ledgerKindLabel(String kind, [AppLocalizations? l]) {
+  final t = l ?? L.current;
+  return switch (kind) {
+    'debt_sale' => t.custLedgerDebtSale,
+    'debt_payment' => t.custLedgerDebtPayment,
+    'debt_adjust' => t.custLedgerDebtAdjust,
+    'bonus_earn' => t.custLedgerBonusEarn,
+    'bonus_spend' => t.custLedgerBonusSpend,
+    'bonus_adjust' => t.custLedgerBonusAdjust,
+    _ => kind,
+  };
+}
 
 bool isDebtKind(String kind) => kind.startsWith('debt_');
 
-String saleStatusLabel(String s) => switch (s) {
-      'completed' => 'Оплачен',
-      'voided' => 'Аннулирован',
-      'partially_returned' => 'Частичный возврат',
-      'returned' => 'Возвращён',
-      'held' => 'Отложен',
-      _ => s,
-    };
+String saleStatusLabel(String s, [AppLocalizations? l]) {
+  final t = l ?? L.current;
+  return switch (s) {
+    'completed' => t.custStatusCompleted,
+    'voided' => t.commonVoided,
+    'partially_returned' => t.custStatusPartReturned,
+    'returned' => t.custStatusReturned,
+    'held' => t.custStatusHeld,
+    _ => s,
+  };
+}
 
 // ------------------------------------------------------------------ texts
 
 /// Debt reminder for messengers / SMS (copied to clipboard, D-014).
+/// Customer-facing text: written in the receipt language ([L.receipt])
+/// unless [l] is given.
 String debtReminderText({
   required String name,
   required String store,
@@ -337,18 +364,20 @@ String debtReminderText({
   int overdue = 0,
   DateTime? dueDate,
   String? storePhone,
+  AppLocalizations? l,
 }) {
-  final b = StringBuffer('Здравствуйте, $name! Ваш долг в $store составляет ${Money.format(debt)}.');
+  final t = l ?? L.receipt;
+  final b = StringBuffer(t.custReminderGreeting(name, store, Money.format(debt)));
   if (overdue > 0) {
-    b.write(' Из них просрочено: ${Money.format(overdue)}.');
+    b.write(' ${t.custReminderOverdue(Money.format(overdue))}');
   } else if (dueDate != null) {
-    b.write(' Срок оплаты — до ${_d(dueDate)}.');
+    b.write(' ${t.custReminderDue(_d(dueDate))}');
   }
-  b.write(' Просим погасить задолженность при ближайшем посещении магазина.');
+  b.write(' ${t.custReminderAsk}');
   if (storePhone != null && storePhone.trim().isNotEmpty) {
-    b.write(' Телефон для связи: ${storePhone.trim()}.');
+    b.write(' ${t.custReminderPhone(storePhone.trim())}');
   }
-  b.write(' Спасибо!');
+  b.write(' ${t.custThanks}');
   return b.toString();
 }
 
@@ -381,11 +410,13 @@ String _csvCell(String? v) {
 }
 
 /// Semicolon-separated CSV (opens correctly in Excel with Russian locale).
-String customersCsv(List<Customer> list) {
+String customersCsv(List<Customer> list, [AppLocalizations? l]) {
+  final t = l ?? L.current;
   final b = StringBuffer()
     ..writeln([
-      'Имя', 'Телефон', 'Email', 'Карта', 'День рождения', 'Скидка %', 'Бонусы', 'Долг',
-      'Лимит долга', 'Сумма покупок', 'Визитов', 'Последний визит', 'Теги', 'Заметка',
+      t.commonPersonName, t.commonPhone, 'Email', t.custCsvCard, t.custBirthday, t.custCsvDiscount,
+      t.commonBonuses, t.commonDebt, t.custDebtLimit, t.custKpiSpent, t.custKpiVisits, t.custKpiLastVisit,
+      t.custTags, t.custNote,
     ].join(';'));
   for (final c in list) {
     b.writeln([

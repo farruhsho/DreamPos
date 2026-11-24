@@ -6,6 +6,7 @@ import '../../core/money.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
 import 'purchasing_logic.dart';
+import '../../l10n/l10n.dart';
 
 String _pct(double v) => '${v > 0 ? '+' : ''}${v.toStringAsFixed(1).replaceAll('.', ',')}%';
 
@@ -24,6 +25,7 @@ class _PriceControlTabState extends ConsumerState<PriceControlTab> {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final products = ref.watch(purProductMapProvider).value ?? const {};
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -35,21 +37,21 @@ class _PriceControlTabState extends ConsumerState<PriceControlTab> {
           children: [
             SizedBox(
               width: 320,
-              child: SearchField(hint: 'Товар', onChanged: (v) => setState(() => _q = v)),
+              child: SearchField(hint: l.commonProduct, onChanged: (v) => setState(() => _q = v)),
             ),
             SegmentedButton<int>(
               showSelectedIcon: false,
-              segments: const [
-                ButtonSegment(value: 30, label: Text('30 дн.')),
-                ButtonSegment(value: 90, label: Text('90 дн.')),
-                ButtonSegment(value: 180, label: Text('180 дн.')),
-                ButtonSegment(value: 365, label: Text('Год')),
+              segments: [
+                ButtonSegment(value: 30, label: Text(l.purDaysShort('30'))),
+                ButtonSegment(value: 90, label: Text(l.purDaysShort('90'))),
+                ButtonSegment(value: 180, label: Text(l.purDaysShort('180'))),
+                ButtonSegment(value: 365, label: Text(l.commonYear)),
               ],
               selected: {_days},
               onSelectionChanged: (v) => setState(() => _days = v.first),
             ),
             FilterChip(
-              label: const Text('Рост цены > 10%'),
+              label: Text(l.purPriceRiseFilter),
               selected: _spikesOnly,
               onSelected: (v) => setState(() => _spikesOnly = v),
             ),
@@ -76,23 +78,23 @@ class _PriceControlTabState extends ConsumerState<PriceControlTab> {
                   });
               final spikes = hist.values.where((v) => v.last.isSpike).length;
               if (hist.isEmpty) {
-                return const EmptyState(
+                return EmptyState(
                   icon: Icons.price_change_outlined,
-                  title: 'Приходов за период нет',
-                  message: 'История закупочных цен строится по приходам товара',
+                  title: l.purPricesEmpty,
+                  message: l.purPricesEmptyMessage,
                 );
               }
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    'Товаров с приходами: ${hist.length} · подорожали более чем на 10%: $spikes',
+                    l.purPricesSummary('${hist.length}', '$spikes'),
                     style: t.textTheme.bodySmall?.copyWith(color: spikes > 0 ? AppColors.danger : null),
                   ),
                   const SizedBox(height: Gap.s),
                   Expanded(
                     child: entries.isEmpty
-                        ? const EmptyState(icon: Icons.search_off, title: 'Нет товаров по фильтру')
+                        ? EmptyState(icon: Icons.search_off, title: l.purNoProductsForFilter)
                         : ListView.separated(
                             itemCount: entries.length,
                             separatorBuilder: (_, _) => const Divider(),
@@ -118,6 +120,7 @@ class _ProductHistory extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final last = points.last;
     final ch = last.changePercent;
     final color = ch == null || ch == 0
@@ -126,13 +129,13 @@ class _ProductHistory extends StatelessWidget {
     return ExpansionTile(
       title: Row(
         children: [
-          Flexible(child: Text(product?.name ?? 'Удалённый товар', maxLines: 1, overflow: TextOverflow.ellipsis)),
-          if (last.isSpike) ...[const SizedBox(width: Gap.s), const StatusChip('Рост > 10%', color: AppColors.danger)],
+          Flexible(child: Text(product?.name ?? l.purDeletedProduct, maxLines: 1, overflow: TextOverflow.ellipsis)),
+          if (last.isSpike) ...[const SizedBox(width: Gap.s), StatusChip(l.purPriceRiseChip, color: AppColors.danger)],
         ],
       ),
       subtitle: Text(
-        'последний приход ${formatDate(last.at)} · приходов ${points.length}'
-        '${product != null ? ' · розница ${Money.format(product!.price)}' : ''}',
+        l.purLastReceipt(formatDate(last.at), '${points.length}') +
+            (product != null ? l.purRetailSuffix(Money.format(product!.price)) : ''),
         style: t.textTheme.bodySmall,
       ),
       // Custom trailing keeps an expand chevron so the row reads as expandable.
@@ -146,7 +149,7 @@ class _ProductHistory extends StatelessWidget {
               Text(Money.format(last.unitCost), style: t.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700)),
               if (ch != null)
                 Text(
-                  ch == 0 ? 'без изменений' : _pct(ch),
+                  ch == 0 ? l.purNoChange : _pct(ch),
                   style: t.textTheme.bodySmall?.copyWith(
                     color: color ?? t.colorScheme.onSurfaceVariant,
                     fontWeight: ch == 0 ? null : FontWeight.w600,

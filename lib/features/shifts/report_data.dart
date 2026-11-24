@@ -3,6 +3,7 @@ import '../../core/db/database.dart';
 import '../../core/money.dart';
 import '../../core/widgets/widgets.dart' show formatDateTime;
 import '../../domain/services/sale_service.dart' show paymentMethodLabel;
+import '../../l10n/l10n.dart';
 import 'shift_logic.dart';
 
 /// One labelled line of a report.
@@ -37,7 +38,18 @@ class ZReportData {
   final bool showProfit;
 
   bool get isClosed => figures.shift.status == 'closed';
-  String get title => isClosed ? 'Z-отчёт' : 'X-отчёт';
+
+  /// Language of the printed report: the store's receipt language
+  /// (`receipt_locale`), like receipts and gift slips.
+  AppLocalizations get printL10n => L.forReceipt(settings);
+
+  /// «Z-отчёт» / «X-отчёт» in [l] (default: [printL10n]).
+  String titleIn([AppLocalizations? l]) {
+    final t = l ?? printL10n;
+    return isClosed ? t.shiftZReport : t.shiftXReport;
+  }
+
+  String get title => titleIn();
 
   static Future<ZReportData> load(AppDatabase db, String shiftId, {bool showProfit = false}) async {
     final f = await ShiftFigures.load(db, shiftId);
@@ -57,82 +69,87 @@ class ZReportData {
     );
   }
 
-  List<ReportSection> sections() {
+  /// Report sections in [l] (default: [printL10n]; the on-screen view passes
+  /// the UI language).
+  List<ReportSection> sections([AppLocalizations? l]) {
+    final t = l ?? printL10n;
     final r = figures.report;
     final s = figures.shift;
     String m(int v) => Money.format(v);
     final methods = r.byMethod.keys.toList()..sort();
     final refunds = r.refundsByMethod.keys.toList()..sort();
     return [
-      ReportSection('Смена', [
-        ReportLine('Смена №', '${s.number}'),
-        ReportLine('Открыта', '${formatDateTime(s.openedAt)} · $openedByName'),
-        if (s.closedAt != null) ReportLine('Закрыта', '${formatDateTime(s.closedAt!)} · ${closedByName ?? '—'}'),
+      ReportSection(t.commonShift, [
+        ReportLine(t.shiftZShiftNo, '${s.number}'),
+        ReportLine(t.shiftZOpened, '${formatDateTime(s.openedAt)} · $openedByName'),
+        if (s.closedAt != null) ReportLine(t.shiftZClosed, '${formatDateTime(s.closedAt!)} · ${closedByName ?? '—'}'),
       ]),
-      ReportSection('Продажи', [
-        ReportLine('Чеков', '${r.salesCount}'),
-        ReportLine('Сумма продаж', m(r.salesTotal), bold: true),
+      ReportSection(t.shiftSales, [
+        ReportLine(t.shiftZReceipts, '${r.salesCount}'),
+        ReportLine(t.shiftZSalesTotal, m(r.salesTotal), bold: true),
         for (final k in methods)
-          ReportLine('в т.ч. ${paymentMethodLabel(k).toLowerCase()}', m(r.byMethod[k]!), indent: true),
-        ReportLine('Скидки', m(r.discountTotal)),
-        ReportLine('Средний чек', m(figures.averageCheck)),
-        if (r.voidedCount > 0) ReportLine('Аннулировано чеков', '${r.voidedCount}'),
+          ReportLine(t.shiftZIncl(paymentMethodLabel(k, t).toLowerCase()), m(r.byMethod[k]!), indent: true),
+        ReportLine(t.shiftZDiscounts, m(r.discountTotal)),
+        ReportLine(t.shiftZAvgCheck, m(figures.averageCheck)),
+        if (r.voidedCount > 0) ReportLine(t.shiftZVoidedReceipts, '${r.voidedCount}'),
       ]),
-      ReportSection('Возвраты', [
-        ReportLine('Возвратов', '${r.returnsCount}'),
-        ReportLine('Сумма возвратов', m(r.returnsTotal), bold: true),
+      ReportSection(t.shiftReturns, [
+        ReportLine(t.shiftZReturnsCount, '${r.returnsCount}'),
+        ReportLine(t.shiftZReturnsTotal, m(r.returnsTotal), bold: true),
         for (final k in refunds)
-          ReportLine('в т.ч. ${paymentMethodLabel(k).toLowerCase()}', m(r.refundsByMethod[k]!), indent: true),
+          ReportLine(t.shiftZIncl(paymentMethodLabel(k, t).toLowerCase()), m(r.refundsByMethod[k]!), indent: true),
       ]),
       if (r.giftSalesCount > 0 || r.giftVoidsCount > 0)
-        ReportSection('Сертификаты', [
-          ReportLine('Продано', '${r.giftSalesCount}'),
-          ReportLine('Сумма продаж (аванс)', m(r.giftSalesTotal), bold: true),
+        ReportSection(t.shiftZGiftCards, [
+          ReportLine(t.shiftZSold, '${r.giftSalesCount}'),
+          ReportLine(t.shiftZGiftSalesTotal, m(r.giftSalesTotal), bold: true),
           for (final k in _sortedKeys(r.giftSalesByMethod))
-            ReportLine('в т.ч. ${paymentMethodLabel(k).toLowerCase()}', m(r.giftSalesByMethod[k]!), indent: true),
+            ReportLine(t.shiftZIncl(paymentMethodLabel(k, t).toLowerCase()), m(r.giftSalesByMethod[k]!), indent: true),
           if (r.giftVoidsCount > 0) ...[
-            ReportLine('Аннулировано', '${r.giftVoidsCount}'),
-            ReportLine('Возвращено покупателям', '−${m(r.giftRefundsTotal)}', bold: true),
+            ReportLine(t.shiftZVoided, '${r.giftVoidsCount}'),
+            ReportLine(t.shiftZRefundedToBuyers, '−${m(r.giftRefundsTotal)}', bold: true),
             for (final k in _sortedKeys(r.giftRefundsByMethod))
-              ReportLine('в т.ч. ${paymentMethodLabel(k).toLowerCase()}', '−${m(r.giftRefundsByMethod[k]!)}', indent: true),
+              ReportLine(t.shiftZIncl(paymentMethodLabel(k, t).toLowerCase()), '−${m(r.giftRefundsByMethod[k]!)}',
+                  indent: true),
           ],
-          ReportLine('Влияние на кассу (нал.)', _signed(r.giftCashNet, m), bold: true),
-          const ReportLine('аванс, не входит в выручку', '', indent: true),
+          ReportLine(t.shiftZCashImpact, _signed(r.giftCashNet, m), bold: true),
+          ReportLine(t.shiftZAdvanceNote, '', indent: true),
         ]),
-      ReportSection('Итог', [
-        ReportLine('Выручка (за вычетом возвратов)', m(figures.netRevenue), bold: true),
-        if (showProfit) ReportLine('Себестоимость', m(figures.netCost)),
-        if (showProfit) ReportLine('Валовая прибыль', m(figures.grossProfit), bold: true),
+      ReportSection(t.shiftZSummary, [
+        ReportLine(t.shiftZNetRevenue, m(figures.netRevenue), bold: true),
+        if (showProfit) ReportLine(t.commonCost, m(figures.netCost)),
+        if (showProfit) ReportLine(t.shiftGrossProfit, m(figures.grossProfit), bold: true),
       ]),
-      ReportSection('Касса (наличные)', [
-        ReportLine('Размен на начало', m(s.openingCash)),
-        ReportLine('Наличные продажи', m(r.cashSales)),
-        ReportLine('Наличные возвраты', '−${m(r.cashRefunds)}'),
+      ReportSection(t.shiftZCash, [
+        ReportLine(t.shiftZOpeningCash, m(s.openingCash)),
+        ReportLine(t.shiftZCashSales, m(r.cashSales)),
+        ReportLine(t.shiftZCashRefunds, '−${m(r.cashRefunds)}'),
         for (final k in cashKinds)
           if ((figures.movementsByKind[k] ?? 0) > 0) ...[
-            ReportLine(cashKindLabel(k), '${cashKindIsIn(k) ? '+' : '−'}${m(figures.movementsByKind[k]!)}'),
+            ReportLine(cashKindLabel(k, t), '${cashKindIsIn(k) ? '+' : '−'}${m(figures.movementsByKind[k]!)}'),
             // Expense categories belong right under the "Расход" line.
             if (k == 'expense')
-              for (final e in figures.expensesByCategory.entries) ReportLine(e.key, m(e.value), indent: true),
+              for (final e in figures.expensesByCategory.entries)
+                ReportLine(expenseCategoryLabel(e.key, t), m(e.value), indent: true),
           ],
-        ReportLine('Погашение долгов (нал.)', m(r.debtCollectedCash)),
-        if (r.debtCollectedNonCash > 0) ReportLine('Погашение долгов (безнал.)', m(r.debtCollectedNonCash)),
-        if (r.supplierCashPaid > 0) ReportLine('Оплаты поставщикам', '−${m(r.supplierCashPaid)}'),
+        ReportLine(t.shiftZDebtCash, m(r.debtCollectedCash)),
+        if (r.debtCollectedNonCash > 0) ReportLine(t.shiftZDebtNonCash, m(r.debtCollectedNonCash)),
+        if (r.supplierCashPaid > 0) ReportLine(t.shiftZSupplierPaid, '−${m(r.supplierCashPaid)}'),
         if (r.giftCashNet != 0)
-          ReportLine('Сертификаты (нал., аванс)', _signed(r.giftCashNet, m)),
-        ReportLine('Ожидается в кассе', m(figures.expectedForDiff), bold: true),
-        if (s.countedCash != null) ReportLine('Фактически', m(s.countedCash!), bold: true),
+          ReportLine(t.shiftZGiftCash, _signed(r.giftCashNet, m)),
+        ReportLine(t.shiftExpectedInDrawer, m(figures.expectedForDiff), bold: true),
+        if (s.countedCash != null) ReportLine(t.shiftZActual, m(s.countedCash!), bold: true),
         if (figures.difference != null)
           ReportLine(
             figures.difference! < 0
-                ? 'Недостача'
+                ? t.shiftShortage
                 : figures.difference! > 0
-                ? 'Излишек'
-                : 'Расхождение',
+                ? t.shiftSurplus
+                : t.shiftDifference,
             m(figures.difference!),
             bold: true,
           ),
-        if ((s.note ?? '').isNotEmpty) ReportLine('Примечание', s.note!),
+        if ((s.note ?? '').isNotEmpty) ReportLine(t.commonNote, s.note!),
       ]),
     ];
   }
@@ -142,8 +159,9 @@ class ZReportData {
 
   static String _signed(int v, String Function(int) m) => v == 0 ? m(0) : '${v < 0 ? '−' : '+'}${m(v.abs())}';
 
-  /// Monospace layout for receipt printers.
+  /// Monospace layout for receipt printers, in [printL10n].
   String toText({int width = 42}) {
+    final t = printL10n;
     final b = StringBuffer();
     String center(String t) {
       if (t.length >= width) return t;
@@ -163,9 +181,9 @@ class ZReportData {
 
     final store = settings['store_name'];
     if (store != null && store.isNotEmpty) b.writeln(center(store));
-    b.writeln(center(title.toUpperCase()));
-    b.writeln(center('Печать: ${formatDateTime(DateTime.now())}'));
-    for (final sec in sections()) {
+    b.writeln(center(titleIn(t).toUpperCase()));
+    b.writeln(center(t.shiftZPrinted(formatDateTime(DateTime.now()))));
+    for (final sec in sections(t)) {
       b.writeln('-' * width);
       b.writeln(sec.title.toUpperCase());
       for (final l in sec.lines) {
@@ -175,10 +193,10 @@ class ZReportData {
     b.writeln('-' * width);
     if (isClosed) {
       b.writeln();
-      b.writeln('Кассир: ______________');
+      b.writeln('${t.shiftZCashierSign}: ______________');
       b.writeln();
-      b.writeln('Принял: ______________');
+      b.writeln('${t.shiftZReceivedSign}: ______________');
     }
-    return b.toString();
+    return L.printable(b.toString());
   }
 }

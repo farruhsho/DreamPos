@@ -1,0 +1,21 @@
+{
+  "navDashboard": "Обзор",
+  "navPos": "Касса",
+  "navSales": "Чеки",
+  "navShifts": "Смена",
+  "navProducts": "Товары",
+  "navInventory": "Склад",
+  "navPurchasing": "Закупки",
+  "navCustomers": "Клиенты",
+  "navMarketing": "Маркетинг",
+  "navWarranty": "Гарантия",
+  "navReports": "Отчёты",
+  "navStaff": "Сотрудники",
+  "navSettings": "Настройки",
+  "navNotifications": "Уведомления",
+  "appMenu": "Меню",
+  "appShiftClosed": "Смена закрыта",
+  "appShiftChip": "Смена №{number} · с {time}",
+  "appProfile": "Профиль",
+  "appLockSwitch": "Заблокировать / сменить кассира"
+}

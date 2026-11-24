@@ -10,6 +10,7 @@ import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
 import 'purchasing_logic.dart';
+import '../../l10n/l10n.dart';
 
 const _noSupplier = '';
 const reorderTargetDaysKey = 'reorder_target_days';
@@ -86,7 +87,7 @@ class _ReorderTabState extends ConsumerState<ReorderTab> {
     if (_rows == null && _error == null) return; // already loading
     final d = int.tryParse(_days.text.trim());
     if (d == null || d < 1 || d > 365) {
-      showError(context, 'Укажите запас от 1 до 365 дней');
+      showError(context, context.l10n.purReorderDaysInvalid);
       return;
     }
     _target = d;
@@ -107,7 +108,7 @@ class _ReorderTabState extends ConsumerState<ReorderTab> {
       }
       for (final r in sel) {
         if (!Qty.isFractional(r.s.product.unit) && r.q != r.q.roundToDouble()) {
-          showError(context, '«${r.s.product.name}»: только целое количество');
+          showError(context, context.l10n.purErrWholeQty(r.s.product.name));
           return;
         }
       }
@@ -120,18 +121,19 @@ class _ReorderTabState extends ConsumerState<ReorderTab> {
     if (payload.isEmpty) {
       showError(
         context,
-        skipped > 0 ? 'Выберите поставщика для товаров без поставщика' : 'Не выбрано ни одной позиции',
+        skipped > 0 ? context.l10n.purReorderAssignSupplier : context.l10n.purReorderNothingSelected,
       );
       return;
     }
+    final loc = context.l10n;
     final ok = await confirm(
       context,
-      title: 'Создать заказы?',
+      title: loc.purReorderConfirmTitle,
       message:
-          'Будет создано черновиков: ${payload.length}\n'
-          '${payload.entries.map((e) => '• ${names[e.key]}: ${e.value.length} поз.').join('\n')}'
-          '${skipped > 0 ? '\n\n$skipped поз. без поставщика пропущены' : ''}',
-      ok: 'Создать',
+          '${loc.purReorderConfirmHead('${payload.length}')}\n'
+          '${payload.entries.map((e) => loc.purReorderConfirmLine('${names[e.key]}', '${e.value.length}')).join('\n')}'
+          '${skipped > 0 ? '\n\n${loc.purReorderSkipped('$skipped')}' : ''}',
+      ok: loc.commonCreate,
     );
     if (!ok || !mounted) return;
     setState(() => _busy = true);
@@ -140,7 +142,7 @@ class _ReorderTabState extends ConsumerState<ReorderTab> {
       () => ref
           .read(purchasingRepoProvider)
           .createOrdersFromSuggestions(payload, userId: ref.read(sessionProvider)?.user.id),
-      success: 'Создано черновиков заказов: ${payload.length}. Проверьте их во вкладке «Заказы»',
+      success: loc.purReorderCreated('${payload.length}'),
     );
     if (!mounted) return;
     setState(() => _busy = false);
@@ -150,6 +152,7 @@ class _ReorderTabState extends ConsumerState<ReorderTab> {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final suppliers = ref.watch(purSuppliersProvider).value ?? const <Supplier>[];
     final names = {for (final s in suppliers) s.id: s.name};
     final canCost = ref.watch(sessionProvider)?.can(Perm.viewCost) ?? false;
@@ -164,13 +167,13 @@ class _ReorderTabState extends ConsumerState<ReorderTab> {
             controller: _days,
             keyboardType: TextInputType.number,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            decoration: const InputDecoration(labelText: 'Запас на, дней', suffixText: 'дн.'),
+            decoration: InputDecoration(labelText: l.purReorderDaysLabel, suffixText: l.purDaysSuffix),
             onSubmitted: (_) => _applyDays(),
           ),
         ),
-        OutlinedButton.icon(onPressed: _applyDays, icon: const Icon(Icons.refresh), label: const Text('Пересчитать')),
+        OutlinedButton.icon(onPressed: _applyDays, icon: const Icon(Icons.refresh), label: Text(l.purRecalculate)),
         Text(
-          'Средний расход считается по продажам за 30 дней; учтены остатки, минимум и уже заказанное.',
+          l.purReorderHint,
           style: t.textTheme.bodySmall,
         ),
       ],
@@ -182,10 +185,10 @@ class _ReorderTabState extends ConsumerState<ReorderTab> {
     } else if (_rows == null) {
       body = const LoadingView();
     } else if (_rows!.isEmpty) {
-      body = const EmptyState(
+      body = EmptyState(
         icon: Icons.thumb_up_alt_outlined,
-        title: 'Заказывать нечего',
-        message: 'Запасов хватает на выбранный период. Задайте минимальные остатки в карточках товаров.',
+        title: l.purReorderEmpty,
+        message: l.purReorderEmptyMessage,
       );
     } else {
       final groups = groupBy<_Row, String>(_rows!, (r) {
@@ -210,11 +213,11 @@ class _ReorderTabState extends ConsumerState<ReorderTab> {
             padding: const EdgeInsets.only(top: Gap.s),
             child: Row(
               children: [
-                Expanded(child: Text('Выбрано позиций: $selectedCount', style: t.textTheme.titleSmall)),
+                Expanded(child: Text(l.purSelectedCount('$selectedCount'), style: t.textTheme.titleSmall)),
                 FilledButton.icon(
                   onPressed: _busy || selectedCount == 0 ? null : () => _createOrders(groups, names),
                   icon: const Icon(Icons.playlist_add_check),
-                  label: const Text('Создать заказы'),
+                  label: Text(l.purCreateOrders),
                 ),
               ],
             ),
@@ -238,6 +241,7 @@ class _ReorderTabState extends ConsumerState<ReorderTab> {
 
   Widget _group(String key, List<_Row> rows, List<Supplier> suppliers, Map<String, String> names, bool canCost) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final total = rows.where((r) => r.selected).fold<int>(0, (s, r) => s + (r.q * r.s.product.costPrice).round());
     final allSel = rows.every((r) => r.selected);
     return Card(
@@ -259,7 +263,7 @@ class _ReorderTabState extends ConsumerState<ReorderTab> {
                 ),
                 Expanded(
                   child: Text(
-                    key == _noSupplier ? 'Без поставщика' : names[key] ?? '—',
+                    key == _noSupplier ? l.purNoSupplier : names[key] ?? '—',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: t.textTheme.titleMedium,
@@ -274,9 +278,9 @@ class _ReorderTabState extends ConsumerState<ReorderTab> {
                 child: DropdownButtonFormField<String>(
                   key: ValueKey('assign${suppliers.length}'),
                   isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Заказать у поставщика',
-                    helperText: 'У этих товаров поставщик не указан в карточке',
+                  decoration: InputDecoration(
+                    labelText: l.purOrderFromSupplier,
+                    helperText: l.purNoSupplierHelper,
                   ),
                   initialValue: names.containsKey(_assign[_noSupplier]) ? _assign[_noSupplier] : null,
                   items: [
@@ -299,6 +303,7 @@ class _ReorderTabState extends ConsumerState<ReorderTab> {
 
   Widget _row(_Row r, bool canCost) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final p = r.s.product;
     final cover = r.s.daysOfCover;
     final urgent = p.stockQty <= 0 || (cover != null && cover < 3);
@@ -308,18 +313,18 @@ class _ReorderTabState extends ConsumerState<ReorderTab> {
         Row(
           children: [
             Flexible(child: Text(p.name, maxLines: 2, overflow: TextOverflow.ellipsis)),
-            if (urgent) ...[const SizedBox(width: Gap.s), const StatusChip('Срочно', color: AppColors.danger)],
+            if (urgent) ...[const SizedBox(width: Gap.s), StatusChip(l.purUrgent, color: AppColors.danger)],
           ],
         ),
         Text(
           [
-            'остаток ${Qty.format(p.stockQty, p.unit)}',
-            if (p.minStock > 0) 'мин. ${Qty.format(p.minStock)}',
-            'продаж/день ${r.s.avgDaily.toStringAsFixed(r.s.avgDaily >= 10 ? 0 : 2).replaceAll('.', ',')}',
+            l.purStockValue(Qty.format(p.stockQty, p.unit)),
+            if (p.minStock > 0) l.purMinValue(Qty.format(p.minStock)),
+            l.purSalesPerDay(r.s.avgDaily.toStringAsFixed(r.s.avgDaily >= 10 ? 0 : 2).replaceAll('.', ',')),
             cover == null
-                ? 'продаж не было'
-                : 'хватит на ${cover.toStringAsFixed(cover >= 10 ? 0 : 1).replaceAll('.', ',')} дн.',
-            if (r.s.onOrder > 0) 'уже в заказах ${Qty.format(r.s.onOrder)}',
+                ? l.purNoSales
+                : l.purCoverDays(cover.toStringAsFixed(cover >= 10 ? 0 : 1).replaceAll('.', ',')),
+            if (r.s.onOrder > 0) l.purOnOrderValue(Qty.format(r.s.onOrder)),
           ].join(' · '),
           style: t.textTheme.bodySmall?.copyWith(color: urgent ? AppColors.danger : t.colorScheme.onSurfaceVariant),
         ),
@@ -381,8 +386,8 @@ class _ReorderTabState extends ConsumerState<ReorderTab> {
 
   String? _qtyError(_Row r) {
     final q = QtyField.parse(r.qty.text);
-    if (q == null || q <= 0) return 'больше 0';
-    if (!Qty.isFractional(r.s.product.unit) && q != q.roundToDouble()) return 'целое';
+    if (q == null || q <= 0) return context.l10n.purQtyMoreThanZero;
+    if (!Qty.isFractional(r.s.product.unit) && q != q.roundToDouble()) return context.l10n.purQtyWhole;
     return null;
   }
 }

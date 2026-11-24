@@ -9,6 +9,7 @@ import '../../core/money.dart';
 import '../../core/printing/pdf_fonts.dart';
 import '../../core/widgets/widgets.dart' show formatDate, formatDateTime;
 import 'inventory_logic.dart';
+import '../../l10n/l10n.dart';
 
 /// Count sheet for counting by hand: blank «Факт» column.
 Future<Uint8List> buildCountSheetPdf({
@@ -19,6 +20,7 @@ Future<Uint8List> buildCountSheetPdf({
   pw.ThemeData? theme,
 }) async {
   final doc = pw.Document(theme: theme ?? await PdfFonts.theme());
+  final l = L.current;
   const headerStyle = pw.TextStyle(fontSize: 9);
   doc.addPage(
     pw.MultiPage(
@@ -31,14 +33,14 @@ Future<Uint8List> buildCountSheetPdf({
             mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
             children: [
               pw.Text(
-                'Инвентаризационная ведомость №${count.number}',
+                L.printable(l.invSheetTitle('${count.number}')),
                 style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
               ),
-              pw.Text('стр. ${ctx.pageNumber}/${ctx.pagesCount}', style: headerStyle),
+              pw.Text(L.printable(l.invPageOf('${ctx.pageNumber}', '${ctx.pagesCount}')), style: headerStyle),
             ],
           ),
           pw.Text(
-            '$storeName · создана ${formatDateTime(count.createdAt)} · позиций ${lines.length}',
+            L.printable(l.invSheetSubtitle(storeName, formatDateTime(count.createdAt), '${lines.length}')),
             style: headerStyle,
           ),
           if (count.note != null) pw.Text(count.note!, style: headerStyle),
@@ -51,9 +53,9 @@ Future<Uint8List> buildCountSheetPdf({
               child: pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
-                  pw.Text('Считал: ____________________', style: headerStyle),
-                  pw.Text('Проверил: ____________________', style: headerStyle),
-                  pw.Text('Дата: ${formatDate(DateTime.now())}', style: headerStyle),
+                  pw.Text(L.printable(l.invCountedBy), style: headerStyle),
+                  pw.Text(L.printable(l.invCheckedBy), style: headerStyle),
+                  pw.Text(L.printable(l.invDateLine(formatDate(DateTime.now()))), style: headerStyle),
                 ],
               ),
             )
@@ -73,14 +75,17 @@ Future<Uint8List> buildCountSheetPdf({
             (showExpected ? 5 : 4): const pw.FixedColumnWidth(64),
           },
           cellAlignments: {0: pw.Alignment.centerRight, if (showExpected) 4: pw.Alignment.centerRight},
-          headers: ['№', 'Товар', 'Штрихкод / арт.', 'Ед.', if (showExpected) 'Учёт', 'Факт'],
+          headers: [
+            for (final h in [l.invNoHeader, l.commonProduct, l.invBarcodeSku, l.invUnitShort, if (showExpected) l.invBook, l.invFact])
+              L.printable(h),
+          ],
           data: [
             for (var i = 0; i < lines.length; i++)
               [
                 '${i + 1}',
                 lines[i].name,
                 lines[i].product?.barcode ?? lines[i].product?.sku ?? '',
-                Qty.unitLabel(lines[i].unit),
+                L.printable(Qty.unitLabel(lines[i].unit, l)),
                 if (showExpected) Qty.format(lines[i].item.expectedQty),
                 lines[i].item.countedQty == null ? '' : Qty.format(lines[i].item.countedQty!),
               ],
@@ -101,7 +106,7 @@ Future<void> printCountSheet(
   final lines = await repo.loadLines(count.id);
   final store = await db.getSetting('store_name') ?? 'DreamPOS';
   await Printing.layoutPdf(
-    name: 'Инвентаризация ${count.number}',
+    name: L.printable(L.current.invCountFileName('${count.number}')),
     format: PdfPageFormat.a4,
     onLayout: (_) => buildCountSheetPdf(count: count, lines: lines, storeName: store, showExpected: showExpected),
   );
@@ -119,6 +124,8 @@ Future<Uint8List> buildReceiptPdf({
   pw.ThemeData? theme,
 }) async {
   final doc = pw.Document(theme: theme ?? await PdfFonts.theme());
+  final l = L.current;
+  String p(String s) => L.printable(s);
   const small = pw.TextStyle(fontSize: 9);
   final bold = pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold);
   final reversed = receipt.status == ReceiptStatus.reversed;
@@ -129,8 +136,8 @@ Future<Uint8List> buildReceiptPdf({
     child: pw.RichText(
       text: pw.TextSpan(
         children: [
-          pw.TextSpan(text: '$label: ', style: small),
-          pw.TextSpan(text: value, style: bold),
+          pw.TextSpan(text: '${p(label)}: ', style: small),
+          pw.TextSpan(text: p(value), style: bold),
         ],
       ),
     ),
@@ -146,10 +153,10 @@ Future<Uint8List> buildReceiptPdf({
             mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
             children: [
               pw.Text(
-                'Приходная накладная №${receipt.number} от ${formatDate(receipt.createdAt)}',
+                p(l.invReceiptPdfTitle('${receipt.number}', formatDate(receipt.createdAt))),
                 style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
               ),
-              pw.Text('стр. ${ctx.pageNumber}/${ctx.pagesCount}', style: small),
+              pw.Text(p(l.invPageOf('${ctx.pageNumber}', '${ctx.pagesCount}')), style: small),
             ],
           ),
           pw.Text(storeName, style: small),
@@ -162,29 +169,31 @@ Future<Uint8List> buildReceiptPdf({
               child: pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
-                  pw.Text('Сдал: ____________________', style: small),
-                  pw.Text('Принял: ____________________', style: small),
+                  pw.Text(p(l.invHandedBy), style: small),
+                  pw.Text(p(l.invAcceptedByLine), style: small),
                 ],
               ),
             )
           : pw.SizedBox(),
       build: (_) => [
-        info('Поставщик', supplierName ?? 'Без поставщика'),
-        if (receipt.supplierInvoice != null) info('Накладная поставщика', receipt.supplierInvoice!),
-        if (orderNumber != null) info('Основание', 'Заказ поставщику №$orderNumber'),
-        info('Проведён', formatDateTime(receipt.createdAt)),
-        if (authorName != null) info('Принял', authorName),
-        if (receipt.note != null) info('Комментарий', receipt.note!),
+        info(l.commonSupplier, supplierName ?? l.invNoSupplier),
+        if (receipt.supplierInvoice != null) info(l.invSupplierInvoice, receipt.supplierInvoice!),
+        if (orderNumber != null) info(l.invBasis, l.invSupplierOrderRef('$orderNumber')),
+        info(l.invReceiptPosted, formatDateTime(receipt.createdAt)),
+        if (authorName != null) info(l.invAcceptedBy, authorName),
+        if (receipt.note != null) info(l.commonComment, receipt.note!),
         if (reversed)
           pw.Container(
             margin: const pw.EdgeInsets.only(top: 6),
             padding: const pw.EdgeInsets.all(6),
             decoration: pw.BoxDecoration(border: pw.Border.all(color: PdfColors.red700)),
             child: pw.Text(
-              'СТОРНИРОВАН'
-              '${receipt.reversedAt != null ? ' ${formatDateTime(receipt.reversedAt!)}' : ''}'
-              '${reversedByName != null ? ' · $reversedByName' : ''}'
-              '${receipt.reverseReason != null ? '\nПричина: ${receipt.reverseReason}' : ''}',
+              p(
+                '${l.invReversedCaps}'
+                '${receipt.reversedAt != null ? ' ${formatDateTime(receipt.reversedAt!)}' : ''}'
+                '${reversedByName != null ? ' · $reversedByName' : ''}'
+                '${receipt.reverseReason != null ? '\n${l.invReasonLine(receipt.reverseReason!)}' : ''}',
+              ),
               style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.red700),
             ),
           ),
@@ -210,14 +219,25 @@ Future<Uint8List> buildReceiptPdf({
             5: pw.Alignment.centerRight,
             if (anyPrice) 6: pw.Alignment.centerRight,
           },
-          headers: ['№', 'Товар', 'Кол-во', 'Ед.', 'Цена', 'Сумма', if (anyPrice) 'Новая розн.'],
+          headers: [
+            for (final h in [
+              l.invNoHeader,
+              l.commonProduct,
+              l.invQtyShort,
+              l.invUnitShort,
+              l.commonPrice,
+              l.commonAmount,
+              if (anyPrice) l.invNewRetailShort,
+            ])
+              p(h),
+          ],
           data: [
             for (var i = 0; i < lines.length; i++)
               [
                 '${i + 1}',
                 lines[i].name,
                 Qty.format(lines[i].item.qty),
-                Qty.unitLabel(lines[i].unit),
+                p(Qty.unitLabel(lines[i].unit, l)),
                 Money.format(lines[i].item.unitCost, withSymbol: false),
                 Money.format(lines[i].total, withSymbol: false),
                 if (anyPrice) lines[i].priceChanged ? Money.format(lines[i].item.newPrice!, withSymbol: false) : '',
@@ -230,9 +250,9 @@ Future<Uint8List> buildReceiptPdf({
           child: pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.end,
             children: [
-              pw.Text('Позиций: ${lines.length} · количество ${Qty.format(qtyTotal)}', style: small),
+              pw.Text(p(l.invTotalsLine('${lines.length}', Qty.format(qtyTotal))), style: small),
               pw.Text(
-                'Итого: ${Money.format(receipt.total)}',
+                p(l.invTotalLine(Money.format(receipt.total))),
                 style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
               ),
             ],
@@ -256,7 +276,7 @@ Future<void> printReceiptDocument(
 }) async {
   final store = await db.getSetting('store_name') ?? 'DreamPOS';
   await Printing.layoutPdf(
-    name: 'Приход ${receipt.number}',
+    name: L.printable(L.current.invReceiptFileName('${receipt.number}')),
     format: PdfPageFormat.a4,
     onLayout: (_) => buildReceiptPdf(
       receipt: receipt,

@@ -5,6 +5,7 @@ import '../../../core/money.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets/widgets.dart';
 import '../../../domain/services/sale_service.dart' show paymentMethodLabel;
+import '../../../l10n/l10n.dart';
 import '../data/gift_sales_report.dart';
 import '../data/period.dart';
 import '../data/report_queries.dart';
@@ -26,16 +27,17 @@ class _StaffTabState extends ConsumerState<StaffTab> {
 
   @override
   Widget build(BuildContext context) {
+    final l = context.l10n;
     final period = ref.watch(reportPeriodProvider);
     final rows = ref.watch(byStaffProvider((period, _g)));
     return AsyncView<List<StaffRow>>(
       value: rows,
       data: (list) {
         final total = list.fold<StaffRow>(
-            const StaffRow(userId: null, name: 'Итого'),
+            StaffRow(userId: null, name: l.commonTotal),
             (a, r) => StaffRow(
                 userId: null,
-                name: 'Итого',
+                name: l.commonTotal,
                 receipts: a.receipts + r.receipts,
                 revenue: a.revenue + r.revenue,
                 discounts: a.discounts + r.discounts,
@@ -59,17 +61,17 @@ class _StaffTabState extends ConsumerState<StaffTab> {
               RCell.money(r.net),
             ];
         final table = RTable(
-          title: _g == StaffGrouping.cashier ? 'Продажи по кассирам' : 'Продажи по продавцам',
-          subtitle: period.label,
-          columns: const [
-            RCol('Сотрудник'),
-            RCol('Чеков', numeric: true),
-            RCol('Продажи', numeric: true),
-            RCol('Средний чек', numeric: true),
-            RCol('Скидки', numeric: true, tooltip: 'Сумма скидок в чеках сотрудника и доля от суммы до скидок'),
-            RCol('Возвраты', numeric: true, tooltip: 'Возвраты по чекам этого сотрудника, оформленные в периоде'),
-            RCol('Аннулир.', numeric: true, tooltip: 'Аннулированные чеки'),
-            RCol('Чистая выручка', numeric: true),
+          title: _g == StaffGrouping.cashier ? l.repSalesByCashier : l.repSalesBySeller,
+          subtitle: period.labelIn(l),
+          columns: [
+            RCol(l.commonEmployee),
+            RCol(l.repReceipts, numeric: true),
+            RCol(l.repTabSales, numeric: true),
+            RCol(l.repAvgCheck, numeric: true),
+            RCol(l.repDiscounts, numeric: true, tooltip: l.repStaffDiscountsTooltip),
+            RCol(l.repReturns, numeric: true, tooltip: l.repStaffReturnsTooltip),
+            RCol(l.repColVoidedShort, numeric: true, tooltip: l.repVoidedReceipts),
+            RCol(l.repNetRevenue, numeric: true),
           ],
           rows: [for (final r in list) cells(r)],
           totals: list.isEmpty ? null : cells(total),
@@ -78,15 +80,15 @@ class _StaffTabState extends ConsumerState<StaffTab> {
           Align(
             alignment: Alignment.centerLeft,
             child: SegmentedButton<StaffGrouping>(
-              segments: const [
+              segments: [
                 ButtonSegment(
                     value: StaffGrouping.cashier,
-                    label: Text('Кассиры'),
-                    icon: Icon(Icons.point_of_sale_outlined)),
+                    label: Text(l.repCashiers),
+                    icon: const Icon(Icons.point_of_sale_outlined)),
                 ButtonSegment(
                     value: StaffGrouping.seller,
-                    label: Text('Продавцы'),
-                    icon: Icon(Icons.support_agent_outlined)),
+                    label: Text(l.repSellers),
+                    icon: const Icon(Icons.support_agent_outlined)),
               ],
               selected: {_g},
               onSelectionChanged: (s) => setState(() => _g = s.first),
@@ -95,7 +97,7 @@ class _StaffTabState extends ConsumerState<StaffTab> {
           const SizedBox(height: Gap.m),
           if (list.isNotEmpty) ...[
             SectionCard(
-              title: 'Чистая выручка по сотрудникам',
+              title: l.repNetRevenueByStaff,
               child: ShareBars(relativeToMax: true, items: [
                 for (final r in list.take(10))
                   ShareItem(r.name, r.net, trailing: Money.format(r.net)),
@@ -115,6 +117,7 @@ class PaymentsTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = context.l10n;
     final period = ref.watch(reportPeriodProvider);
     final pays = ref.watch(paymentsProvider(period));
     final debts = ref.watch(debtsProvider(period));
@@ -123,20 +126,20 @@ class PaymentsTab extends ConsumerWidget {
       data: (list) {
         final totalNet = list.fold<int>(0, (s, r) => s + r.net);
         final table = RTable(
-          title: 'Оплаты по способам',
-          subtitle: period.label,
-          columns: const [
-            RCol('Способ оплаты'),
-            RCol('Чеков', numeric: true),
-            RCol('Получено', numeric: true),
-            RCol('Возвращено', numeric: true),
-            RCol('Итого', numeric: true),
-            RCol('Доля', numeric: true),
+          title: l.repPaymentsByMethod,
+          subtitle: period.labelIn(l),
+          columns: [
+            RCol(l.commonPaymentMethod),
+            RCol(l.repReceipts, numeric: true),
+            RCol(l.repColReceived, numeric: true),
+            RCol(l.repColRefunded, numeric: true),
+            RCol(l.commonTotal, numeric: true),
+            RCol(l.repColShare, numeric: true),
           ],
           rows: [
             for (final r in list)
               [
-                RCell(paymentMethodLabel(r.method)),
+                RCell(paymentMethodLabel(r.method, l)),
                 RCell.integer(r.receipts),
                 RCell.money(r.paid),
                 RCell.money(r.refunded),
@@ -147,7 +150,7 @@ class PaymentsTab extends ConsumerWidget {
           totals: list.isEmpty
               ? null
               : [
-                  const RCell('Итого'),
+                  RCell(l.commonTotal),
                   RCell.integer(list.fold(0, (s, r) => s + r.receipts)),
                   RCell.money(list.fold(0, (s, r) => s + r.paid)),
                   RCell.money(list.fold(0, (s, r) => s + r.refunded)),
@@ -158,15 +161,15 @@ class PaymentsTab extends ConsumerWidget {
         return ListView(padding: const EdgeInsets.all(Gap.l), children: [
           TwoPane(
             left: SectionCard(
-              title: 'Структура оплат',
+              title: l.repPaymentsStructure,
               child: list.isEmpty
-                  ? const Padding(
-                      padding: EdgeInsets.symmetric(vertical: Gap.l),
-                      child: Center(child: Text('Нет оплат за период')),
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(vertical: Gap.l),
+                      child: Center(child: Text(l.repNoPayments)),
                     )
                   : ShareBars(items: [
                       for (final r in list)
-                        ShareItem(paymentMethodLabel(r.method), r.net,
+                        ShareItem(paymentMethodLabel(r.method, l), r.net,
                             trailing:
                                 '${Money.format(r.net)} · ${(totalNet == 0 ? 0 : r.net * 100 / totalNet).toStringAsFixed(0)}%',
                             color: paymentMethodColor(r.method)),
@@ -175,27 +178,27 @@ class PaymentsTab extends ConsumerWidget {
             right: AsyncView<DebtSummary>(
               value: debts,
               data: (d) => SectionCard(
-                title: 'Долги клиентов',
+                title: l.repCustomerDebts,
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   ResponsiveGrid(minTile: 160, maxColumns: 2, children: [
                     KpiTile(
-                      label: 'Выдано в долг',
+                      label: l.repDebtIssued,
                       value: Money.format(d.issued),
                       icon: Icons.call_made,
                       color: AppColors.warning,
                     ),
                     KpiTile(
-                      label: 'Погашено',
+                      label: l.repDebtCollected,
                       value: Money.format(d.collected),
                       icon: Icons.call_received,
                       color: AppColors.success,
                     ),
                   ]),
                   const SizedBox(height: Gap.m),
-                  _line(context, 'Корректировки (возвраты, аннулирования)', Money.format(d.adjusted)),
-                  _line(context, 'Изменение долга за период', Money.format(d.netChange)),
+                  _line(context, l.repDebtAdjusted, Money.format(d.adjusted)),
+                  _line(context, l.repDebtChange, Money.format(d.netChange)),
                   const Divider(height: Gap.l),
-                  _line(context, 'Текущий долг клиентов (${d.debtors})', Money.format(d.outstanding),
+                  _line(context, l.repDebtOutstanding('${d.debtors}'), Money.format(d.outstanding),
                       bold: true),
                 ]),
               ),
@@ -226,13 +229,14 @@ class _GiftSalesBlock extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = context.l10n;
     final gifts = ref.watch(giftSalesReportProvider(period));
     return gifts.when(
       loading: () => const SizedBox.shrink(),
       error: (e, _) => Padding(
         padding: const EdgeInsets.only(top: Gap.m),
         child: SectionCard(
-          title: giftSalesReportTitle,
+          title: l.repGiftSalesTitle,
           child: ErrorView(error: e, onRetry: () => ref.invalidate(giftSalesReportProvider(period))),
         ),
       ),
@@ -243,7 +247,7 @@ class _GiftSalesBlock extends ConsumerWidget {
           padding: const EdgeInsets.only(top: Gap.m),
           child: ReportTableCard(
             key: const ValueKey('gift-sales-report'),
-            table: giftSalesTable(g, period),
+            table: giftSalesTable(g, period, l),
             pageSize: 10,
             header: Padding(
               padding: const EdgeInsets.only(bottom: Gap.s),
@@ -254,7 +258,7 @@ class _GiftSalesBlock extends ConsumerWidget {
                   const SizedBox(width: Gap.xs),
                   Expanded(
                     child: Text(
-                      giftSalesReportHint,
+                      l.repGiftSalesHint,
                       style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant),
                     ),
                   ),

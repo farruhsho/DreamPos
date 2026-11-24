@@ -12,6 +12,7 @@ import '../../core/permissions.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
+import '../../l10n/l10n.dart';
 import 'product_logic.dart';
 import 'products_repo.dart';
 
@@ -51,11 +52,12 @@ String decodeCsvBytes(List<int> bytes) {
 // -------------------------------------------------------------------- import
 
 Future<void> showImportDialog(BuildContext context) =>
-    showFormDialog<void>(context, title: 'Импорт товаров из CSV', width: 980, child: const _ImportDialog());
+    showFormDialog<void>(context, title: context.l10n.prodImportTitle, width: 980, child: const _ImportDialog());
 
+// Example data for the «Пример» button (demo content, not translated).
 const _sample = 'name;barcode;sku;category;price;cost;unit;stock\n'
-    'Молоко 3,2% 1 л;4870001234561;M-001;Молочные;12000;9500;шт;24\n'
-    'Сахар;;S-010;Бакалея;"14 500";11000;кг;12,5';
+    'Молоко 3,2% 1 л;4870001234561;M-001;Молочные;12000;9500;шт;24\n' // l10n-ignore
+    'Сахар;;S-010;Бакалея;"14 500";11000;кг;12,5'; // l10n-ignore
 
 class _ImportDialog extends ConsumerStatefulWidget {
   const _ImportDialog();
@@ -83,19 +85,20 @@ class _ImportDialogState extends ConsumerState<_ImportDialog> {
     if (path.startsWith('"') && path.endsWith('"') && path.length > 1) {
       path = path.substring(1, path.length - 1);
     }
+    final l = context.l10n;
     if (path.isEmpty) {
-      showError(context, 'Введите путь к файлу .csv');
+      showError(context, l.prodImpEnterPath);
       return;
     }
     try {
       final f = File(path);
-      if (!await f.exists()) throw Exception('Файл не найден: $path');
+      if (!await f.exists()) throw Exception(l.prodImpFileNotFound(path));
       final len = await f.length();
-      if (len > 20 * 1024 * 1024) throw Exception('Файл больше 20 МБ');
+      if (len > 20 * 1024 * 1024) throw Exception(l.prodImpFileTooBig);
       final text = decodeCsvBytes(await f.readAsBytes());
       if (!mounted) return;
       setState(() => _text.text = text);
-      showSuccess(context, 'Файл загружен: ${p.basename(path)}');
+      showSuccess(context, l.prodImpFileLoaded(p.basename(path)));
     } catch (e) {
       if (mounted) showError(context, e);
     }
@@ -103,15 +106,16 @@ class _ImportDialogState extends ConsumerState<_ImportDialog> {
 
   Future<void> _check() async {
     if (_busy) return;
+    final l = context.l10n;
     if (_text.text.trim().isEmpty) {
-      showError(context, 'Вставьте данные из Excel или загрузите файл');
+      showError(context, l.prodImpPasteOrLoad);
       return;
     }
     setState(() => _busy = true);
     try {
       final parsed = parseImport(_text.text, currency: Money.currency);
-      if (parsed.rows.isEmpty) throw Exception('Нет строк с данными');
-      if (parsed.rows.length > 20000) throw Exception('Слишком много строк (${parsed.rows.length}). Разбейте файл на части до 20 000 строк.');
+      if (parsed.rows.isEmpty) throw Exception(l.prodImpNoRows);
+      if (parsed.rows.length > 20000) throw Exception(l.prodImpTooManyRows('${parsed.rows.length}'));
       final plan = await ref.read(productsRepoProvider).planImport(parsed.rows, updateExisting: _update);
       if (!mounted) return;
       setState(() {
@@ -129,8 +133,9 @@ class _ImportDialogState extends ConsumerState<_ImportDialog> {
     if (_busy) return;
     final plan = _plan!;
     final todo = plan.where((x) => x.action != ImportAction.skip).length;
+    final l = context.l10n;
     if (todo == 0) {
-      showError(context, 'Нечего импортировать — исправьте ошибки в данных');
+      showError(context, l.prodImpNothing);
       return;
     }
     final session = ref.read(sessionProvider)!;
@@ -143,9 +148,9 @@ class _ImportDialogState extends ConsumerState<_ImportDialog> {
       if (!mounted) return;
       showSuccess(
           context,
-          'Создано ${res.created}, обновлено ${res.updated}'
-          '${res.skipped > 0 ? ', пропущено ${res.skipped}' : ''}'
-          '${res.categoriesCreated > 0 ? ', новых категорий ${res.categoriesCreated}' : ''}');
+          '${l.prodImpDone('${res.created}', '${res.updated}')}'
+          '${res.skipped > 0 ? l.prodImpDoneSkipped('${res.skipped}') : ''}'
+          '${res.categoriesCreated > 0 ? l.prodImpDoneCategories('${res.categoriesCreated}') : ''}');
       Navigator.pop(context);
     } catch (e) {
       if (mounted) {
@@ -166,11 +171,10 @@ class _ImportDialogState extends ConsumerState<_ImportDialog> {
 
   Widget _input() {
     final t = Theme.of(context);
+    final l = context.l10n;
     return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Text(
-        'Скопируйте строки из Excel / Google Таблиц и вставьте ниже, либо укажите путь к файлу .csv. '
-        'Колонки: название; штрихкод; артикул; категория; цена; себестоимость; ед.; остаток. '
-        'Заголовок и разделитель (; , табуляция) определяются автоматически.',
+        l.prodImpIntro,
         style: t.textTheme.bodyMedium?.copyWith(color: t.colorScheme.onSurfaceVariant),
       ),
       const SizedBox(height: Gap.m),
@@ -181,8 +185,8 @@ class _ImportDialogState extends ConsumerState<_ImportDialog> {
           minLines: 8,
           maxLines: 16,
           style: const TextStyle(fontFamily: 'RobotoMono', fontSize: 13),
-          decoration: const InputDecoration(
-            hintText: 'Вставьте данные (Ctrl+V)…',
+          decoration: InputDecoration(
+            hintText: l.prodImpPasteHint,
             alignLabelWithHint: true,
           ),
         ),
@@ -191,14 +195,14 @@ class _ImportDialogState extends ConsumerState<_ImportDialog> {
       LayoutBuilder(builder: (context, c) {
         final field = TextField(
           controller: _path,
-          decoration: const InputDecoration(
-            labelText: 'Или путь к файлу',
-            hintText: r'C:\Users\...\товары.csv',
-            prefixIcon: Icon(Icons.insert_drive_file_outlined, size: 20),
+          decoration: InputDecoration(
+            labelText: l.prodImpOrPath,
+            hintText: l.prodImpPathHint,
+            prefixIcon: const Icon(Icons.insert_drive_file_outlined, size: 20),
           ),
           onSubmitted: (_) => _loadFile(),
         );
-        final load = OutlinedButton(onPressed: _loadFile, child: const Text('Загрузить'));
+        final load = OutlinedButton(onPressed: _loadFile, child: Text(l.prodImpLoad));
         if (c.maxWidth < 480) {
           // Phone: a path field squeezed next to the button is unreadable.
           return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -214,22 +218,21 @@ class _ImportDialogState extends ConsumerState<_ImportDialog> {
         contentPadding: EdgeInsets.zero,
         value: _update,
         onChanged: (v) => setState(() => _update = v),
-        title: const Text('Обновлять существующие товары по штрихкоду'),
-        subtitle: const Text('Иначе строки с уже известным штрихкодом пропускаются. '
-            'Остаток существующих товаров не меняется.'),
+        title: Text(l.prodImpUpdateExisting),
+        subtitle: Text(l.prodImpUpdateExistingHint),
       ),
       const SizedBox(height: Gap.s),
       Wrap(alignment: WrapAlignment.end, spacing: Gap.s, runSpacing: Gap.s, children: [
         TextButton.icon(
           onPressed: () => setState(() => _text.text = _sample),
           icon: const Icon(Icons.article_outlined),
-          label: const Text('Пример'),
+          label: Text(l.prodImpSample),
         ),
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')),
+        TextButton(onPressed: () => Navigator.pop(context), child: Text(l.commonCancel)),
         FilledButton.icon(
           onPressed: _busy ? null : _check,
           icon: const Icon(Icons.fact_check_outlined),
-          label: const Text('Проверить'),
+          label: Text(l.prodImpCheck),
         ),
       ]),
     ]);
@@ -250,22 +253,25 @@ class _ImportDialogState extends ConsumerState<_ImportDialog> {
     };
     newCats.removeAll(known);
     final canPrice = ref.read(sessionProvider)?.can(Perm.editPrices) ?? false;
+    final l = context.l10n;
 
     return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Wrap(spacing: Gap.s, runSpacing: Gap.s, children: [
-        StatusChip('Строк: ${plan.length}'),
-        StatusChip('Новых: $create', color: AppColors.success),
-        StatusChip('Обновить: $update', color: AppColors.info),
-        if (skip > 0) StatusChip('Пропуск/ошибки: $skip', color: AppColors.danger),
-        if (newCats.isNotEmpty) StatusChip('Новых категорий: ${newCats.length}', color: AppColors.warning),
-        StatusChip('Разделитель: ${parsed.delimiterLabel}${parsed.hasHeader ? ', с заголовком' : ', без заголовка'}',
+        StatusChip(l.prodImpRows('${plan.length}')),
+        StatusChip(l.prodImpNew('$create'), color: AppColors.success),
+        StatusChip(l.prodImpUpdateCount('$update'), color: AppColors.info),
+        if (skip > 0) StatusChip(l.prodImpSkipErrors('$skip'), color: AppColors.danger),
+        if (newCats.isNotEmpty) StatusChip(l.prodImpNewCategories('${newCats.length}'), color: AppColors.warning),
+        StatusChip(
+            parsed.hasHeader
+                ? l.prodImpDelimiterWithHeader(parsed.delimiterLabel)
+                : l.prodImpDelimiterNoHeader(parsed.delimiterLabel),
             color: t.colorScheme.outline),
       ]),
       if (update > 0 && !canPrice)
-        const Padding(
-          padding: EdgeInsets.only(top: Gap.s),
-          child: Text('У вас нет права менять цены: цены существующих товаров не обновятся.',
-              style: TextStyle(color: AppColors.warning)),
+        Padding(
+          padding: const EdgeInsets.only(top: Gap.s),
+          child: Text(l.prodImpNoPricePerm, style: const TextStyle(color: AppColors.warning)),
         ),
       const SizedBox(height: Gap.m),
       Flexible(
@@ -283,16 +289,16 @@ class _ImportDialogState extends ConsumerState<_ImportDialog> {
               final x = plan[i];
               final r = x.row;
               final (label, color) = switch (x.action) {
-                ImportAction.create => ('Новый', AppColors.success),
-                ImportAction.update => ('Обновить', AppColors.info),
-                ImportAction.skip => r.isValid ? ('Пропуск', AppColors.warning) : ('Ошибка', AppColors.danger),
+                ImportAction.create => (l.commonNew, AppColors.success),
+                ImportAction.update => (l.prodImpUpdate, AppColors.info),
+                ImportAction.skip => r.isValid ? (l.prodImpSkip, AppColors.warning) : (l.commonError, AppColors.danger),
               };
               final details = [
                 if (r.barcode != null) r.barcode!,
-                if (r.sku != null) 'арт. ${r.sku}',
+                if (r.sku != null) l.prodSkuShort(r.sku!),
                 if (r.category != null) r.category!,
                 if (r.price != null) Money.format(r.price!),
-                if (r.stock != null) 'ост. ${Qty.format(r.stock!, r.unit)}',
+                if (r.stock != null) l.prodStockAfterShort(Qty.format(r.stock!, r.unit, l)),
               ].join(' · ');
               final notes = [...r.warnings, ?x.note];
               return ListTile(
@@ -303,7 +309,7 @@ class _ImportDialogState extends ConsumerState<_ImportDialog> {
                       textAlign: TextAlign.right,
                       style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant)),
                 ),
-                title: Text(r.name.isEmpty ? '(без названия)' : r.name,
+                title: Text(r.name.isEmpty ? l.prodImpNoName : r.name,
                     maxLines: 1, overflow: TextOverflow.ellipsis),
                 subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   if (details.isNotEmpty) Text(details, maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -322,14 +328,14 @@ class _ImportDialogState extends ConsumerState<_ImportDialog> {
         TextButton.icon(
           onPressed: _busy ? null : () => setState(() => _plan = null),
           icon: const Icon(Icons.arrow_back),
-          label: const Text('Назад к данным'),
+          label: Text(l.prodImpBackToData),
         ),
         FilledButton.icon(
           onPressed: _busy || create + update == 0 ? null : _apply,
           icon: _busy
               ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
               : const Icon(Icons.file_download_done),
-          label: Text('Импортировать ${create + update}'),
+          label: Text(l.prodImpImportN('${create + update}')),
         ),
       ]),
     ]);
@@ -343,6 +349,7 @@ class _ImportDialogState extends ConsumerState<_ImportDialog> {
 Future<void> exportProductsCsv(BuildContext context, WidgetRef ref, ProductQuery q, {Set<String>? ids}) async {
   final session = ref.read(sessionProvider);
   final repo = ref.read(productsRepoProvider);
+  final l = context.l10n;
   String csv;
   try {
     csv = await repo.exportCsv(q, ids: ids, includeCost: session?.can(Perm.viewCost) ?? false);
@@ -353,7 +360,7 @@ Future<void> exportProductsCsv(BuildContext context, WidgetRef ref, ProductQuery
   // Count parsed rows (names may contain quoted line breaks), minus header.
   final count = parseCsvRows(csv, ';').length - 1;
   if (count <= 0) {
-    if (context.mounted) showError(context, 'Нет товаров для экспорта по текущему фильтру');
+    if (context.mounted) showError(context, l.prodExpNothing);
     return;
   }
   await Clipboard.setData(ClipboardData(text: csv));
@@ -363,7 +370,7 @@ Future<void> exportProductsCsv(BuildContext context, WidgetRef ref, ProductQuery
     final dir = await getApplicationDocumentsDirectory();
     final now = DateTime.now();
     String two(int v) => v.toString().padLeft(2, '0');
-    final name = 'dreampos_товары_${now.year}${two(now.month)}${two(now.day)}_${two(now.hour)}${two(now.minute)}.csv';
+    final name = 'dreampos_${l.prodExpFileStem}_${now.year}${two(now.month)}${two(now.day)}_${two(now.hour)}${two(now.minute)}.csv';
     path = p.join(dir.path, name);
     // BOM so Excel opens UTF-8 Cyrillic correctly.
     await File(path).writeAsString('\uFEFF$csv', encoding: utf8);
@@ -376,18 +383,18 @@ Future<void> exportProductsCsv(BuildContext context, WidgetRef ref, ProductQuery
     context: context,
     builder: (c) => AlertDialog(
       icon: const Icon(Icons.check_circle, color: AppColors.success, size: 36),
-      title: Text('Экспортировано товаров: $count'),
+      title: Text(l.prodExpDoneTitle('$count')),
       content: SizedBox(
         width: 460,
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Данные скопированы в буфер обмена — вставьте их в Excel (Ctrl+V).'),
+          Text(l.prodExpCopied),
           const SizedBox(height: Gap.m),
           if (path != null) ...[
-            const Text('Файл сохранён:'),
+            Text(l.prodExpSaved),
             const SizedBox(height: Gap.xs),
             SelectableText(path, style: const TextStyle(fontWeight: FontWeight.w600)),
           ] else
-            Text('Файл сохранить не удалось: ${errorText(saveError ?? '')}',
+            Text(l.prodExpSaveFailed(errorText(saveError ?? '')),
                 style: const TextStyle(color: AppColors.warning)),
         ]),
       ),
@@ -395,9 +402,9 @@ Future<void> exportProductsCsv(BuildContext context, WidgetRef ref, ProductQuery
         if (path != null)
           TextButton(
             onPressed: () => Clipboard.setData(ClipboardData(text: path!)),
-            child: const Text('Копировать путь'),
+            child: Text(l.prodExpCopyPath),
           ),
-        FilledButton(onPressed: () => Navigator.pop(c), child: const Text('Готово')),
+        FilledButton(onPressed: () => Navigator.pop(c), child: Text(l.commonDone)),
       ],
     ),
   );

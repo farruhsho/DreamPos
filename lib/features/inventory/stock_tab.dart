@@ -9,6 +9,7 @@ import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
 import 'inventory_logic.dart';
 import 'stock_dialogs.dart';
+import '../../l10n/l10n.dart';
 
 /// Filter chips: a wrapping group on wide screens, a single horizontally
 /// scrolling row on phones so filters don't eat the list's vertical space.
@@ -44,6 +45,7 @@ class _StockTabState extends ConsumerState<StockTab> {
 
   @override
   Widget build(BuildContext context) {
+    final l = context.l10n;
     final session = ref.watch(sessionProvider);
     final canCost = session?.can(Perm.viewCost) ?? false;
     final cats = ref.watch(invCategoriesProvider).value ?? const <Category>[];
@@ -61,21 +63,21 @@ class _StockTabState extends ConsumerState<StockTab> {
             SliverToBoxAdapter(child: _summary(val, canCost)),
             SliverToBoxAdapter(child: _filters(cats, val)),
             if (tracked.isEmpty)
-              const SliverFillRemaining(
+              SliverFillRemaining(
                 hasScrollBody: false,
                 child: EmptyState(
                   icon: Icons.inventory_2_outlined,
-                  title: 'Товаров пока нет',
-                  message: 'Добавьте товары в разделе «Товары», затем оформите приход.',
+                  title: l.invNoProductsTitle,
+                  message: l.invNoProductsMessage,
                 ),
               )
             else if (shown.isEmpty)
-              const SliverFillRemaining(
+              SliverFillRemaining(
                 hasScrollBody: false,
                 child: EmptyState(
                   icon: Icons.search_off,
-                  title: 'Ничего не найдено',
-                  message: 'Измените фильтры или запрос',
+                  title: l.commonNothingFound,
+                  message: l.invChangeFiltersOrQuery,
                 ),
               )
             else ...[
@@ -97,6 +99,7 @@ class _StockTabState extends ConsumerState<StockTab> {
   Widget _header(bool canCost) {
     final t = Theme.of(context);
     final st = t.textTheme.labelMedium?.copyWith(color: t.colorScheme.onSurfaceVariant);
+    final l = context.l10n;
     return LayoutBuilder(
       builder: (context, c) {
         if (c.maxWidth < 820) return const SizedBox.shrink();
@@ -108,11 +111,11 @@ class _StockTabState extends ConsumerState<StockTab> {
           padding: const EdgeInsets.fromLTRB(Gap.s, Gap.xs, Gap.s, Gap.xs),
           child: Row(
             children: [
-              Expanded(child: Text('Товар', style: st)),
-              if (canCost) col('Себестоимость', 130),
-              col('Цена', 130),
-              if (canCost) col('Сумма запаса', 150),
-              col('Остаток', 120),
+              Expanded(child: Text(l.commonProduct, style: st)),
+              if (canCost) col(l.commonCost, 130),
+              col(l.commonPrice, 130),
+              if (canCost) col(l.invStockValue, 150),
+              col(l.commonStock, 120),
               const SizedBox(width: 48),
             ],
           ),
@@ -122,24 +125,25 @@ class _StockTabState extends ConsumerState<StockTab> {
   }
 
   Widget _summary(StockValuation v, bool canCost) {
+    final l = context.l10n;
     final cards = <Widget>[
-      StatCard(label: 'Позиций на учёте', value: '${v.positions}', icon: Icons.inventory_2_outlined),
+      StatCard(label: l.invPositionsTracked, value: '${v.positions}', icon: Icons.inventory_2_outlined),
       if (canCost)
         StatCard(
-          label: 'Запас по себестоимости',
+          label: l.invStockAtCost,
           value: Money.format(v.costValue),
           icon: Icons.account_balance_wallet_outlined,
           color: AppColors.info,
         ),
       StatCard(
-        label: 'Запас в розничных ценах',
+        label: l.invStockAtRetail,
         value: Money.format(v.retailValue),
         icon: Icons.sell_outlined,
         color: AppColors.success,
-        hint: canCost ? 'Потенц. наценка ${Money.format(v.potentialMargin)}' : null,
+        hint: canCost ? l.invPotentialMargin(Money.format(v.potentialMargin)) : null,
       ),
       StatCard(
-        label: 'Мало / нет / минус',
+        label: l.invLowOutNegative,
         value: '${v.lowCount} / ${v.outCount} / ${v.negativeCount}',
         icon: Icons.warning_amber_rounded,
         color: AppColors.warning,
@@ -197,13 +201,14 @@ class _StockTabState extends ConsumerState<StockTab> {
       StockFilter.out => v.outCount,
       StockFilter.negative => v.negativeCount,
     };
+    final l = context.l10n;
     final catField = DropdownButtonFormField<String?>(
       key: ValueKey('cat$_categoryId${cats.length}'),
       initialValue: cats.any((c) => c.id == _categoryId) ? _categoryId : null,
       isExpanded: true,
-      decoration: const InputDecoration(labelText: 'Категория'),
+      decoration: InputDecoration(labelText: l.commonCategory),
       items: [
-        const DropdownMenuItem(value: null, child: Text('Все категории')),
+        DropdownMenuItem(value: null, child: Text(l.invAllCategories)),
         for (final c in cats)
           DropdownMenuItem(
             value: c.id,
@@ -212,7 +217,7 @@ class _StockTabState extends ConsumerState<StockTab> {
       ],
       onChanged: (v) => setState(() => _categoryId = v),
     );
-    final search = SearchField(hint: 'Название, артикул, штрихкод', onChanged: (v) => setState(() => _q = v));
+    final search = SearchField(hint: l.invSearchHint, onChanged: (v) => setState(() => _q = v));
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: Gap.m),
       child: Column(
@@ -243,7 +248,7 @@ class _StockTabState extends ConsumerState<StockTab> {
             children: [
               for (final f in StockFilter.values)
                 FilterChip(
-                  label: Text('${f.label} (${count(f)})'),
+                  label: Text('${f.labelIn(l)} (${count(f)})'),
                   selected: _filter == f,
                   onSelected: (_) => setState(() => _filter = f),
                 ),
@@ -270,16 +275,17 @@ class _StockRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final qtyColor = _qtyColor();
     final status = isNegative(p)
-        ? const StatusChip('Минус', color: AppColors.danger)
+        ? StatusChip(l.invFilterNegative, color: AppColors.danger)
         : isOut(p)
-        ? const StatusChip('Нет', color: AppColors.danger)
+        ? StatusChip(l.invStatusOut, color: AppColors.danger)
         : isLow(p)
-        ? const StatusChip('Мало', color: AppColors.warning)
+        ? StatusChip(l.invFilterLow, color: AppColors.warning)
         : null;
     final menu = PopupMenuButton<String>(
-      tooltip: 'Действия',
+      tooltip: l.commonActions,
       onSelected: (a) {
         switch (a) {
           case 'in':
@@ -292,31 +298,31 @@ class _StockRow extends ConsumerWidget {
             showProductHistoryDialog(context, p);
         }
       },
-      itemBuilder: (_) => const [
+      itemBuilder: (_) => [
         PopupMenuItem(
           value: 'in',
-          child: ListTile(leading: Icon(Icons.add_box_outlined), title: Text('Приход')),
+          child: ListTile(leading: const Icon(Icons.add_box_outlined), title: Text(l.invReceipt)),
         ),
         PopupMenuItem(
           value: 'off',
-          child: ListTile(leading: Icon(Icons.delete_sweep_outlined), title: Text('Списание')),
+          child: ListTile(leading: const Icon(Icons.delete_sweep_outlined), title: Text(l.invWriteoff)),
         ),
         PopupMenuItem(
           value: 'adj',
-          child: ListTile(leading: Icon(Icons.tune), title: Text('Корректировка')),
+          child: ListTile(leading: const Icon(Icons.tune), title: Text(l.invAdjustment)),
         ),
         PopupMenuItem(
           value: 'hist',
-          child: ListTile(leading: Icon(Icons.history), title: Text('Движения')),
+          child: ListTile(leading: const Icon(Icons.history), title: Text(l.invMovements)),
         ),
       ],
     );
     final sub = [
       ?category,
-      if (p.sku != null) 'арт. ${p.sku}',
+      if (p.sku != null) l.invSkuShort(p.sku!),
       if (p.barcode != null) p.barcode!,
-      if (p.minStock > 0) 'мин. ${Qty.format(p.minStock)}',
-      if (!p.isActive) 'не активен',
+      if (p.minStock > 0) l.invMinShort(Qty.format(p.minStock)),
+      if (!p.isActive) l.invInactive,
     ].join(' · ');
     final qty = Text(
       Qty.format(p.stockQty, p.unit),

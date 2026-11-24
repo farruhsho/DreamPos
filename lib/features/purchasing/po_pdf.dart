@@ -9,6 +9,7 @@ import '../../core/money.dart';
 import '../../core/printing/pdf_fonts.dart';
 import '../../core/widgets/widgets.dart' show formatDate;
 import 'purchasing_logic.dart';
+import '../../l10n/l10n.dart';
 
 /// Purchase order document (A4) to send to the supplier.
 Future<Uint8List> buildPoPdf({
@@ -19,6 +20,8 @@ Future<Uint8List> buildPoPdf({
   required Map<String, String> settings,
   pw.ThemeData? theme,
 }) async {
+  final l = L.current;
+  String pr(String s) => L.printable(s);
   final doc = pw.Document(theme: theme ?? await PdfFonts.theme());
   final cur = CurrencyConfig.fromSettings(settings);
   String money(int v) => Money.format(v, c: cur);
@@ -38,21 +41,26 @@ Future<Uint8List> buildPoPdf({
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
                 pw.Text(
-                  'Заказ поставщику №${order.number}',
+                  pr(l.purPoTitle('${order.number}')),
                   style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
                 ),
                 pw.Text(
-                  'от ${formatDate(order.createdAt)} · ${poStatusLabels[poDisplayStatusOf(order, items)] ?? order.status}',
+                  pr(
+                    l.purPoDated(
+                      formatDate(order.createdAt),
+                      poStatusLabelsOf(l)[poDisplayStatusOf(order, items)] ?? order.status,
+                    ),
+                  ),
                   style: small,
                 ),
                 if (order.expectedAt != null)
-                  pw.Text('Ожидаемая дата поставки: ${formatDate(order.expectedAt!)}', style: small),
+                  pw.Text(pr(l.purPoExpected(formatDate(order.expectedAt!))), style: small),
               ],
             ),
             pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.end,
               children: [
-                pw.Text(store, style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                pw.Text(pr(store), style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
                 if ((settings['store_address'] ?? '').isNotEmpty) pw.Text(settings['store_address']!, style: small),
                 if ((settings['store_phone'] ?? '').isNotEmpty) pw.Text(settings['store_phone']!, style: small),
               ],
@@ -60,11 +68,11 @@ Future<Uint8List> buildPoPdf({
           ],
         ),
         pw.SizedBox(height: 16),
-        pw.Text('Поставщик: ${supplier.name}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+        pw.Text(pr(l.purPoSupplier(supplier.name)), style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
         if (supplier.contactPerson != null || supplier.phone != null)
-          pw.Text([?supplier.contactPerson, ?supplier.phone].join(', '), style: small),
-        if (supplier.taxId != null) pw.Text('ИНН ${supplier.taxId}', style: small),
-        if (supplier.address != null) pw.Text(supplier.address!, style: small),
+          pw.Text(pr([?supplier.contactPerson, ?supplier.phone].join(', ')), style: small),
+        if (supplier.taxId != null) pw.Text(pr(l.purTaxIdValue(supplier.taxId!)), style: small),
+        if (supplier.address != null) pw.Text(pr(supplier.address!), style: small),
         pw.SizedBox(height: 12),
         pw.TableHelper.fromTextArray(
           headerStyle: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
@@ -82,7 +90,15 @@ Future<Uint8List> buildPoPdf({
             5: pw.Alignment.centerRight,
             6: pw.Alignment.centerRight,
           },
-          headers: ['№', 'Товар', 'Штрихкод / арт.', 'Кол-во', if (showReceived) 'Получено', 'Цена', 'Сумма'],
+          headers: [
+            l.purPoColNo,
+            l.commonProduct,
+            l.purPoColBarcode,
+            l.purPoColQty,
+            if (showReceived) l.purPoColReceived,
+            l.commonPrice,
+            l.commonAmount,
+          ].map(pr).toList(),
           data: [
             for (var i = 0; i < items.length; i++)
               () {
@@ -90,10 +106,10 @@ Future<Uint8List> buildPoPdf({
                 final p = products[it.productId];
                 return [
                   '${i + 1}',
-                  p?.name ?? '—',
+                  pr(p?.name ?? '—'),
                   p?.barcode ?? p?.sku ?? '',
-                  Qty.format(it.qty, p?.unit ?? 'pcs'),
-                  if (showReceived) Qty.format(it.receivedQty),
+                  pr(Qty.format(it.qty, p?.unit ?? 'pcs')),
+                  if (showReceived) pr(Qty.format(it.receivedQty)),
                   money(it.unitCost),
                   money((it.qty * it.unitCost).round()),
                 ];
@@ -104,17 +120,17 @@ Future<Uint8List> buildPoPdf({
         pw.Align(
           alignment: pw.Alignment.centerRight,
           child: pw.Text(
-            'Итого: ${money(items.fold(0, (s, i) => s + (i.qty * i.unitCost).round()))}',
+            pr(l.purPoTotal(money(items.fold(0, (s, i) => s + (i.qty * i.unitCost).round())))),
             style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
           ),
         ),
-        if (order.note != null) ...[pw.SizedBox(height: 12), pw.Text('Примечание: ${order.note}', style: small)],
+        if (order.note != null) ...[pw.SizedBox(height: 12), pw.Text(pr(l.purPoNote(order.note!)), style: small)],
         pw.SizedBox(height: 32),
         pw.Row(
           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
           children: [
-            pw.Text('Заказал: ____________________', style: small),
-            pw.Text('Поставщик: ____________________', style: small),
+            pw.Text(pr(l.purPoOrderedBy('____________________')), style: small),
+            pw.Text(pr(l.purPoSupplier('____________________')), style: small),
           ],
         ),
       ],
@@ -133,7 +149,7 @@ Future<Uint8List> _load(AppDatabase db, String orderId) async {
 }
 
 Future<void> printPo(AppDatabase db, PurchaseOrder o) => Printing.layoutPdf(
-  name: 'Заказ поставщику ${o.number}',
+  name: L.current.purPoPrintName('${o.number}'),
   format: PdfPageFormat.a4,
   onLayout: (_) => _load(db, o.id),
 );

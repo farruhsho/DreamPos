@@ -8,6 +8,7 @@ import '../../core/db/database.dart';
 import '../../core/providers.dart';
 import '../../domain/errors.dart';
 import '../../domain/services/stock_service.dart';
+import '../../l10n/l10n.dart';
 import 'warranty_logic.dart';
 
 class ClaimRow {
@@ -199,12 +200,12 @@ class WarrantyRepository {
     required String problem,
     required String userId,
   }) async {
-    if (problem.trim().isEmpty) throw BusinessException('Опишите неисправность');
-    if (saleItemId == null && productId == null) throw BusinessException('Выберите товар');
+    if (problem.trim().isEmpty) throw BusinessException(L.current.warrantyDescribeProblem);
+    if (saleItemId == null && productId == null) throw BusinessException(L.current.warrantySelectProduct);
     var pid = productId;
     if (saleItemId != null) {
       final si = await (db.select(db.saleItems)..where((i) => i.id.equals(saleItemId))).getSingleOrNull();
-      if (si == null) throw BusinessException('Позиция чека не найдена');
+      if (si == null) throw BusinessException(L.current.warrantyReceiptLineNotFound);
       pid ??= si.productId;
     }
     final serial = serialNumber?.trim();
@@ -234,7 +235,7 @@ class WarrantyRepository {
         userId: userId,
         entity: 'warranty_claim',
         entityId: id,
-        details: '№$number; ${problem.trim()}',
+        details: '№$number; ${problem.trim()}', // l10n-ignore: audit details are stored in the DB
       );
       return (db.select(db.warrantyClaims)..where((w) => w.id.equals(id))).getSingle();
     });
@@ -252,26 +253,31 @@ class WarrantyRepository {
     StockService? stock,
   }) async {
     final c = await (db.select(db.warrantyClaims)..where((w) => w.id.equals(claimId))).getSingleOrNull();
-    if (c == null) throw BusinessException('Заявка не найдена');
+    final l = L.current;
+    if (c == null) throw BusinessException(l.warrantyClaimNotFound);
     if (!canTransition(c.status, to)) {
-      throw BusinessException(
-        'Нельзя перевести заявку из «${warrantyStatusLabel(c.status)}» в «${warrantyStatusLabel(to)}»',
-      );
+      throw BusinessException(l.warrantyCannotTransition(warrantyStatusLabel(c.status, l), warrantyStatusLabel(to, l)));
     }
     final text = note?.trim() ?? '';
-    if (resolutionRequired(to) && text.isEmpty) throw BusinessException('Укажите решение по заявке');
+    if (resolutionRequired(to) && text.isEmpty) throw BusinessException(l.warrantyEnterClaimResolution);
     if (writeOff) {
-      if (to != WStatus.replaced) throw BusinessException('Списание возможно только при замене');
-      if (c.productId == null) throw BusinessException('В заявке не указан товар');
-      if (stock == null) throw BusinessException('Склад недоступен');
+      if (to != WStatus.replaced) throw BusinessException(l.warrantyWriteOffOnlyReplace);
+      if (c.productId == null) throw BusinessException(l.warrantyNoProductInClaim);
+      if (stock == null) throw BusinessException(l.warrantyStockUnavailable);
     }
     await db.transaction(() async {
       // re-check inside the transaction (another terminal may have moved it)
       final fresh = await (db.select(db.warrantyClaims)..where((w) => w.id.equals(claimId))).getSingle();
-      if (fresh.status != c.status) throw BusinessException('Заявка уже изменена другим пользователем');
+      if (fresh.status != c.status) throw BusinessException(l.warrantyChangedByOther);
       if (writeOff) {
-        // nested transaction (savepoint): rolled back together with the status
-        await stock!.writeOff(productId: c.productId!, qty: 1, reason: 'Гарантийная замена', userId: userId);
+        // nested transaction (savepoint): rolled back together with the status.
+        // The movement reason is stored in the DB and stays Russian (spec «Not translated»).
+        await stock!.writeOff(
+          productId: c.productId!,
+          qty: 1,
+          reason: 'Гарантийная замена', // l10n-ignore: stored movement reason
+          userId: userId,
+        );
       }
       await (db.update(db.warrantyClaims)..where((w) => w.id.equals(claimId))).write(
         WarrantyClaimsCompanion(
@@ -289,7 +295,8 @@ class WarrantyRepository {
         userId: userId,
         entity: 'warranty_claim',
         entityId: claimId,
-        details: '${c.status}→$to${writeOff ? '; списана 1 ед.' : ''}${text.isEmpty ? '' : '; $text'}',
+        // audit details are stored in the DB (not translated)
+        details: '${c.status}→$to${writeOff ? '; списана 1 ед.' : ''}${text.isEmpty ? '' : '; $text'}', // l10n-ignore
       );
     });
   }

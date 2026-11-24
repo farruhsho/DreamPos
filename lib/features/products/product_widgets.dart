@@ -4,6 +4,7 @@ import '../../core/db/database.dart';
 import '../../core/money.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
+import '../../l10n/l10n.dart';
 import 'product_logic.dart';
 
 /// Colored dot of a category (grey outline when there is none).
@@ -47,14 +48,15 @@ class StockBadge extends StatelessWidget {
     final p = product;
     final lvl = stockLevel(p);
     final scheme = Theme.of(context).colorScheme;
+    final l = context.l10n;
     final (Color? color, String tip) = switch (lvl) {
-      StockLevel.untracked => (null, 'Остаток не учитывается'),
-      StockLevel.ok => (null, 'В наличии'),
-      StockLevel.low => (AppColors.warning, 'Мало: минимум ${Qty.format(p.minStock, p.unit)}'),
-      StockLevel.out => (AppColors.danger, 'Нет в наличии'),
-      StockLevel.negative => (AppColors.danger, 'Отрицательный остаток — проверьте приход/инвентаризацию'),
+      StockLevel.untracked => (null, l.prodStockUntracked),
+      StockLevel.ok => (null, l.prodStockIn),
+      StockLevel.low => (AppColors.warning, l.prodStockLowTip(Qty.format(p.minStock, p.unit, l))),
+      StockLevel.out => (AppColors.danger, l.prodStockOut),
+      StockLevel.negative => (AppColors.danger, l.prodStockNegativeTip),
     };
-    final text = lvl == StockLevel.untracked ? '—' : Qty.format(p.stockQty, p.unit);
+    final text = lvl == StockLevel.untracked ? '—' : Qty.format(p.stockQty, p.unit, l);
     final child = color == null
         ? Text(text,
             style: TextStyle(
@@ -101,10 +103,11 @@ class ProductRow extends StatelessWidget {
     final t = Theme.of(context);
     final p = product;
     final muted = t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant);
+    final l = context.l10n;
     final codes = [
       if (p.barcode != null) p.barcode!,
-      if (p.sku != null) 'арт. ${p.sku}',
-      category?.name ?? 'Без категории',
+      if (p.sku != null) l.prodSkuShort(p.sku!),
+      category?.name ?? l.prodNoCategory,
     ].join(' · ');
     final margin = marginPercent(p.price, p.costPrice);
     final marginColor = margin == null
@@ -131,7 +134,7 @@ class ProductRow extends StatelessWidget {
       ],
       if (!p.isActive) ...[
         const SizedBox(width: Gap.xs),
-        StatusChip('Архив', color: t.colorScheme.outline),
+        StatusChip(l.prodArchive, color: t.colorScheme.outline),
       ],
     ]);
 
@@ -236,6 +239,7 @@ class ProductTableHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = Theme.of(context);
     final s = t.textTheme.labelMedium?.copyWith(color: t.colorScheme.onSurfaceVariant);
+    final l = context.l10n;
     return LayoutBuilder(builder: (context, c) {
       if (c.maxWidth < 680) return const SizedBox.shrink();
       final cols = _TableCols.of(c.maxWidth);
@@ -244,13 +248,22 @@ class ProductTableHeader extends StatelessWidget {
         child: Row(children: [
           SizedBox(width: 40, child: Center(child: leading)),
           const SizedBox(width: Gap.s),
-          Expanded(child: Text('Товар', style: s)),
-          SizedBox(width: cols.price, child: Text('Цена', textAlign: TextAlign.right, style: s)),
+          Expanded(child: Text(l.commonProduct, style: s)),
+          SizedBox(width: cols.price, child: Text(l.commonPrice, textAlign: TextAlign.right, style: s)),
           if (showCost) ...[
-            SizedBox(width: cols.cost, child: Text('Себест.', textAlign: TextAlign.right, style: s)),
-            SizedBox(width: cols.margin, child: Text('Маржа', textAlign: TextAlign.right, style: s)),
+            SizedBox(
+                width: cols.cost,
+                child: Text(l.prodCostShort,
+                    textAlign: TextAlign.right, maxLines: 1, overflow: TextOverflow.ellipsis, style: s)),
+            SizedBox(
+                width: cols.margin,
+                child: Text(l.prodMargin,
+                    textAlign: TextAlign.right, maxLines: 1, overflow: TextOverflow.ellipsis, style: s)),
           ],
-          SizedBox(width: cols.stock, child: Text('Остаток', textAlign: TextAlign.right, style: s)),
+          SizedBox(
+              width: cols.stock,
+              child: Text(l.commonStock,
+                  textAlign: TextAlign.right, maxLines: 1, overflow: TextOverflow.ellipsis, style: s)),
         ]),
       );
     });

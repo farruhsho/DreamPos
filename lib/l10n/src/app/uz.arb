@@ -1,0 +1,21 @@
+{
+  "navDashboard": "Bosh sahifa",
+  "navPos": "Kassa",
+  "navSales": "Cheklar",
+  "navShifts": "Smena",
+  "navProducts": "Mahsulotlar",
+  "navInventory": "Ombor",
+  "navPurchasing": "Xaridlar",
+  "navCustomers": "Mijozlar",
+  "navMarketing": "Marketing",
+  "navWarranty": "Kafolat",
+  "navReports": "Hisobotlar",
+  "navStaff": "Xodimlar",
+  "navSettings": "Sozlamalar",
+  "navNotifications": "Bildirishnomalar",
+  "appMenu": "Menyu",
+  "appShiftClosed": "Smena yopiq",
+  "appShiftChip": "Smena №{number} · {time} dan",
+  "appProfile": "Profil",
+  "appLockSwitch": "Bloklash / kassirni almashtirish"
+}

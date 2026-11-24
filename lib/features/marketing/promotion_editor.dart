@@ -8,12 +8,13 @@ import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/pickers.dart';
 import '../../core/widgets/widgets.dart';
+import '../../l10n/l10n.dart';
 import 'marketing_repo.dart';
 import 'promotion_logic.dart';
 
 Future<String?> showPromotionEditor(BuildContext context, {Promotion? promotion, bool duplicate = false}) {
   return showFormDialog<String>(context,
-      title: promotion == null || duplicate ? 'Новая акция' : 'Редактирование акции',
+      title: promotion == null || duplicate ? context.l10n.mktNewPromo : context.l10n.mktEditPromo,
       width: 640,
       child: PromotionEditor(promotion: promotion, duplicate: duplicate));
 }
@@ -36,7 +37,7 @@ class _PromotionEditorState extends ConsumerState<PromotionEditor> {
     if (widget.duplicate) {
       draft
         ..id = null
-        ..name = '${p.name} (копия)'
+        ..name = L.current.mktCopyName(p.name) // initState-safe (no inherited lookup)
         ..code = null
         ..isActive = false;
     }
@@ -64,7 +65,7 @@ class _PromotionEditorState extends ConsumerState<PromotionEditor> {
   Future<void> _loadProductName(String id) async {
     final db = ref.read(databaseProvider);
     final p = await (db.select(db.products)..where((t) => t.id.equals(id))).getSingleOrNull();
-    if (mounted) setState(() => _productName = p?.name ?? 'Товар удалён');
+    if (mounted) setState(() => _productName = p?.name ?? context.l10n.mktProductDeleted);
   }
 
   @override
@@ -137,7 +138,7 @@ class _PromotionEditorState extends ConsumerState<PromotionEditor> {
       initialDate: initial,
       firstDate: DateTime(now.year - 2),
       lastDate: DateTime(now.year + 5),
-      helpText: start ? 'Дата начала' : 'Последний день акции',
+      helpText: start ? context.l10n.mktStartDate : context.l10n.mktLastDay,
     );
     if (picked == null) return;
     setState(() {
@@ -151,7 +152,7 @@ class _PromotionEditorState extends ConsumerState<PromotionEditor> {
   }
 
   Future<void> _pickProduct() async {
-    final p = await pickProduct(context, title: 'Товар для акции');
+    final p = await pickProduct(context, title: context.l10n.mktPromoProduct);
     if (p == null) return;
     setState(() {
       d.targetId = p.id;
@@ -163,6 +164,7 @@ class _PromotionEditorState extends ConsumerState<PromotionEditor> {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final status = promoStatus(isActive: d.isActive, startsAt: d.startsAt, endsAt: d.endsAt, now: DateTime.now());
     return CallbackShortcuts(
       bindings: {
@@ -179,17 +181,17 @@ class _PromotionEditorState extends ConsumerState<PromotionEditor> {
                 TextFormField(
                   controller: _name,
                   autofocus: true,
-                  decoration: const InputDecoration(labelText: 'Название *', hintText: 'Например: Скидка выходного дня'),
-                  validator: (v) => (v ?? '').trim().isEmpty ? 'Введите название' : null,
+                  decoration: InputDecoration(labelText: l.mktNameLabel, hintText: l.mktNameHint),
+                  validator: (v) => (v ?? '').trim().isEmpty ? l.mktEnterName : null,
                   onFieldSubmitted: (_) => _save(),
                 ),
                 const SizedBox(height: Gap.m),
                 DropdownButtonFormField<String>(
                   initialValue: d.type,
                   isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Тип акции'),
+                  decoration: InputDecoration(labelText: l.mktPromoType),
                   items: [
-                    for (final ty in promoTypes) DropdownMenuItem(value: ty, child: Text(promoTypeLabel(ty))),
+                    for (final ty in promoTypes) DropdownMenuItem(value: ty, child: Text(promoTypeLabel(ty, l))),
                   ],
                   onChanged: (v) => _setType(v!),
                 ),
@@ -203,24 +205,24 @@ class _PromotionEditorState extends ConsumerState<PromotionEditor> {
                   child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Icon(Icons.info_outline, size: 18, color: t.colorScheme.primary),
                     const SizedBox(width: Gap.s),
-                    Expanded(child: Text(promoTypeHelp(d.type), style: t.textTheme.bodySmall)),
+                    Expanded(child: Text(promoTypeHelp(d.type, l), style: t.textTheme.bodySmall)),
                   ]),
                 ),
                 const SizedBox(height: Gap.m),
                 ..._typeFields(t),
                 const SizedBox(height: Gap.m),
-                Text('Период действия', style: t.textTheme.labelLarge),
+                Text(l.mktValidityPeriod, style: t.textTheme.labelLarge),
                 const SizedBox(height: Gap.s),
                 _pair(
-                  _dateBox('С', d.startDay, () => _pickDate(true), () => setState(() => d.startDay = null)),
-                  _dateBox('По (включительно)', d.endDay, () => _pickDate(false), () => setState(() => d.endDay = null)),
+                  _dateBox(l.mktDateFrom, d.startDay, () => _pickDate(true), () => setState(() => d.startDay = null)),
+                  _dateBox(l.mktDateTo, d.endDay, () => _pickDate(false), () => setState(() => d.endDay = null)),
                 ),
                 const SizedBox(height: Gap.s),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   value: d.isActive,
-                  title: const Text('Акция включена'),
-                  subtitle: Text('Статус: ${status.label}'),
+                  title: Text(l.mktPromoEnabled),
+                  subtitle: Text(l.mktStatusLine(status.labelIn(l))),
                   onChanged: (v) => setState(() => d.isActive = v),
                 ),
                 if (_error != null)
@@ -240,11 +242,11 @@ class _PromotionEditorState extends ConsumerState<PromotionEditor> {
                 overflowSpacing: Gap.s,
                 overflowAlignment: OverflowBarAlignment.end,
                 children: [
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')),
+              TextButton(onPressed: () => Navigator.pop(context), child: Text(l.commonCancel)),
               FilledButton.icon(
                 onPressed: _saving ? null : _save,
                 icon: const Icon(Icons.check),
-                label: Text(d.id == null ? 'Создать' : 'Сохранить'),
+                label: Text(d.id == null ? l.commonCreate : l.commonSave),
               ),
             ]),
           ),
@@ -270,15 +272,16 @@ class _PromotionEditorState extends ConsumerState<PromotionEditor> {
             labelText: label,
             suffixIcon: value == null
                 ? const Icon(Icons.calendar_month)
-                : IconButton(tooltip: 'Очистить', icon: const Icon(Icons.close), onPressed: onClear),
+                : IconButton(tooltip: context.l10n.commonClear, icon: const Icon(Icons.close), onPressed: onClear),
           ),
-          child: Text(value == null ? 'не ограничено' : formatDate(value)),
+          child: Text(value == null ? context.l10n.mktUnlimited : formatDate(value)),
         ),
       );
 
   List<Widget> _typeFields(ThemeData t) {
     final fields = <Widget>[];
     final type = d.type;
+    final l = context.l10n;
 
     if (type == 'promo_code') {
       fields.addAll([
@@ -291,18 +294,19 @@ class _PromotionEditorState extends ConsumerState<PromotionEditor> {
             FilteringTextInputFormatter.deny(RegExp(r'\s')),
             TextInputFormatter.withFunction((o, n) => n.copyWith(text: n.text.toUpperCase())),
           ],
-          decoration: const InputDecoration(labelText: 'Промокод *', hintText: 'SALE10', prefixIcon: Icon(Icons.local_offer_outlined)),
-          validator: (v) => (v ?? '').trim().length < 3 ? 'Минимум 3 символа' : null,
+          decoration: InputDecoration(
+              labelText: l.mktPromoCodeLabel, hintText: 'SALE10', prefixIcon: const Icon(Icons.local_offer_outlined)),
+          validator: (v) => (v ?? '').trim().length < 3 ? l.mktMin3Chars : null,
           onFieldSubmitted: (_) => _save(),
         ),
         const SizedBox(height: Gap.m),
         Wrap(spacing: Gap.m, runSpacing: Gap.s, crossAxisAlignment: WrapCrossAlignment.center, children: [
-          Text('Скидка:', style: t.textTheme.bodyMedium),
+          Text(l.mktDiscountColon, style: t.textTheme.bodyMedium),
           SegmentedButton<bool>(
             showSelectedIcon: false,
             segments: [
               const ButtonSegment(value: true, label: Text('%')),
-              ButtonSegment(value: false, label: Text('сумма, ${Money.currency.symbol}')),
+              ButtonSegment(value: false, label: Text(l.mktAmountIn(Money.currency.symbol))),
             ],
             selected: {d.percentMode},
             onSelectionChanged: (s) => setState(() => d.percentMode = s.first),
@@ -319,11 +323,12 @@ class _PromotionEditorState extends ConsumerState<PromotionEditor> {
           loading: () => const LinearProgressIndicator(),
           error: (e, _) => Text(errorText(e)),
           data: (list) => list.isEmpty
-              ? const Text('Сначала создайте категории в разделе «Товары»', style: TextStyle(color: AppColors.warning))
+              ? Text(l.mktCreateCategoriesFirst, style: const TextStyle(color: AppColors.warning))
               : DropdownButtonFormField<String>(
                   isExpanded: true,
                   initialValue: list.any((c) => c.id == d.targetId) ? d.targetId : null,
-                  decoration: const InputDecoration(labelText: 'Категория *', prefixIcon: Icon(Icons.category_outlined)),
+                  decoration:
+                      InputDecoration(labelText: l.mktCategoryLabel, prefixIcon: const Icon(Icons.category_outlined)),
                   items: [for (final c in list) DropdownMenuItem(value: c.id, child: Text(c.name))],
                   onChanged: (v) => setState(() => d.targetId = v),
                 ),
@@ -333,9 +338,11 @@ class _PromotionEditorState extends ConsumerState<PromotionEditor> {
           onTap: _pickProduct,
           borderRadius: BorderRadius.circular(10),
           child: InputDecorator(
-            decoration: const InputDecoration(
-                labelText: 'Товар *', prefixIcon: Icon(Icons.inventory_2_outlined), suffixIcon: Icon(Icons.search)),
-            child: Text(_productName ?? 'Выбрать товар…', overflow: TextOverflow.ellipsis),
+            decoration: InputDecoration(
+                labelText: l.mktProductLabel,
+                prefixIcon: const Icon(Icons.inventory_2_outlined),
+                suffixIcon: const Icon(Icons.search)),
+            child: Text(_productName ?? l.mktPickProduct, overflow: TextOverflow.ellipsis),
           ),
         ));
       }
@@ -352,8 +359,8 @@ class _PromotionEditorState extends ConsumerState<PromotionEditor> {
               controller: _buy,
               keyboardType: TextInputType.number,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: const InputDecoration(labelText: 'Купи (шт.)'),
-              validator: (v) => (int.tryParse(v ?? '') ?? 0) < 1 ? 'Минимум 1' : null,
+              decoration: InputDecoration(labelText: l.mktBuyQty),
+              validator: (v) => (int.tryParse(v ?? '') ?? 0) < 1 ? l.mktMin1 : null,
               onChanged: (_) => setState(() {}),
             ),
           ),
@@ -363,8 +370,8 @@ class _PromotionEditorState extends ConsumerState<PromotionEditor> {
               controller: _get,
               keyboardType: TextInputType.number,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: const InputDecoration(labelText: 'Получи бесплатно (шт.)'),
-              validator: (v) => (int.tryParse(v ?? '') ?? 0) < 1 ? 'Минимум 1' : null,
+              decoration: InputDecoration(labelText: l.mktGetQty),
+              validator: (v) => (int.tryParse(v ?? '') ?? 0) < 1 ? l.mktMin1 : null,
               onChanged: (_) => setState(() {}),
             ),
           ),
@@ -372,7 +379,7 @@ class _PromotionEditorState extends ConsumerState<PromotionEditor> {
         if (buy > 0 && get > 0)
           Padding(
             padding: const EdgeInsets.only(top: Gap.s),
-            child: Text('В чеке из ${buy + get} шт. — $get шт. бесплатно',
+            child: Text(l.mktBuyGetPreview('${buy + get}', '$get'),
                 style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant)),
           ),
       ]);
@@ -385,18 +392,18 @@ class _PromotionEditorState extends ConsumerState<PromotionEditor> {
             controller: _percent,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
-            decoration: const InputDecoration(labelText: 'Скидка *', suffixText: '%'),
+            decoration: InputDecoration(labelText: l.mktDiscountLabel, suffixText: '%'),
             validator: (v) {
               final p = double.tryParse((v ?? '').trim().replaceAll(',', '.'));
-              if (p == null) return 'Введите процент';
-              if (p <= 0 || p > 100) return 'Больше 0 и не больше 100';
+              if (p == null) return l.mktEnterPercent;
+              if (p <= 0 || p > 100) return l.mktPercentRangeShort;
               return null;
             },
             onFieldSubmitted: (_) => _save(),
           )
         : MoneyField(
             key: const ValueKey('amount'),
-            label: 'Сумма скидки *',
+            label: l.mktDiscountAmountLabel,
             controller: _amount,
             required: true,
             allowZero: false,
@@ -406,9 +413,9 @@ class _PromotionEditorState extends ConsumerState<PromotionEditor> {
       fields.add(_pair(
         valueField,
         MoneyField(
-          label: 'Мин. сумма чека',
+          label: l.mktMinOrderLabel,
           controller: _minOrder,
-          helper: 'Пусто — без ограничения',
+          helper: l.mktMinOrderHelper,
           onSubmitted: (_) => _save(),
         ),
       ));

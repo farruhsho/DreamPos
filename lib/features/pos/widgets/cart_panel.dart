@@ -9,6 +9,7 @@ import '../../../core/permissions.dart';
 import '../../../core/providers.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets/widgets.dart';
+import '../../../l10n/l10n.dart';
 import '../../../domain/pricing.dart';
 import '../cart_controller.dart';
 import '../parked_carts.dart';
@@ -41,10 +42,10 @@ class CartPanel extends ConsumerWidget {
           const Divider(),
           Expanded(
             child: cart.isEmpty
-                ? const EmptyState(
+                ? EmptyState(
                     icon: Icons.shopping_cart_outlined,
-                    title: 'Чек пуст',
-                    message: 'Отсканируйте штрихкод или выберите товар в каталоге',
+                    title: context.l10n.posCartEmpty,
+                    message: context.l10n.posCartEmptyHint,
                   )
                 : _Lines(actions: a, cart: cart, quote: quote.value),
           ),
@@ -67,7 +68,9 @@ class _CartHeader extends ConsumerWidget {
     final cart = ref.watch(cartProvider);
     final parked = ref.watch(parkedCartsProvider).value?.length ?? 0;
     final canSellGift = ref.watch(sessionProvider)?.can(Perm.sell) ?? false;
-    final giftHint = giftSaleMenuHint(canSell: canSellGift, hasShift: ref.watch(currentShiftProvider).value != null);
+    final l = context.l10n;
+    final giftHint =
+        giftSaleMenuHint(canSell: canSellGift, hasShift: ref.watch(currentShiftProvider).value != null, l: l);
     final users = ref.watch(posActiveUsersProvider).value ?? const <User>[];
     String? sellerName;
     for (final u in users) {
@@ -77,23 +80,31 @@ class _CartHeader extends ConsumerWidget {
       padding: const EdgeInsets.fromLTRB(Gap.l, Gap.s, Gap.xs, Gap.xs),
       child: Row(
         children: [
-          Text('Чек', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
-          const SizedBox(width: Gap.s),
-          if (cart.isNotEmpty) StatusChip('${cart.lines.length} поз.'),
-          const Spacer(),
+          // Left group takes the free width; the item-count chip shrinks first so long
+          // translations of the seller button never overflow the header.
+          Expanded(
+            child: Row(
+              children: [
+                Text(l.commonReceipt,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+                const SizedBox(width: Gap.s),
+                if (cart.isNotEmpty) Flexible(child: StatusChip(l.posPositions('${cart.lines.length}'))),
+              ],
+            ),
+          ),
           Tooltip(
-            message: 'Продавец-консультант (для мотивации)',
+            message: l.posSellerTooltip,
             child: TextButton.icon(
               onPressed: actions.chooseSeller,
               icon: const Icon(Icons.badge_outlined, size: 18),
               label: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 110),
-                child: Text(sellerName ?? 'Продавец', overflow: TextOverflow.ellipsis),
+                child: Text(sellerName ?? l.posSeller, overflow: TextOverflow.ellipsis),
               ),
             ),
           ),
           IconButton(
-            tooltip: 'Отложенные чеки (F9)',
+            tooltip: l.posParkedTooltip,
             onPressed: actions.showParked,
             icon: Badge(
               isLabelVisible: parked > 0,
@@ -102,7 +113,7 @@ class _CartHeader extends ConsumerWidget {
             ),
           ),
           PopupMenuButton<String>(
-            tooltip: 'Действия с чеком',
+            tooltip: l.posCartActions,
             onSelected: (v) => switch (v) {
               'park' => actions.park(),
               'parked' => actions.showParked(),
@@ -115,39 +126,39 @@ class _CartHeader extends ConsumerWidget {
               PopupMenuItem(
                 value: 'park',
                 enabled: cart.isNotEmpty,
-                child: const ListTile(
-                  leading: Icon(Icons.pause_circle_outline),
-                  title: Text('Отложить чек'),
-                  trailing: Text('F8'),
+                child: ListTile(
+                  leading: const Icon(Icons.pause_circle_outline),
+                  title: Text(l.posPark),
+                  trailing: const Text('F8'),
                 ),
               ),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'parked',
                 child: ListTile(
-                  leading: Icon(Icons.inventory_outlined),
-                  title: Text('Отложенные'),
-                  trailing: Text('F9'),
+                  leading: const Icon(Icons.inventory_outlined),
+                  title: Text(l.posParkedShort),
+                  trailing: const Text('F9'),
                 ),
               ),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'seller',
-                child: ListTile(leading: Icon(Icons.badge_outlined), title: Text('Продавец')),
+                child: ListTile(leading: const Icon(Icons.badge_outlined), title: Text(l.posSeller)),
               ),
               PopupMenuItem(
                 value: 'gift',
                 enabled: canSellGift,
                 child: ListTile(
                   leading: const Icon(Icons.card_giftcard),
-                  title: const Text('Продать сертификат'),
+                  title: Text(l.posSellGiftCard),
                   subtitle: giftHint == null ? null : Text(giftHint),
                 ),
               ),
               PopupMenuItem(
                 value: 'clear',
                 enabled: cart.isNotEmpty,
-                child: const ListTile(
-                  leading: Icon(Icons.delete_sweep_outlined, color: AppColors.danger),
-                  title: Text('Очистить чек'),
+                child: ListTile(
+                  leading: const Icon(Icons.delete_sweep_outlined, color: AppColors.danger),
+                  title: Text(l.posClearCart),
                 ),
               ),
             ],
@@ -168,6 +179,7 @@ class _CustomerBox extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final id = ref.watch(cartProvider.select((c) => c.customerId));
     final t = Theme.of(context);
+    final l = context.l10n;
     if (id == null) {
       return Padding(
         padding: const EdgeInsets.fromLTRB(Gap.l, 0, Gap.l, Gap.s),
@@ -175,7 +187,7 @@ class _CustomerBox extends ConsumerWidget {
           onPressed: actions.attachCustomer,
           icon: const Icon(Icons.person_add_alt),
           // keyboard hints only where a keyboard is likely (not on phones)
-          label: Text(context.isCompact ? 'Клиент' : 'Клиент (F4)'),
+          label: Text(context.isCompact ? l.commonCustomer : l.posCustomerF4),
         ),
       );
     }
@@ -209,18 +221,18 @@ class _CustomerBox extends ConsumerWidget {
                       children: [
                         if (c.discountPercent > 0)
                           Text(
-                            'скидка ${c.discountPercent.toStringAsFixed(0)}%',
+                            l.posCustDiscount(c.discountPercent.toStringAsFixed(0)),
                             style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.primary),
                           ),
                         if (loyalty || c.bonusBalance > 0)
                           Text(
-                            'бонусы ${Money.format(c.bonusBalance)}',
+                            l.posCustBonus(Money.format(c.bonusBalance)),
                             style: t.textTheme.bodySmall?.copyWith(color: AppColors.success),
                           ),
                         if (c.debtBalance > 0 || c.debtLimit > 0)
                           Text(
-                            'долг ${Money.format(c.debtBalance)}'
-                            '${c.debtLimit > 0 ? ' / лимит ${Money.format(c.debtLimit)}' : ''}',
+                            l.posCustDebt(Money.format(c.debtBalance)) +
+                                (c.debtLimit > 0 ? ' / ${l.posCustDebtLimit(Money.format(c.debtLimit))}' : ''),
                             style: t.textTheme.bodySmall?.copyWith(
                               color: c.debtBalance > 0 ? AppColors.danger : t.colorScheme.onSurfaceVariant,
                             ),
@@ -232,7 +244,7 @@ class _CustomerBox extends ConsumerWidget {
             ),
           ),
           IconButton(
-            tooltip: 'Убрать клиента из чека',
+            tooltip: l.posDetachCustomer,
             onPressed: actions.detachCustomer,
             icon: const Icon(Icons.person_remove_outlined),
           ),
@@ -314,27 +326,28 @@ class CartLineTile extends ConsumerWidget {
     final discount = priced?.discount ?? l.manualDiscount;
     final p = product;
     final short = p != null && p.trackStock && !p.allowNegativeStock && l.qty > p.stockQty + 1e-9;
+    final tr = context.l10n;
 
     final notes = <Widget>[
       if (priced != null && priced!.autoDiscount > 0)
         Text(
-          '${priced!.autoReason ?? 'Акция'}: −${Money.format(priced!.autoDiscount)}',
+          '${priced!.autoReason ?? tr.posPromotion}: −${Money.format(priced!.autoDiscount)}',
           style: t.textTheme.bodySmall?.copyWith(color: AppColors.success),
         ),
       if (l.hasManualDiscount)
         Text(
-          'Ручная скидка${l.discountPercent > 0 ? ' ${l.discountPercent.toStringAsFixed(l.discountPercent % 1 == 0 ? 0 : 1)}%' : ''}: '
-          '−${Money.format(l.manualDiscount)}${l.discountApprovedBy != null ? ' (подтв.)' : ''}',
+          '${tr.posManualDiscount}${l.discountPercent > 0 ? ' ${l.discountPercent.toStringAsFixed(l.discountPercent % 1 == 0 ? 0 : 1)}%' : ''}: '
+          '−${Money.format(l.manualDiscount)}${l.discountApprovedBy != null ? ' ${tr.posApprovedMark}' : ''}',
           style: t.textTheme.bodySmall?.copyWith(color: AppColors.info),
         ),
       if (priced != null && priced!.orderDiscount > 0)
         Text(
-          'Скидка на чек: −${Money.format(priced!.orderDiscount)}',
+          tr.posOrderDiscountLine(Money.format(priced!.orderDiscount)),
           style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant),
         ),
       if (short)
         Text(
-          'На складе только ${Qty.format(p.stockQty, p.unit)}',
+          tr.posOnlyInStock(Qty.format(p.stockQty, p.unit, tr)),
           style: t.textTheme.bodySmall?.copyWith(color: AppColors.danger, fontWeight: FontWeight.w600),
         ),
     ];
@@ -385,7 +398,7 @@ class CartLineTile extends ConsumerWidget {
                 children: [
                   _StepButton(
                     icon: Icons.remove,
-                    tooltip: 'Меньше (−)',
+                    tooltip: tr.posLess,
                     onPressed: l.qty > 1 ? () => ctl.changeQty(l.key, -1) : null,
                   ),
                   InkWell(
@@ -401,7 +414,7 @@ class CartLineTile extends ConsumerWidget {
                       ),
                       alignment: Alignment.center,
                       child: Text(
-                        Qty.format(l.qty, l.unit),
+                        Qty.format(l.qty, l.unit, tr),
                         key: Key('qty-${l.productId}'),
                         style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
@@ -409,7 +422,7 @@ class CartLineTile extends ConsumerWidget {
                   ),
                   _StepButton(
                     icon: Icons.add,
-                    tooltip: 'Больше (+)',
+                    tooltip: tr.posMore,
                     onPressed: () => ctl.changeQty(l.key, 1),
                   ),
                   const SizedBox(width: Gap.s),
@@ -417,7 +430,7 @@ class CartLineTile extends ConsumerWidget {
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: Tooltip(
-                        message: canEditPrice ? 'Изменить цену' : 'Нет права изменять цены',
+                        message: canEditPrice ? tr.posEditPrice : tr.posNoPricePerm,
                         child: InkWell(
                           canRequestFocus: false,
                           borderRadius: BorderRadius.circular(6),
@@ -440,13 +453,13 @@ class CartLineTile extends ConsumerWidget {
                     ),
                   ),
                   IconButton(
-                    tooltip: 'Скидка на позицию',
+                    tooltip: tr.posLineDiscount,
                     visualDensity: _kLineButtonDensity,
                     onPressed: () => actions.lineDiscount(l),
                     icon: Icon(Icons.percent, size: 20, color: l.hasManualDiscount ? AppColors.info : null),
                   ),
                   IconButton(
-                    tooltip: 'Удалить позицию (Del)',
+                    tooltip: tr.posRemoveLine,
                     visualDensity: _kLineButtonDensity,
                     onPressed: () => actions.removeLine(l),
                     icon: const Icon(Icons.delete_outline, size: 20),
@@ -497,6 +510,7 @@ class _Totals extends ConsumerWidget {
     final discount = q?.discountTotal ?? 0;
     final total = q?.total ?? cart.grossTotal;
     final vat = q?.vatTotal ?? 0;
+    final l = context.l10n;
 
     Widget row(String label, String value, {Color? color, String? hint}) => Padding(
       padding: const EdgeInsets.symmetric(vertical: 1),
@@ -535,7 +549,7 @@ class _Totals extends ConsumerWidget {
               if (cart.promoCode == null)
                 ActionChip(
                   avatar: const Icon(Icons.confirmation_number_outlined, size: 18),
-                  label: const Text('Промокод'),
+                  label: Text(l.posPromoCode),
                   onPressed: cart.isEmpty ? null : actions.enterPromo,
                 )
               else
@@ -553,15 +567,15 @@ class _Totals extends ConsumerWidget {
                         ? AppColors.danger
                         : null,
                   ),
-                  label: Text(promoValid == false ? '${cart.promoCode} — недействителен' : cart.promoCode!),
+                  label: Text(promoValid == false ? l.posPromoInvalidChip(cart.promoCode!) : cart.promoCode!),
                   onPressed: actions.enterPromo,
                   onDeleted: () => ref.read(cartProvider.notifier).setPromoCode(null),
-                  deleteButtonTooltipMessage: 'Убрать промокод',
+                  deleteButtonTooltipMessage: l.posRemovePromo,
                 ),
               if (!cart.hasOrderDiscount)
                 ActionChip(
                   avatar: const Icon(Icons.percent, size: 18),
-                  label: const Text('Скидка на чек'),
+                  label: Text(l.posOrderDiscount),
                   onPressed: cart.isEmpty ? null : actions.orderDiscount,
                 )
               else
@@ -569,29 +583,30 @@ class _Totals extends ConsumerWidget {
                   avatar: const Icon(Icons.percent, size: 18, color: AppColors.info),
                   label: Text(
                     cart.orderDiscountPercent > 0
-                        ? 'Скидка на чек ${cart.orderDiscountPercent.toStringAsFixed(cart.orderDiscountPercent % 1 == 0 ? 0 : 1)}%'
-                        : 'Скидка на чек ${Money.format(cart.orderDiscountAmount)}',
+                        ? l.posOrderDiscountValue(
+                            '${cart.orderDiscountPercent.toStringAsFixed(cart.orderDiscountPercent % 1 == 0 ? 0 : 1)}%')
+                        : l.posOrderDiscountValue(Money.format(cart.orderDiscountAmount)),
                   ),
                   onPressed: actions.orderDiscount,
                   onDeleted: () => ref.read(cartProvider.notifier).setOrderDiscount(),
-                  deleteButtonTooltipMessage: 'Убрать скидку',
+                  deleteButtonTooltipMessage: l.posRemoveDiscount,
                 ),
             ],
           ),
           const SizedBox(height: Gap.s),
-          row('Подытог', Money.format(subtotal)),
+          row(l.posSubtotal, Money.format(subtotal)),
           if (discount > 0)
             row(
-              'Скидка',
+              l.commonDiscount,
               '−${Money.format(discount)}',
               color: AppColors.success,
               hint: (q?.appliedPromotions.isNotEmpty ?? false) ? q!.appliedPromotions.join(', ') : null,
             ),
-          if (vat > 0) row('в т.ч. НДС', Money.format(vat)),
+          if (vat > 0) row(l.posVatIncluded, Money.format(vat)),
           const SizedBox(height: Gap.xs),
           Row(
             children: [
-              Text('Итого', style: t.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+              Text(l.commonTotal, style: t.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
               if (quote.isLoading)
                 const Padding(
                   padding: EdgeInsets.only(left: Gap.s),
@@ -613,16 +628,16 @@ class _Totals extends ConsumerWidget {
           ),
           if (quote.hasError)
             Text(
-              'Не удалось рассчитать скидки: ${errorText(quote.error!)}',
+              l.posDiscountCalcFailed(errorText(quote.error!)),
               style: t.textTheme.bodySmall?.copyWith(color: AppColors.danger),
             ),
           const SizedBox(height: Gap.m),
           Tooltip(
             message: !canSell
-                ? 'Откройте смену, чтобы продавать'
+                ? l.posOpenShiftToSell
                 : cart.isEmpty
-                ? 'Добавьте товары в чек'
-                : 'Оплата (F12 или Ctrl+Enter)',
+                ? l.posAddProducts
+                : l.posPayTooltip,
             child: SizedBox(
               height: 60,
               child: FilledButton.icon(
@@ -631,7 +646,7 @@ class _Totals extends ConsumerWidget {
                 onPressed: cart.isEmpty || !canSell ? null : actions.pay,
                 icon: const Icon(Icons.payments_outlined),
                 label: Text(
-                  context.isCompact ? 'Оплатить' : 'Оплатить  ·  F12',
+                  context.isCompact ? l.posPay : l.posPayF12,
                   style: const TextStyle(fontSize: 18),
                 ),
               ),

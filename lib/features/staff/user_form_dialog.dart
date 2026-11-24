@@ -8,13 +8,14 @@ import '../../core/permissions.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
+import '../../l10n/l10n.dart';
 import 'staff_logic.dart';
 import 'staff_providers.dart';
 
 /// Create ([user] == null) or edit a staff member. Returns the saved user.
 Future<User?> showUserFormDialog(BuildContext context, {User? user}) => showFormDialog<User>(
   context,
-  title: user == null ? 'Новый сотрудник' : 'Сотрудник: ${user.name}',
+  title: user == null ? context.l10n.staffNewUser : context.l10n.staffUserTitle(user.name),
   width: 560,
   child: UserForm(user: user),
 );
@@ -82,13 +83,12 @@ class _UserFormState extends ConsumerState<UserForm> {
     }
     final isMe = widget.user?.id == actor.id;
     if (isMe && _role != Role.parse(widget.user!.role) && !_role.can(Perm.manageStaff)) {
+      final l = context.l10n;
       final ok = await confirm(
         context,
-        title: 'Понизить собственную роль?',
-        message:
-            'После сохранения у вас («${_role.label}») не будет доступа к разделу «Сотрудники». '
-            'Вернуть права сможет только владелец или администратор.',
-        ok: 'Понизить',
+        title: l.staffDemoteTitle,
+        message: l.staffDemoteMessage(_role.labelIn(l)),
+        ok: l.staffDemote,
         destructive: true,
       );
       if (!ok || !mounted) return;
@@ -100,7 +100,7 @@ class _UserFormState extends ConsumerState<UserForm> {
       saved = _creating
           ? await svc.create(input, actor: actor)
           : await svc.update(widget.user!.id, input, actor: actor);
-    }, success: _creating ? 'Сотрудник добавлен' : 'Изменения сохранены');
+    }, success: _creating ? context.l10n.staffUserAdded : context.l10n.staffChangesSaved);
     // Editing yourself: keep the live session (name, role, limits) in sync.
     if (mounted && ok && saved != null && saved!.id == ref.read(sessionProvider)?.user.id) {
       ref.read(sessionProvider.notifier).login(saved!);
@@ -126,6 +126,7 @@ class _UserFormState extends ConsumerState<UserForm> {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final actorRole = ref.watch(sessionProvider)?.role ?? Role.cashier;
     final users = ref.watch(staffUsersProvider).value ?? const <User>[];
     final roles = Role.values.where((r) => canAssignRole(actorRole, r) || r == _role).toList();
@@ -137,8 +138,8 @@ class _UserFormState extends ConsumerState<UserForm> {
 
     String? pctValidator(String? v) {
       final p = _parsePct(v ?? '');
-      if (p == null) return 'Введите число';
-      if (p < 0 || p > 100) return 'От 0 до 100';
+      if (p == null) return l.commonEnterNumber;
+      if (p < 0 || p > 100) return l.staffFrom0To100;
       return null;
     }
 
@@ -161,45 +162,45 @@ class _UserFormState extends ConsumerState<UserForm> {
                       controller: _name,
                       autofocus: true,
                       textCapitalization: TextCapitalization.words,
-                      decoration: const InputDecoration(labelText: 'Имя *'),
-                      validator: (v) => (v ?? '').trim().isEmpty ? 'Введите имя' : null,
+                      decoration: InputDecoration(labelText: l.staffNameLabel),
+                      validator: (v) => (v ?? '').trim().isEmpty ? l.commonEnterName : null,
                       onFieldSubmitted: (_) => _submit(),
                     ),
                     const SizedBox(height: Gap.m),
                     TextFormField(
                       controller: _phone,
                       keyboardType: TextInputType.phone,
-                      decoration: const InputDecoration(labelText: 'Телефон', hintText: '+998 90 123 45 67'),
+                      decoration: InputDecoration(labelText: l.commonPhone, hintText: '+998 90 123 45 67'),
                       validator: (v) {
                         final p = (v ?? '').trim();
                         if (p.isEmpty) return null;
-                        return RegExp(r'^\+?[0-9\s\-()]{5,20}$').hasMatch(p) ? null : 'Неверный формат телефона';
+                        return RegExp(r'^\+?[0-9\s\-()]{5,20}$').hasMatch(p) ? null : l.staffErrPhoneFormat;
                       },
                       onFieldSubmitted: (_) => _submit(),
                     ),
                     const SizedBox(height: Gap.m),
                     Tooltip(
-                      message: roleLocked ? (ownerGuard ?? 'Изменить роль владельца может только владелец') : '',
+                      message: roleLocked ? (ownerGuard ?? l.staffOwnerRoleLocked) : '',
                       child: DropdownButtonFormField<Role>(
                         isExpanded: true,
                         key: const ValueKey('user_role'),
                         initialValue: _role,
                         decoration: InputDecoration(
-                          labelText: 'Роль *',
+                          labelText: l.staffRoleLabel,
                           helperText: roleLocked ? ownerGuard : null,
                           helperMaxLines: 2,
                         ),
-                        items: [for (final r in roles) DropdownMenuItem(value: r, child: Text(r.label))],
+                        items: [for (final r in roles) DropdownMenuItem(value: r, child: Text(r.labelIn(l)))],
                         onChanged: roleLocked ? null : (r) => _onRole(r ?? _role),
                       ),
                     ),
                     const SizedBox(height: Gap.l),
-                    Text('PIN для входа', style: t.textTheme.titleSmall?.copyWith(color: t.colorScheme.primary)),
+                    Text(l.staffPinSection, style: t.textTheme.titleSmall?.copyWith(color: t.colorScheme.primary)),
                     if (!_creating)
                       SwitchListTile(
                         contentPadding: EdgeInsets.zero,
-                        title: const Text('Сбросить PIN'),
-                        subtitle: const Text('Сотрудник будет входить с новым PIN'),
+                        title: Text(l.staffResetPin),
+                        subtitle: Text(l.staffResetPinHint),
                         value: _changePin,
                         onChanged: (v) => setState(() => _changePin = v),
                       ),
@@ -207,26 +208,26 @@ class _UserFormState extends ConsumerState<UserForm> {
                       const SizedBox(height: Gap.s),
                       Row(
                         children: [
-                          Expanded(child: _pinField(_pin, 'PIN *', key: const ValueKey('user_pin'))),
+                          Expanded(child: _pinField(_pin, l.staffPinLabel, key: const ValueKey('user_pin'))),
                           const SizedBox(width: Gap.m),
                           Expanded(
                             child: _pinField(
                               _pin2,
-                              'PIN ещё раз *',
+                              l.staffPinRepeatLabel,
                               key: const ValueKey('user_pin2'),
-                              validator: (v) => v != _pin.text ? 'PIN не совпадает' : null,
+                              validator: (v) => v != _pin.text ? l.staffPinMismatch : null,
                             ),
                           ),
                         ],
                       ),
                       Padding(
                         padding: const EdgeInsets.only(top: Gap.xs),
-                        child: Text('4–8 цифр, уникальный для каждого сотрудника', style: t.textTheme.bodySmall),
+                        child: Text(l.staffPinHint, style: t.textTheme.bodySmall),
                       ),
                     ],
                     const SizedBox(height: Gap.l),
                     Text(
-                      'Ограничения и мотивация',
+                      l.staffLimitsSection,
                       style: t.textTheme.titleSmall?.copyWith(color: t.colorScheme.primary),
                     ),
                     const SizedBox(height: Gap.s),
@@ -238,10 +239,10 @@ class _UserFormState extends ConsumerState<UserForm> {
                             controller: _discount,
                             keyboardType: const TextInputType.numberWithOptions(decimal: true),
                             inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
-                            decoration: const InputDecoration(
-                              labelText: 'Макс. скидка',
+                            decoration: InputDecoration(
+                              labelText: l.staffMaxDiscount,
                               suffixText: '%',
-                              helperText: 'без согласования',
+                              helperText: l.staffMaxDiscountHelper,
                             ),
                             validator: pctValidator,
                             onFieldSubmitted: (_) => _submit(),
@@ -253,10 +254,10 @@ class _UserFormState extends ConsumerState<UserForm> {
                             controller: _commission,
                             keyboardType: const TextInputType.numberWithOptions(decimal: true),
                             inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
-                            decoration: const InputDecoration(
-                              labelText: 'Комиссия',
+                            decoration: InputDecoration(
+                              labelText: l.staffCommission,
                               suffixText: '%',
-                              helperText: 'от чистой выручки',
+                              helperText: l.staffCommissionHelper,
                             ),
                             validator: pctValidator,
                             onFieldSubmitted: (_) => _submit(),
@@ -266,9 +267,9 @@ class _UserFormState extends ConsumerState<UserForm> {
                     ),
                     const SizedBox(height: Gap.m),
                     MoneyField(
-                      label: 'План продаж на месяц',
+                      label: l.staffSalesPlan,
                       initial: _plan == 0 ? null : _plan,
-                      helper: '0 или пусто — без плана',
+                      helper: l.staffSalesPlanHelper,
                       onChanged: (v) => _plan = v ?? 0,
                       onSubmitted: (_) => _submit(),
                     ),
@@ -283,11 +284,11 @@ class _UserFormState extends ConsumerState<UserForm> {
                 overflowAlignment: OverflowBarAlignment.end,
                 spacing: Gap.s,
                 children: [
-                  TextButton(onPressed: _busy ? null : () => Navigator.pop(context), child: const Text('Отмена')),
+                  TextButton(onPressed: _busy ? null : () => Navigator.pop(context), child: Text(l.commonCancel)),
                   FilledButton(
                     key: const ValueKey('user_save'),
                     onPressed: _busy ? null : _submit,
-                    child: Text(_busy ? 'Сохранение…' : (_creating ? 'Добавить' : 'Сохранить')),
+                    child: Text(_busy ? l.staffSaving : (_creating ? l.commonAdd : l.commonSave)),
                   ),
                 ],
               ),
@@ -307,8 +308,8 @@ class _UserFormState extends ConsumerState<UserForm> {
         inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(8)],
         decoration: InputDecoration(labelText: label, counterText: ''),
         validator: (v) {
-          if ((v ?? '').isEmpty) return 'Введите PIN';
-          if ((v ?? '').length < 4) return 'Минимум 4 цифры';
+          if ((v ?? '').isEmpty) return context.l10n.staffEnterPin;
+          if ((v ?? '').length < 4) return context.l10n.staffPinMin4;
           return validator?.call(v);
         },
         onFieldSubmitted: (_) => _submit(),
@@ -341,7 +342,8 @@ class _PinFormState extends State<_PinForm> {
 
   @override
   Widget build(BuildContext context) {
-    InputDecoration dec(String l) => InputDecoration(labelText: l, counterText: '');
+    final l = context.l10n;
+    InputDecoration dec(String label) => InputDecoration(labelText: label, counterText: '');
     final fmt = [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(8)];
     return Form(
       key: _form,
@@ -358,8 +360,8 @@ class _PinFormState extends State<_PinForm> {
               obscureText: true,
               keyboardType: TextInputType.number,
               inputFormatters: fmt,
-              decoration: dec('Новый PIN'),
-              validator: (v) => (v ?? '').length < 4 ? 'От 4 до 8 цифр' : null,
+              decoration: dec(l.staffNewPin),
+              validator: (v) => (v ?? '').length < 4 ? l.staffPin4to8 : null,
             ),
             const SizedBox(height: Gap.m),
             TextFormField(
@@ -367,8 +369,8 @@ class _PinFormState extends State<_PinForm> {
               obscureText: true,
               keyboardType: TextInputType.number,
               inputFormatters: fmt,
-              decoration: dec('Повторите PIN'),
-              validator: (v) => v != _a.text ? 'PIN не совпадает' : null,
+              decoration: dec(l.staffRepeatPin),
+              validator: (v) => v != _a.text ? l.staffPinMismatch : null,
               onFieldSubmitted: (_) => _ok(),
             ),
             const SizedBox(height: Gap.l),
@@ -377,8 +379,8 @@ class _PinFormState extends State<_PinForm> {
               overflowAlignment: OverflowBarAlignment.end,
               spacing: Gap.s,
               children: [
-                TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')),
-                FilledButton(onPressed: _ok, child: const Text('OK')),
+                TextButton(onPressed: () => Navigator.pop(context), child: Text(l.commonCancel)),
+                FilledButton(onPressed: _ok, child: Text(l.commonOk)),
               ],
             ),
           ],
@@ -389,7 +391,7 @@ class _PinFormState extends State<_PinForm> {
 }
 
 /// Money formatting shortcut for plan text.
-String planText(int plan) => plan <= 0 ? 'без плана' : Money.format(plan);
+String planText(int plan, [AppLocalizations? l]) => plan <= 0 ? (l ?? L.current).staffNoPlan : Money.format(plan);
 
 /// Color per role chip.
 Color roleColor(Role r) => switch (r) {

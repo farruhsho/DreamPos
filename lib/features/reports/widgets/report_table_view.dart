@@ -6,6 +6,7 @@ import 'package:printing/printing.dart';
 import '../../../core/providers.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets/widgets.dart';
+import '../../../l10n/l10n.dart';
 import '../data/report_table.dart';
 
 /// Card with a sortable table and an export menu (CSV / PDF / print).
@@ -16,7 +17,7 @@ class ReportTableCard extends StatefulWidget {
     this.initialSort,
     this.initialAscending = false,
     this.pageSize = 50,
-    this.emptyText = 'Нет данных за период',
+    this.emptyText,
     this.header,
   });
 
@@ -24,7 +25,8 @@ class ReportTableCard extends StatefulWidget {
   final int? initialSort;
   final bool initialAscending;
   final int pageSize;
-  final String emptyText;
+  /// Defaults to «Нет данных за период» in the UI language.
+  final String? emptyText;
 
   /// Extra widget between the title and the table (filters, legend).
   final Widget? header;
@@ -90,7 +92,7 @@ class _ReportTableCardState extends State<ReportTableCard> {
               padding: const EdgeInsets.symmetric(vertical: Gap.xl),
               child: Center(
                 child: Text(
-                  widget.emptyText,
+                  widget.emptyText ?? context.l10n.repNoDataForPeriod,
                   style: t.textTheme.bodyMedium?.copyWith(color: t.colorScheme.onSurfaceVariant),
                 ),
               ),
@@ -174,7 +176,7 @@ class _ReportTableCardState extends State<ReportTableCard> {
                 child: TextButton.icon(
                   onPressed: () => setState(() => _shown += 200),
                   icon: const Icon(Icons.expand_more),
-                  label: Text('Показать ещё (показано ${visible.length} из ${rows.length})'),
+                  label: Text(context.l10n.repShowMore('${visible.length}', '${rows.length}')),
                 ),
               ),
             ),
@@ -194,11 +196,12 @@ class _ReportTableCardState extends State<ReportTableCard> {
 
   /// Column shown as the row's headline value: the sorted one if numeric,
   /// otherwise the first numeric column.
-  int? _primaryColumn(RTable table) {
+  int? _primaryColumn(RTable table, AppLocalizations l) {
     final s = _sort;
     if (s != null && s > 0 && s < table.columns.length && table.columns[s].numeric) return s;
     // Otherwise the money column that matters most (not a receipt count).
-    for (final key in const ['чистая выручка', 'выручка', 'итого', 'продажи', 'сумма']) {
+    for (final key in [l.repNetRevenue, l.repColRevenue, l.commonTotal, l.repTabSales, l.commonAmount]
+        .map((s) => s.toLowerCase())) {
       for (var i = 1; i < table.columns.length; i++) {
         final col = table.columns[i];
         if (col.numeric && col.title.toLowerCase().contains(key)) return i;
@@ -217,10 +220,11 @@ class _ReportTableCardState extends State<ReportTableCard> {
     List<List<RCell>> visible,
   ) {
     final t = Theme.of(context);
-    final primary = _primaryColumn(table);
+    final l = context.l10n;
+    final primary = _primaryColumn(table, l);
     final muted = t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant);
     final sortLabel = _sort == null || _sort! >= table.columns.length
-        ? 'Без сортировки'
+        ? l.repNoSort
         : table.columns[_sort!].title;
 
     Widget item(List<RCell> r, {bool total = false}) {
@@ -292,7 +296,7 @@ class _ReportTableCardState extends State<ReportTableCard> {
         Align(
           alignment: Alignment.centerLeft,
           child: PopupMenuButton<int>(
-            tooltip: 'Сортировка',
+            tooltip: l.commonSort,
             onSelected: _sortBy,
             itemBuilder: (_) => [
               for (var i = 0; i < table.columns.length; i++)
@@ -313,7 +317,7 @@ class _ReportTableCardState extends State<ReportTableCard> {
                   const SizedBox(width: Gap.xs),
                   Flexible(
                     child: Text(
-                      'Сортировка: $sortLabel',
+                      l.repSortBy(sortLabel),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: t.textTheme.labelLarge?.copyWith(color: t.colorScheme.primary),
@@ -359,36 +363,37 @@ class ExportMenu extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = context.l10n;
     final store = ref.watch(settingProvider('store_name'));
     return PopupMenuButton<String>(
-      tooltip: 'Экспорт',
+      tooltip: l.commonExport,
       enabled: !table.isEmpty,
       icon: const Icon(Icons.ios_share),
       onSelected: (v) => _run(context, v, store),
-      itemBuilder: (_) => const [
+      itemBuilder: (_) => [
         PopupMenuItem(
           value: 'copy',
-          child: ListTile(leading: Icon(Icons.copy), title: Text('Копировать CSV'), dense: true),
+          child: ListTile(leading: const Icon(Icons.copy), title: Text(l.repCopyCsv), dense: true),
         ),
         PopupMenuItem(
           value: 'csv',
           child: ListTile(
-            leading: Icon(Icons.table_view),
-            title: Text('Сохранить CSV (Excel)'),
+            leading: const Icon(Icons.table_view),
+            title: Text(l.repSaveCsv),
             dense: true,
           ),
         ),
         PopupMenuItem(
           value: 'pdf',
           child: ListTile(
-            leading: Icon(Icons.picture_as_pdf),
-            title: Text('Сохранить PDF'),
+            leading: const Icon(Icons.picture_as_pdf),
+            title: Text(l.repSavePdf),
             dense: true,
           ),
         ),
         PopupMenuItem(
           value: 'print',
-          child: ListTile(leading: Icon(Icons.print), title: Text('Печать'), dense: true),
+          child: ListTile(leading: const Icon(Icons.print), title: Text(l.commonPrint), dense: true),
         ),
       ],
     );
@@ -400,7 +405,7 @@ class ExportMenu extends ConsumerWidget {
         await runGuarded(
           context,
           () => Clipboard.setData(ClipboardData(text: table.toCsv())),
-          success: 'Таблица скопирована — вставьте в Excel или сообщение',
+          success: context.l10n.repTableCopied,
         );
       case 'csv':
         String? path;
@@ -426,7 +431,7 @@ Future<void> showSavedDialog(BuildContext context, String path) => showDialog<vo
   context: context,
   builder: (c) => AlertDialog(
     icon: const Icon(Icons.check_circle, color: AppColors.success),
-    title: const Text('Файл сохранён'),
+    title: Text(c.l10n.repFileSaved),
     content: SelectableText(path),
     actions: [
       TextButton.icon(
@@ -435,9 +440,9 @@ Future<void> showSavedDialog(BuildContext context, String path) => showDialog<vo
           Navigator.pop(c);
         },
         icon: const Icon(Icons.copy),
-        label: const Text('Копировать путь'),
+        label: Text(c.l10n.repCopyPath),
       ),
-      FilledButton(autofocus: true, onPressed: () => Navigator.pop(c), child: const Text('Готово')),
+      FilledButton(autofocus: true, onPressed: () => Navigator.pop(c), child: Text(c.l10n.commonDone)),
     ],
   ),
 );

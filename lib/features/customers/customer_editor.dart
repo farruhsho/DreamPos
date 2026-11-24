@@ -8,13 +8,14 @@ import '../../core/permissions.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
+import '../../l10n/l10n.dart';
 import 'customer_logic.dart';
 import 'customer_repo.dart';
 
 /// Opens the create/edit dialog. Returns the saved customer id.
 Future<String?> showCustomerEditor(BuildContext context, {Customer? customer}) =>
     showFormDialog<String>(context,
-        title: customer == null ? 'Новый клиент' : 'Редактирование клиента',
+        title: customer == null ? context.l10n.custNew : context.l10n.custEditTitle,
         width: 620,
         child: CustomerEditor(customer: customer));
 
@@ -103,7 +104,7 @@ class _CustomerEditorState extends ConsumerState<CustomerEditor> {
       firstDate: DateTime(1900),
       lastDate: now,
       initialDatePickerMode: _birthday == null ? DatePickerMode.year : DatePickerMode.day,
-      helpText: 'День рождения',
+      helpText: context.l10n.custBirthday,
     );
     if (d != null) setState(() => _birthday = d);
   }
@@ -129,7 +130,7 @@ class _CustomerEditorState extends ConsumerState<CustomerEditor> {
     final card = _card.text.trim();
     try {
       if (card.isNotEmpty && await repo.isCardTaken(card, exceptId: c?.id)) {
-        if (mounted) setState(() => _cardError = 'Эта карта уже привязана к другому клиенту');
+        if (mounted) setState(() => _cardError = context.l10n.custCardTaken);
         return release();
       }
       await _onPhoneDone();
@@ -139,11 +140,11 @@ class _CustomerEditorState extends ConsumerState<CustomerEditor> {
     }
     if (!mounted) return;
     if (_dupes.isNotEmpty) {
+      final l = context.l10n;
       final ok = await confirm(context,
-          title: 'Телефон уже используется',
-          message: 'Номер ${_phone.text} уже есть у клиента «${_dupes.first.name}». '
-              'Сохранить ещё одного клиента с этим номером?',
-          ok: 'Сохранить');
+          title: l.custPhoneUsedTitle,
+          message: l.custPhoneUsedMessage(_phone.text, _dupes.first.name),
+          ok: l.commonSave);
       if (!ok || !mounted) return release();
     }
     try {
@@ -191,6 +192,7 @@ class _CustomerEditorState extends ConsumerState<CustomerEditor> {
     final existingTags = allTags(ref.watch(customersListProvider).value ?? const []);
     final currentTags = parseTags(_tags.text);
     final wide = MediaQuery.sizeOf(context).width >= 560;
+    final l = context.l10n;
 
     Widget pair(Widget a, Widget b) => wide
         ? Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -217,9 +219,9 @@ class _CustomerEditorState extends ConsumerState<CustomerEditor> {
                   autofocus: true,
                   textCapitalization: TextCapitalization.words,
                   maxLength: 160,
-                  decoration: const InputDecoration(
-                      labelText: 'Имя *', counterText: '', prefixIcon: Icon(Icons.person_outline)),
-                  validator: (v) => (v ?? '').trim().isEmpty ? 'Введите имя клиента' : null,
+                  decoration: InputDecoration(
+                      labelText: l.custNameField, counterText: '', prefixIcon: const Icon(Icons.person_outline)),
+                  validator: (v) => (v ?? '').trim().isEmpty ? l.custEnterName : null,
                   onFieldSubmitted: (_) => _save(),
                 ),
                 const SizedBox(height: Gap.m),
@@ -230,17 +232,17 @@ class _CustomerEditorState extends ConsumerState<CustomerEditor> {
                     keyboardType: TextInputType.phone,
                     inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9+()\-\s]'))],
                     decoration: InputDecoration(
-                      labelText: 'Телефон',
+                      labelText: l.commonPhone,
                       hintText: '+998 90 123 45 67',
                       prefixIcon: const Icon(Icons.phone_outlined),
-                      helperText: _dupes.isEmpty ? null : 'Уже есть: ${_dupes.map((d) => d.name).join(', ')}',
+                      helperText: _dupes.isEmpty ? null : l.custPhoneExists(_dupes.map((d) => d.name).join(', ')),
                       helperStyle: const TextStyle(color: AppColors.warning),
                       helperMaxLines: 2,
                     ),
                     validator: (v) {
                       final d = (v ?? '').replaceAll(RegExp(r'\D'), '');
-                      if (d.isNotEmpty && d.length < 7) return 'Слишком короткий номер';
-                      if (d.length > 15) return 'Слишком длинный номер';
+                      if (d.isNotEmpty && d.length < 7) return l.custPhoneTooShort;
+                      if (d.length > 15) return l.custPhoneTooLong;
                       return null;
                     },
                     onFieldSubmitted: (_) => _save(),
@@ -251,7 +253,7 @@ class _CustomerEditorState extends ConsumerState<CustomerEditor> {
                     decoration:
                         const InputDecoration(labelText: 'Email', prefixIcon: Icon(Icons.alternate_email)),
                     validator: (v) =>
-                        (v ?? '').trim().isNotEmpty && !isValidEmail(v!) ? 'Неверный формат email' : null,
+                        (v ?? '').trim().isNotEmpty && !isValidEmail(v!) ? l.custEmailInvalidFormat : null,
                     onFieldSubmitted: (_) => _save(),
                   ),
                 ),
@@ -260,13 +262,13 @@ class _CustomerEditorState extends ConsumerState<CustomerEditor> {
                   TextFormField(
                     controller: _card,
                     decoration: InputDecoration(
-                      labelText: 'Номер карты',
+                      labelText: l.custCardNumber,
                       prefixIcon: const Icon(Icons.credit_card),
                       errorText: _cardError,
                       // An icon button: a text button ate half the field and
                       // truncated the label to «Номер кар…» on an empty field.
                       suffixIcon: IconButton(
-                        tooltip: 'Сгенерировать номер карты',
+                        tooltip: l.custGenerateCard,
                         onPressed: _generateCard,
                         icon: const Icon(Icons.autorenew),
                       ),
@@ -281,53 +283,53 @@ class _CustomerEditorState extends ConsumerState<CustomerEditor> {
                     borderRadius: BorderRadius.circular(10),
                     child: InputDecorator(
                       decoration: InputDecoration(
-                        labelText: 'День рождения',
+                        labelText: l.custBirthday,
                         prefixIcon: const Icon(Icons.cake_outlined),
                         suffixIcon: _birthday == null
                             ? const Icon(Icons.calendar_month)
                             : IconButton(
-                                tooltip: 'Очистить',
+                                tooltip: l.commonClear,
                                 icon: const Icon(Icons.close),
                                 onPressed: () => setState(() => _birthday = null)),
                       ),
-                      child: Text(_birthday == null ? 'Не указан' : formatDate(_birthday!)),
+                      child: Text(_birthday == null ? l.custNotSet : formatDate(_birthday!)),
                     ),
                   ),
                 ),
                 const SizedBox(height: Gap.m),
                 pair(
-                  _tip(!canDiscount, 'Нет права изменять скидку',
+                  _tip(!canDiscount, l.custNoDiscountPerm,
                     TextFormField(
                       controller: _discount,
                       enabled: canDiscount,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
-                      decoration: const InputDecoration(
-                          labelText: 'Персональная скидка',
+                      decoration: InputDecoration(
+                          labelText: l.custPersonalDiscount,
                           suffixText: '%',
-                          prefixIcon: Icon(Icons.percent),
-                          helperText: 'Не суммируется с акциями: берётся лучшая',
+                          prefixIcon: const Icon(Icons.percent),
+                          helperText: l.custDiscountHelper,
                           helperMaxLines: 2),
                       validator: (v) {
                         final p = _parsePercent(v ?? '');
-                        if (p == null) return 'Введите число';
-                        if (p < 0 || p > 100) return 'От 0 до 100%';
+                        if (p == null) return l.commonEnterNumber;
+                        if (p < 0 || p > 100) return l.custPercentRange;
                         return null;
                       },
                       onFieldSubmitted: (_) => _save(),
                     ),
                   ),
-                  _tip(!canDebt, 'Нет права управлять долгами',
+                  _tip(!canDebt, l.custNoDebtPerm,
                     canDebt
                         ? MoneyField(
-                            label: 'Лимит долга',
+                            label: l.custDebtLimit,
                             controller: _debtLimit,
-                            helper: '0 — продажа в долг запрещена',
+                            helper: l.custDebtLimitHelper,
                             onSubmitted: (_) => _save(),
                           )
                         : InputDecorator(
-                            decoration: const InputDecoration(
-                                labelText: 'Лимит долга', enabled: false, helperText: 'Только для менеджера'),
+                            decoration: InputDecoration(
+                                labelText: l.custDebtLimit, enabled: false, helperText: l.custManagerOnly),
                             child: Text(Money.format(c?.debtLimit ?? 0)),
                           ),
                   ),
@@ -335,10 +337,10 @@ class _CustomerEditorState extends ConsumerState<CustomerEditor> {
                 const SizedBox(height: Gap.m),
                 TextFormField(
                   controller: _tags,
-                  decoration: const InputDecoration(
-                      labelText: 'Теги',
-                      helperText: 'Через запятую, например: опт, постоянный',
-                      prefixIcon: Icon(Icons.sell_outlined)),
+                  decoration: InputDecoration(
+                      labelText: l.custTags,
+                      helperText: l.custTagsHelper,
+                      prefixIcon: const Icon(Icons.sell_outlined)),
                   onChanged: (_) => setState(() {}),
                   onFieldSubmitted: (_) => _save(),
                 ),
@@ -358,7 +360,7 @@ class _CustomerEditorState extends ConsumerState<CustomerEditor> {
                   controller: _note,
                   minLines: 2,
                   maxLines: 4,
-                  decoration: const InputDecoration(labelText: 'Заметка', alignLabelWithHint: true),
+                  decoration: InputDecoration(labelText: l.custNote, alignLabelWithHint: true),
                 ),
               ]),
             ),
@@ -372,13 +374,13 @@ class _CustomerEditorState extends ConsumerState<CustomerEditor> {
                 overflowSpacing: Gap.s,
                 overflowAlignment: OverflowBarAlignment.end,
                 children: [
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')),
+              TextButton(onPressed: () => Navigator.pop(context), child: Text(l.commonCancel)),
               FilledButton.icon(
                 onPressed: _saving ? null : _save,
                 icon: _saving
                     ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                     : const Icon(Icons.check),
-                label: Text(c == null ? 'Создать' : 'Сохранить'),
+                label: Text(c == null ? l.commonCreate : l.commonSave),
               ),
             ]),
           ),

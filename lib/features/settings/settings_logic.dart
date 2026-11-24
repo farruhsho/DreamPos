@@ -6,6 +6,7 @@ import 'package:drift/drift.dart';
 import '../../core/db/database.dart';
 import '../../core/money.dart';
 import '../../core/widgets/widgets.dart' show formatDateTime;
+import '../../l10n/l10n.dart';
 
 /// Application version shown in «О программе» (keep in sync with pubspec).
 const appVersion = '1.0.0';
@@ -63,16 +64,16 @@ double? parsePercent(String input) {
   return v;
 }
 
-/// Validates a percent in [min]..[max]. Returns a Russian error or null.
+/// Validates a percent in [min]..[max]. Returns a localized error or null.
 String? validatePercent(String? input, {double min = 0, double max = 100, bool allowEmpty = false}) {
   final t = (input ?? '').trim();
-  if (t.isEmpty) return allowEmpty ? null : 'Укажите значение от ${_num(min)} до ${_num(max)}';
+  if (t.isEmpty) return allowEmpty ? null : L.current.settingsErrPercentRange(_num(min), _num(max));
   final v = parsePercent(t);
-  if (v == null) return 'Введите число, например 2 или 2,5';
-  if (v < min || v > max) return 'Допустимо от ${_num(min)} до ${_num(max)} %';
+  if (v == null) return L.current.settingsErrPercentNumber;
+  if (v < min || v > max) return L.current.settingsErrPercentAllowed(_num(min), _num(max));
   final frac = t.replaceAll(',', '.').split('.');
   if (frac.length == 2 && frac[1].replaceAll('%', '').trim().length > 2) {
-    return 'Не больше двух знаков после запятой';
+    return L.current.settingsErrTwoDecimals;
   }
   return null;
 }
@@ -88,18 +89,18 @@ String _num(double v) => formatPercentValue(v);
 /// Return period in days: integer 0..3650 (0 = no limit).
 String? validateReturnDays(String? input) {
   final t = (input ?? '').trim();
-  if (t.isEmpty) return 'Укажите количество дней (0 — без ограничения)';
+  if (t.isEmpty) return L.current.settingsErrReturnDaysEmpty;
   final v = int.tryParse(t);
-  if (v == null) return 'Введите целое число дней';
-  if (v < 0) return 'Не может быть отрицательным';
-  if (v > 3650) return 'Не больше 3650 дней (10 лет)';
+  if (v == null) return L.current.settingsErrReturnDaysInt;
+  if (v < 0) return L.current.settingsErrNotNegative;
+  if (v > 3650) return L.current.settingsErrReturnDaysMax;
   return null;
 }
 
 String? validateStoreName(String? input) {
   final t = (input ?? '').trim();
-  if (t.isEmpty) return 'Название магазина обязательно — оно печатается в чеке';
-  if (t.length > 120) return 'Не длиннее 120 символов';
+  if (t.isEmpty) return L.current.settingsErrStoreNameRequired;
+  if (t.length > 120) return L.current.settingsErrMaxLength('120');
   return null;
 }
 
@@ -109,10 +110,10 @@ String? validatePhone(String? input) {
   final t = (input ?? '').trim();
   if (t.isEmpty) return null;
   if (!RegExp(r'^[0-9+\-() ]+$').hasMatch(t)) {
-    return 'Только цифры, пробел, +, - и скобки';
+    return L.current.settingsErrPhoneChars;
   }
   final digits = t.replaceAll(RegExp(r'\D'), '').length;
-  if (digits < 5 || digits > 15) return 'Проверьте номер: от 5 до 15 цифр';
+  if (digits < 5 || digits > 15) return L.current.settingsErrPhoneDigits;
   return null;
 }
 
@@ -120,15 +121,15 @@ String? validatePhone(String? input) {
 String? validateTaxId(String? input) {
   final t = (input ?? '').trim();
   if (t.isEmpty) return null;
-  if (!RegExp(r'^\d+$').hasMatch(t)) return 'ИНН состоит только из цифр';
-  if (t.length < 9 || t.length > 14) return 'ИНН должен содержать от 9 до 14 цифр';
+  if (!RegExp(r'^\d+$').hasMatch(t)) return L.current.settingsErrTaxIdDigits;
+  if (t.length < 9 || t.length > 14) return L.current.settingsErrTaxIdLength;
   return null;
 }
 
 String? validateReceiptFooter(String? input) {
   final t = input ?? '';
-  if (t.length > 300) return 'Не длиннее 300 символов';
-  if ('\n'.allMatches(t).length >= 6) return 'Не больше 6 строк';
+  if (t.length > 300) return L.current.settingsErrMaxLength('300');
+  if ('\n'.allMatches(t).length >= 6) return L.current.settingsErrFooterLines;
   return null;
 }
 
@@ -158,26 +159,25 @@ BanknotesResult parseBanknotes(String input, CurrencyConfig c) {
   final out = <int>[];
   for (final p in parts) {
     if (!RegExp(r'^\d+(\.\d+)?$').hasMatch(p)) {
-      return BanknotesResult(const [], '«$p» — не число. Дробную часть пишите через точку');
+      return BanknotesResult(const [], L.current.settingsErrBanknoteNotNumber(p));
     }
     final dot = p.indexOf('.');
     if (dot >= 0 && p.length - dot - 1 > c.decimals) {
       return BanknotesResult(
         const [],
-        c.decimals == 0 ? '«$p»: у ${c.code} нет дробных единиц' : '«$p»: слишком много знаков после точки',
+        c.decimals == 0
+            ? L.current.settingsErrBanknoteNoFraction(p, c.code)
+            : L.current.settingsErrBanknoteTooManyDecimals(p),
       );
     }
     final v = Money.parse(p, c: c);
-    if (v == null || v <= 0) return BanknotesResult(const [], '«$p» — номинал должен быть больше нуля');
-    if (v > 1000000000000) return BanknotesResult(const [], '«$p» — слишком большой номинал');
-    if (out.contains(v)) return BanknotesResult(const [], 'Номинал «$p» указан дважды');
+    if (v == null || v <= 0) return BanknotesResult(const [], L.current.settingsErrBanknotePositive(p));
+    if (v > 1000000000000) return BanknotesResult(const [], L.current.settingsErrBanknoteTooBig(p));
+    if (out.contains(v)) return BanknotesResult(const [], L.current.settingsErrBanknoteDuplicate(p));
     out.add(v);
   }
   if (out.length > maxBanknotes) {
-    return const BanknotesResult(
-      [],
-      'Не больше $maxBanknotes номиналов — кнопки должны помещаться на экране',
-    );
+    return BanknotesResult(const [], L.current.settingsErrBanknotesMax('$maxBanknotes'));
   }
   out.sort();
   return BanknotesResult(out);
@@ -190,12 +190,8 @@ String banknotesToInput(String? stored, CurrencyConfig c) {
 }
 
 /// Stored `pos_banknotes` -> list of minor units (invalid parts skipped).
-List<int> decodeBanknotes(String? stored) => (stored ?? '')
-    .split(',')
-    .map((s) => int.tryParse(s.trim()))
-    .whereType<int>()
-    .where((v) => v > 0)
-    .toList();
+List<int> decodeBanknotes(String? stored) =>
+    (stored ?? '').split(',').map((s) => int.tryParse(s.trim())).whereType<int>().where((v) => v > 0).toList();
 
 /// Default quick-tender banknotes per currency (minor units).
 List<int> defaultBanknotes(CurrencyConfig c) {
@@ -216,9 +212,10 @@ List<int> defaultBanknotes(CurrencyConfig c) {
 /// Allowed `cash_rounding` values: 'none' or the step in minor units.
 const cashRoundingOptions = ['none', '50', '100', '500', '1000'];
 
-String cashRoundingLabel(String v, CurrencyConfig c) {
-  if (v == 'none' || int.tryParse(v) == null) return 'Без округления';
-  return 'Кратно ${Money.format(int.parse(v), c: c)}';
+String cashRoundingLabel(String v, CurrencyConfig c, [AppLocalizations? l]) {
+  l ??= L.current;
+  if (v == 'none' || int.tryParse(v) == null) return l.settingsRoundingNone;
+  return l.settingsRoundingStep(Money.format(int.parse(v), c: c));
 }
 
 /// Reference implementation for the POS: rounds a cash total to the nearest
@@ -233,14 +230,17 @@ int roundCash(int amount, int step) {
 // ------------------------------------------------------------------ loyalty
 
 /// Live explanation of the loyalty settings for a 100 000 (major) purchase.
-String loyaltyExample(double earnPercent, double maxRedeemPercent, CurrencyConfig c) {
+String loyaltyExample(double earnPercent, double maxRedeemPercent, CurrencyConfig c, [AppLocalizations? l]) {
   final purchase = 100000 * c.factor;
   final earned = Money.percent(purchase, earnPercent);
   final redeem = Money.percent(purchase, maxRedeemPercent);
-  return 'С покупки ${Money.format(purchase, withSymbol: false, c: c)} '
-      'начислится ${Money.format(earned, withSymbol: false, c: c)} бонусов '
-      '(1 бонус = 1 ${c.symbol}). Бонусами можно оплатить до '
-      '${formatPercentValue(maxRedeemPercent)}% чека — до ${Money.format(redeem, c: c)}.';
+  return (l ?? L.current).settingsLoyaltyExample(
+    Money.format(purchase, withSymbol: false, c: c),
+    Money.format(earned, withSymbol: false, c: c),
+    c.symbol,
+    formatPercentValue(maxRedeemPercent),
+    Money.format(redeem, c: c),
+  );
 }
 
 // ------------------------------------------------------------------ backups
@@ -273,13 +273,14 @@ bool looksLikeSqlite(List<int> header) {
   return header[15] == 0;
 }
 
-String formatBytes(int bytes) {
-  if (bytes < 1024) return '$bytes Б';
+String formatBytes(int bytes, [AppLocalizations? l]) {
+  l ??= L.current;
+  if (bytes < 1024) return l.settingsBytes('$bytes');
   final kb = bytes / 1024;
-  if (kb < 1024) return '${kb.toStringAsFixed(0)} КБ';
+  if (kb < 1024) return l.settingsKilobytes(kb.toStringAsFixed(0));
   final mb = kb / 1024;
-  if (mb < 1024) return '${mb.toStringAsFixed(1).replaceAll('.', ',')} МБ';
-  return '${(mb / 1024).toStringAsFixed(2).replaceAll('.', ',')} ГБ';
+  if (mb < 1024) return l.settingsMegabytes(mb.toStringAsFixed(1).replaceAll('.', ','));
+  return l.settingsGigabytes((mb / 1024).toStringAsFixed(2).replaceAll('.', ','));
 }
 
 // ------------------------------------------------------------------ trial
@@ -320,14 +321,17 @@ String csvQty(double q) {
 // ------------------------------------------------------------------ receipt preview
 
 /// Fake receipt text built from the store settings, for the live preview and
-/// the printer test. Mirrors the layout of `ReceiptData.toText`.
+/// the printer test. Mirrors the layout of `ReceiptData.toText`. Uses the
+/// receipt language (store setting `receipt_locale` in [s]); [title] defaults
+/// to a sample receipt number.
 String sampleReceiptText(
   Map<String, String> s, {
   int width = 42,
   DateTime? now,
   CurrencyConfig? currency,
-  String title = 'ЧЕК №123',
+  String? title,
 }) {
+  final rl = L.forReceipt(s);
   final c = currency ?? CurrencyConfig.fromSettings(s);
   final b = StringBuffer();
   String center(String t) => t.length >= width ? t : ' ' * ((width - t.length) ~/ 2) + t;
@@ -344,18 +348,18 @@ String sampleReceiptText(
   final addr = (s[SettingKeys.storeAddress] ?? '').trim();
   if (addr.isNotEmpty) b.writeln(center(addr));
   final phone = (s[SettingKeys.storePhone] ?? '').trim();
-  if (phone.isNotEmpty) b.writeln(center('Тел: $phone'));
+  if (phone.isNotEmpty) b.writeln(center(rl.corePrintPhone(phone)));
   final tax = (s[SettingKeys.storeTaxId] ?? '').trim();
-  if (tax.isNotEmpty) b.writeln(center('ИНН: $tax'));
+  if (tax.isNotEmpty) b.writeln(center(rl.corePrintTaxId(tax)));
   b.writeln(line);
-  b.writeln(center(title));
+  b.writeln(center(title ?? rl.coreReceiptTitle('123')));
   b.writeln(center(formatDateTime(now ?? DateTime.now())));
-  b.writeln('Кассир: Образец');
+  b.writeln(rl.corePrintCashier(rl.settingsSampleCashier));
   b.writeln(line);
   final items = [
-    ('Молоко 2,5% 1 л', 2, 12000 * f),
-    ('Хлеб белый', 1, 4000 * f),
-    ('Чай чёрный 100 г', 1, 18500 * f),
+    (rl.settingsSampleItemMilk, 2, 12000 * f),
+    (rl.settingsSampleItemBread, 1, 4000 * f),
+    (rl.settingsSampleItemTea, 1, 18500 * f),
   ];
   var total = 0;
   for (final (n, q, p) in items) {
@@ -364,10 +368,10 @@ String sampleReceiptText(
     total += q * p;
   }
   b.writeln(line);
-  b.writeln(lr('ИТОГО', Money.format(total, c: c)));
+  b.writeln(lr(rl.corePrintTotal, Money.format(total, c: c)));
   final paid = ((total / (10000 * f)).ceil()) * 10000 * f;
-  b.writeln(lr('Наличные', Money.format(paid, c: c)));
-  if (paid > total) b.writeln(lr('Сдача', Money.format(paid - total, c: c)));
+  b.writeln(lr(rl.payCash, Money.format(paid, c: c)));
+  if (paid > total) b.writeln(lr(rl.commonChange, Money.format(paid - total, c: c)));
   b.writeln(line);
   final footer = (s[SettingKeys.receiptFooter] ?? '').trim();
   if (footer.isNotEmpty) {
@@ -375,7 +379,7 @@ String sampleReceiptText(
       b.writeln(center(l.trim()));
     }
   }
-  return b.toString();
+  return L.printable(b.toString());
 }
 
 int receiptCharsForWidth(String? widthMm) => widthMm == '58' ? 32 : 42;
@@ -430,27 +434,21 @@ Map<String, String> currencyChangeSettings(CurrencyConfig c, Map<String, String>
   if ((current[SettingKeys.cashRounding] ?? 'none') != 'none') SettingKeys.cashRounding: 'none',
 };
 
-const currencyLockedMessage = 'Валюту нельзя менять: в базе уже есть продажи';
+String get currencyLockedMessage => L.current.settingsCurrencyLocked;
 
 /// Switches currency atomically: the "no sales yet" check and the write run
 /// in one transaction, so a sale committed meanwhile by another cashier
 /// cannot slip in between (DECISIONS D-004).
-Future<void> changeCurrency(
-  AppDatabase db,
-  CurrencyConfig c,
-  Map<String, String> current, {
-  String? userId,
-}) => db.transaction(() async {
-  if (await hasAnySale(db)) throw Exception(currencyLockedMessage);
-  await saveSettings(db, currencyChangeSettings(c, current), userId: userId);
-});
+Future<void> changeCurrency(AppDatabase db, CurrencyConfig c, Map<String, String> current, {String? userId}) =>
+    db.transaction(() async {
+      if (await hasAnySale(db)) throw Exception(currencyLockedMessage);
+      await saveSettings(db, currencyChangeSettings(c, current), userId: userId);
+    });
 
 /// Currency is locked as soon as any sale (in any status) exists: amounts
 /// are stored in minor units of the original currency (DECISIONS D-004).
 Future<bool> hasAnySale(AppDatabase db) async {
-  final row = await db
-      .customSelect('SELECT EXISTS(SELECT 1 FROM sales) AS e', readsFrom: {db.sales})
-      .getSingle();
+  final row = await db.customSelect('SELECT EXISTS(SELECT 1 FROM sales) AS e', readsFrom: {db.sales}).getSingle();
   return row.read<int>('e') == 1;
 }
 
@@ -494,25 +492,27 @@ String diagnosticsText({
   required Map<String, String> settings,
   DateTime? now,
 }) {
+  final l = L.current;
+  final demo = settings[SettingKeys.demoMode] == '1' ? l.settingsYesLower : l.settingsNoLower;
   final b = StringBuffer()
     ..writeln('DreamPOS $appVersion')
-    ..writeln('Платформа: $platform')
-    ..writeln('Магазин: ${settings[SettingKeys.storeName] ?? '—'}')
-    ..writeln('Валюта: ${settings[SettingKeys.currencyCode] ?? 'UZS'}')
-    ..writeln('Демо-режим: ${settings[SettingKeys.demoMode] == '1' ? 'да' : 'нет'}')
-    ..writeln('Размер базы: ${formatBytes(dbSize)}')
-    ..writeln('Товаров: ${counts['products'] ?? 0}')
-    ..writeln('Продаж: ${counts['sales'] ?? 0}')
-    ..writeln('Клиентов: ${counts['customers'] ?? 0}')
-    ..writeln('Сотрудников: ${counts['users'] ?? 0}')
-    ..writeln('Последняя резервная копия: ${_isoLabel(settings[SettingKeys.lastBackupAt])}')
-    ..write('Сформировано: ${formatDateTime(now ?? DateTime.now())}');
+    ..writeln(l.settingsDiagPlatform(platform))
+    ..writeln(l.settingsDiagStore(settings[SettingKeys.storeName] ?? '—'))
+    ..writeln(l.settingsCurrencyValue(settings[SettingKeys.currencyCode] ?? 'UZS'))
+    ..writeln(l.settingsDiagDemo(demo))
+    ..writeln(l.settingsDiagDbSize(formatBytes(dbSize, l)))
+    ..writeln(l.settingsDiagProducts('${counts['products'] ?? 0}'))
+    ..writeln(l.settingsDiagSales('${counts['sales'] ?? 0}'))
+    ..writeln(l.settingsDiagCustomers('${counts['customers'] ?? 0}'))
+    ..writeln(l.settingsDiagUsers('${counts['users'] ?? 0}'))
+    ..writeln(l.settingsDiagLastBackup(_isoLabel(settings[SettingKeys.lastBackupAt], l)))
+    ..write(l.settingsDiagGenerated(formatDateTime(now ?? DateTime.now())));
   return b.toString();
 }
 
-String _isoLabel(String? iso) {
+String _isoLabel(String? iso, AppLocalizations l) {
   final d = iso == null ? null : DateTime.tryParse(iso);
-  return d == null ? 'нет' : formatDateTime(d.toLocal());
+  return d == null ? l.settingsNoLower : formatDateTime(d.toLocal());
 }
 
 /// Ensures `installed_at` exists; returns the install date.
@@ -528,12 +528,12 @@ Future<DateTime> ensureInstalledAt(AppDatabase db, {DateTime? now}) async {
 /// Name validation for registers (unique among not deleted, case-insensitive).
 String? validateRegisterName(String? name, Iterable<Register> existing, {String? selfId}) {
   final t = (name ?? '').trim();
-  if (t.isEmpty) return 'Введите название кассы';
-  if (t.length > 60) return 'Не длиннее 60 символов';
+  if (t.isEmpty) return L.current.settingsErrRegisterNameEmpty;
+  if (t.length > 60) return L.current.settingsErrMaxLength('60');
   final dup = existing.any(
     (r) => r.id != selfId && r.deletedAt == null && r.name.trim().toLowerCase() == t.toLowerCase(),
   );
-  if (dup) return 'Касса с таким названием уже есть';
+  if (dup) return L.current.settingsErrRegisterDuplicate;
   return null;
 }
 
@@ -564,7 +564,7 @@ Future<String> upsertRegister(
       userId: userId,
       entity: 'registers',
       entityId: rid,
-      details: '${name.trim()}${isActive ? '' : ' (отключена)'}',
+      details: '${name.trim()}${isActive ? '' : ' (отключена)'}', // audit detail stored in DB // l10n-ignore
     );
   });
   return rid;
@@ -580,8 +580,7 @@ Future<bool> registerHasOpenShift(AppDatabase db, String registerId) async {
   return row != null;
 }
 
-const registerBusyMessage =
-    'На этой кассе открыта смена. Сначала закройте смену, затем отключайте или удаляйте кассу.';
+String get registerBusyMessage => L.current.settingsRegisterBusy;
 
 /// Soft-deletes a register (sales may reference it). Refused while a shift
 /// is open on it, so an open shift never points to a deleted register.

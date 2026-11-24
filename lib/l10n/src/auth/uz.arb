@@ -1,0 +1,23 @@
+{
+  "authEnterPin": "PIN-kodni kiriting",
+  "authDemoMode": "Demo rejim",
+  "setupDefaultReceiptFooter": "Xaridingiz uchun rahmat!",
+  "setupWelcome": "DreamPOSga xush kelibsiz",
+  "setupIntro": "Sozlash bir daqiqadan kam vaqt oladi. Hammasini keyinroq “Sozlamalar”da oʻzgartirish mumkin.",
+  "setupStart": "Ishni boshlash",
+  "setupStoreName": "Doʻkon nomi *",
+  "setupEnterStoreName": "Nomini kiriting",
+  "setupTaxId": "STIR / INN",
+  "setupCurrency": "Hisob valyutasi",
+  "setupCurrencyExample": "Misol: {amount}",
+  "setupCurrencyWarning": "Birinchi sotuvdan keyin valyutani oʻzgartirib boʻlmaydi — bazadagi barcha summalar unga bogʻliq.",
+  "setupOwnerName": "Ismingiz (egasi) *",
+  "setupPin": "PIN-kod (4–8 raqam) *",
+  "setupPinRepeat": "PINni takrorlang *",
+  "setupPinMismatch": "PIN mos kelmadi",
+  "setupDemo": "Demo maʼlumotlar bilan toʻldirish",
+  "setupDemoHint": "Tizim bilan tanishish uchun mahsulotlar, mijozlar va aksiyalar. Haqiqiy doʻkon uchun yoqmang.",
+  "setupStepStore": "Doʻkon",
+  "setupStepCurrency": "Valyuta",
+  "setupStepOwner": "Egasi"
+}

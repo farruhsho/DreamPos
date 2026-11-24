@@ -1,13 +1,24 @@
+import '../l10n/l10n.dart';
+
 /// Role-based access control.
 enum Role {
-  owner('Владелец'),
-  admin('Администратор'),
-  manager('Менеджер'),
-  cashier('Кассир'),
-  storekeeper('Кладовщик');
+  owner,
+  admin,
+  manager,
+  cashier,
+  storekeeper;
 
-  const Role(this.label);
-  final String label;
+  /// Localized name in [l].
+  String labelIn(AppLocalizations l) => switch (this) {
+        Role.owner => l.roleOwner,
+        Role.admin => l.roleAdmin,
+        Role.manager => l.roleManager,
+        Role.cashier => l.roleCashier,
+        Role.storekeeper => l.roleStorekeeper,
+      };
+
+  /// Localized name in the UI language.
+  String get label => labelIn(L.current);
 
   static Role parse(String s) =>
       Role.values.firstWhere((r) => r.name == s, orElse: () => Role.cashier);

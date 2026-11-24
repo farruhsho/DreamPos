@@ -5,6 +5,7 @@ import '../../../core/money.dart';
 import '../../../core/providers.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets/widgets.dart';
+import '../../../l10n/l10n.dart';
 import '../settings_logic.dart';
 import '../settings_widgets.dart';
 
@@ -41,14 +42,9 @@ class _SalesSectionState extends ConsumerState<SalesSection> with SettingsFormMi
     if (on) return true;
     return confirm(
       context,
-      title: 'Разрешить продажи без смены?',
-      message:
-          'Не рекомендуется. Без открытой смены:\n'
-          '• не будет контроля наличных в кассе и Z-отчёта;\n'
-          '• продажи не попадут ни в одну смену, расхождения не найти;\n'
-          '• кассиры смогут продавать, не пересчитав размен.\n\n'
-          'Отключайте, только если касса не принимает наличные.',
-      ok: 'Всё равно отключить',
+      title: context.l10n.settingsShiftOffTitle,
+      message: context.l10n.settingsShiftOffMessage,
+      ok: context.l10n.settingsShiftOffOk,
       destructive: true,
     );
   }
@@ -57,12 +53,9 @@ class _SalesSectionState extends ConsumerState<SalesSection> with SettingsFormMi
     if (!on) return true;
     return confirm(
       context,
-      title: 'Разрешить продажу при нулевом остатке?',
-      message:
-          'Остаток сможет уйти в минус. Это удобно, если приход оформляют позже продажи, '
-          'но скрывает пересорт и недостачи. Отрицательные остатки нужно регулярно '
-          'исправлять приходом или инвентаризацией.',
-      ok: 'Разрешить',
+      title: context.l10n.settingsNegativeTitle,
+      message: context.l10n.settingsNegativeMessage,
+      ok: context.l10n.settingsAllow,
     );
   }
 
@@ -74,51 +67,50 @@ class _SalesSectionState extends ConsumerState<SalesSection> with SettingsFormMi
     final defaults = defaultBanknotes(_cur);
     final parsed = parseBanknotes(ctl(SettingKeys.posBanknotes).text, _cur);
     final shown = parsed.ok && parsed.values.isNotEmpty ? parsed.values : defaults;
+    final l = context.l10n;
 
     return buildForm(
-      title: 'Продажи',
-      description: 'Правила, которые касса проверяет при каждой продаже и возврате.',
+      title: l.settingsSecSales,
+      description: l.settingsSalesDesc,
       children: [
         TileCard(
-          title: 'Контроль',
+          title: l.settingsControl,
           children: [
             SettingSwitch(
               settingKey: SettingKeys.requireShift,
               defaultOn: true,
               icon: Icons.schedule,
-              title: 'Продавать только при открытой смене',
-              subtitle: 'Рекомендуется: контроль наличных и Z-отчёт по каждой смене',
+              title: l.settingsRequireShift,
+              subtitle: l.settingsRequireShiftHint,
               confirmChange: _confirmShift,
             ),
             SettingSwitch(
               settingKey: SettingKeys.allowNegativeStock,
               icon: Icons.inventory_2_outlined,
-              title: 'Разрешить продажу при нулевом остатке',
-              subtitle: 'Остаток может уйти в минус (для всех товаров)',
+              title: l.settingsAllowNegative,
+              subtitle: l.settingsAllowNegativeHint,
               confirmChange: _confirmNegative,
             ),
-            const SettingSwitch(
+            SettingSwitch(
               settingKey: SettingKeys.debtRequiresLimit,
               icon: Icons.credit_score_outlined,
-              title: 'В долг — только клиентам с лимитом',
-              subtitle: 'Продажа в долг клиенту без установленного лимита будет запрещена',
+              title: l.settingsDebtLimit,
+              subtitle: l.settingsDebtLimitHint,
             ),
           ],
         ),
         SectionCard(
-          title: 'Возвраты',
+          title: l.settingsReturns,
           child: NarrowField(
             maxWidth: 480,
             child: TextFormField(
               controller: ctl(SettingKeys.returnDays),
               keyboardType: TextInputType.number,
               decoration: InputDecoration(
-                labelText: 'Срок возврата, дней',
-                suffixText: 'дн.',
+                labelText: l.settingsReturnDays,
+                suffixText: l.settingsDaysSuffix,
                 helperMaxLines: 3,
-                helperText: days == 0
-                    ? 'Без ограничения срока'
-                    : 'Возврат по чеку возможен в течение ${days ?? '…'} дней. 0 — без ограничения',
+                helperText: days == 0 ? l.settingsReturnNoLimit : l.settingsReturnWithin('${days ?? '…'}'),
               ),
               validator: validateReturnDays,
               onFieldSubmitted: (_) => save(),
@@ -126,19 +118,19 @@ class _SalesSectionState extends ConsumerState<SalesSection> with SettingsFormMi
           ),
         ),
         SectionCard(
-          title: 'Быстрая оплата наличными',
+          title: l.settingsQuickCash,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               TextFormField(
                 controller: ctl(SettingKeys.posBanknotes),
                 decoration: InputDecoration(
-                  labelText: 'Номиналы купюр на экране оплаты',
+                  labelText: l.settingsBanknotesLabel,
                   // Keep the label up so the default set is visible as a hint.
                   floatingLabelBehavior: FloatingLabelBehavior.always,
                   hintText: defaults.map((v) => Money.toInput(v, c: _cur)).join(', '),
                   helperMaxLines: 3,
-                  helperText: 'Через запятую, до $maxBanknotes штук. Пусто — стандартный набор',
+                  helperText: l.settingsBanknotesHelper('$maxBanknotes'),
                   suffixText: _cur.symbol,
                 ),
                 validator: (v) => parseBanknotes(v ?? '', _cur).error,
@@ -146,7 +138,7 @@ class _SalesSectionState extends ConsumerState<SalesSection> with SettingsFormMi
               ),
               const SizedBox(height: Gap.m),
               Text(
-                'Кнопки на кассе:',
+                l.settingsPosButtons,
                 style: Theme.of(
                   context,
                 ).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
@@ -155,15 +147,13 @@ class _SalesSectionState extends ConsumerState<SalesSection> with SettingsFormMi
               Wrap(
                 spacing: Gap.s,
                 runSpacing: Gap.s,
-                children: [
-                  for (final v in shown) Chip(label: Text(Money.format(v, withSymbol: false, c: _cur))),
-                ],
+                children: [for (final v in shown) Chip(label: Text(Money.format(v, withSymbol: false, c: _cur)))],
               ),
             ],
           ),
         ),
         SectionCard(
-          title: 'Округление наличных',
+          title: l.settingsCashRounding,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -172,17 +162,17 @@ class _SalesSectionState extends ConsumerState<SalesSection> with SettingsFormMi
                 child: DropdownButtonFormField<String>(
                   key: ValueKey('rounding-$rounding'),
                   initialValue: cashRoundingOptions.contains(rounding) ? rounding : 'none',
-                  decoration: const InputDecoration(labelText: 'Округлять итог при оплате наличными'),
+                  decoration: InputDecoration(labelText: l.settingsRoundingLabel),
                   items: [
                     for (final o in cashRoundingOptions)
-                      DropdownMenuItem(value: o, child: Text(cashRoundingLabel(o, _cur))),
+                      DropdownMenuItem(value: o, child: Text(cashRoundingLabel(o, _cur, l))),
                   ],
                   onChanged: (v) {
                     if (v == null) return;
                     runGuarded(
                       context,
                       () => applySettings(ref, {SettingKeys.cashRounding: v}),
-                      success: 'Округление: ${cashRoundingLabel(v, _cur).toLowerCase()}',
+                      success: l.settingsRoundingChanged(cashRoundingLabel(v, _cur, l).toLowerCase()),
                     );
                   },
                 ),
@@ -190,10 +180,11 @@ class _SalesSectionState extends ConsumerState<SalesSection> with SettingsFormMi
               const SizedBox(height: Gap.s),
               InfoBanner(
                 text: rounding == 'none'
-                    ? 'Итог к оплате наличными не округляется.'
-                    : 'Пример: ${Money.format(_roundingSample, c: _cur)} → '
-                          '${Money.format(roundCash(_roundingSample, int.tryParse(rounding) ?? 0), c: _cur)}. '
-                          'Округляется вниз, в пользу покупателя, только при оплате наличными.',
+                    ? l.settingsRoundingOff
+                    : l.settingsRoundingExample(
+                        Money.format(_roundingSample, c: _cur),
+                        Money.format(roundCash(_roundingSample, int.tryParse(rounding) ?? 0), c: _cur),
+                      ),
                 color: AppColors.info,
               ),
             ],

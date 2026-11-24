@@ -8,11 +8,12 @@ import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
 import 'purchasing_logic.dart';
+import '../../l10n/l10n.dart';
 
 /// Create/edit supplier. Returns the supplier id or null.
 Future<String?> showSupplierForm(BuildContext context, {Supplier? supplier}) => showFormDialog<String>(
   context,
-  title: supplier == null ? 'Новый поставщик' : 'Поставщик',
+  title: supplier == null ? context.l10n.purNewSupplier : context.l10n.commonSupplier,
   width: 560,
   child: _SupplierForm(supplier),
 );
@@ -53,7 +54,7 @@ class _SupplierFormState extends ConsumerState<_SupplierForm> {
             userId: ref.read(sessionProvider)?.user.id,
           );
       if (!mounted) return;
-      showSuccess(context, widget.s == null ? 'Поставщик добавлен' : 'Изменения сохранены');
+      showSuccess(context, widget.s == null ? context.l10n.purSupplierAdded : context.l10n.purChangesSaved);
       Navigator.pop(context, id);
     } catch (e) {
       if (!mounted) return;
@@ -64,6 +65,7 @@ class _SupplierFormState extends ConsumerState<_SupplierForm> {
 
   @override
   Widget build(BuildContext context) {
+    final l = context.l10n;
     Widget f(
       TextEditingController c,
       String label, {
@@ -93,38 +95,38 @@ class _SupplierFormState extends ConsumerState<_SupplierForm> {
           children: [
             f(
               _name,
-              'Название *',
+              l.purNameRequiredLabel,
               autofocus: true,
               v: (v) {
                 final t = (v ?? '').trim();
-                if (t.isEmpty) return 'Введите название поставщика';
-                if (t.length > 160) return 'Не длиннее 160 символов';
+                if (t.isEmpty) return l.purEnterSupplierName;
+                if (t.length > 160) return l.purMax160Chars;
                 return null;
               },
             ),
             f(
               _phone,
-              'Телефон',
+              l.commonPhone,
               kb: TextInputType.phone,
               v: (v) {
                 final d = (v ?? '').replaceAll(RegExp(r'\D'), '');
-                if ((v ?? '').trim().isNotEmpty && d.length < 7) return 'Проверьте номер телефона';
+                if ((v ?? '').trim().isNotEmpty && d.length < 7) return l.purCheckPhone;
                 return null;
               },
             ),
-            f(_contact, 'Контактное лицо'),
+            f(_contact, l.purContactPerson),
             f(
               _tax,
-              'ИНН',
+              l.purTaxId,
               v: (v) {
                 final t = (v ?? '').trim();
-                if (t.isNotEmpty && !RegExp(r'^\d{9,14}$').hasMatch(t)) return 'ИНН — от 9 до 14 цифр';
+                if (t.isNotEmpty && !RegExp(r'^\d{9,14}$').hasMatch(t)) return l.purTaxIdInvalid;
                 return null;
               },
             ),
-            f(_address, 'Адрес'),
-            f(_note, 'Примечание', lines: 3),
-            FilledButton(onPressed: _busy ? null : _save, child: const Text('Сохранить')),
+            f(_address, l.commonAddress),
+            f(_note, l.commonNote, lines: 3),
+            FilledButton(onPressed: _busy ? null : _save, child: Text(l.commonSave)),
           ],
         ),
       ),
@@ -136,7 +138,7 @@ class _SupplierFormState extends ConsumerState<_SupplierForm> {
 Future<bool> showSupplierPaymentDialog(BuildContext context, Supplier s, {PurchaseOrder? order, int? suggested}) async {
   final r = await showFormDialog<bool>(
     context,
-    title: 'Оплата поставщику',
+    title: context.l10n.purPaymentTitle,
     width: 480,
     child: _PaymentForm(s, order: order, suggested: suggested),
   );
@@ -161,13 +163,11 @@ class _PaymentFormState extends ConsumerState<_PaymentForm> {
 
   Future<void> _submit() async {
     if (_busy || !_key.currentState!.validate()) return;
+    final l = context.l10n;
     final amount = _amount!;
     final shift = ref.read(currentShiftProvider).value;
     if (_method == 'cash' && shift == null) {
-      showError(
-        context,
-        'Оплата наличными из кассы требует открытой смены. Откройте смену или выберите другой способ.',
-      );
+      showError(context, l.purCashNeedsShift);
       return;
     }
     final live = ref.read(purSupplierProvider(widget.s.id)).value ?? widget.s;
@@ -175,11 +175,13 @@ class _PaymentFormState extends ConsumerState<_PaymentForm> {
     if (amount > live.balance) {
       overpay = await confirm(
         context,
-        title: 'Сумма больше долга',
-        message:
-            'Долг поставщику: ${Money.format(live.balance)}.\n'
-            'После оплаты ${Money.format(amount)} образуется аванс ${Money.format(amount - (live.balance > 0 ? live.balance : 0))}. Продолжить?',
-        ok: 'Оплатить с авансом',
+        title: l.purOverpayTitle,
+        message: l.purOverpayMessage(
+          Money.format(live.balance),
+          Money.format(amount),
+          Money.format(amount - (live.balance > 0 ? live.balance : 0)),
+        ),
+        ok: l.purPayWithAdvance,
       );
       if (!overpay || !mounted) return;
     }
@@ -198,7 +200,7 @@ class _PaymentFormState extends ConsumerState<_PaymentForm> {
             allowOverpay: overpay,
           );
       if (!mounted) return;
-      showSuccess(context, 'Оплата ${Money.format(amount)} проведена');
+      showSuccess(context, l.purPaymentDone(Money.format(amount)));
       Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
@@ -210,6 +212,7 @@ class _PaymentFormState extends ConsumerState<_PaymentForm> {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final live = ref.watch(purSupplierProvider(widget.s.id)).value ?? widget.s;
     final shift = ref.watch(currentShiftProvider).value;
     final canCash = ref.watch(sessionProvider)?.can(Perm.cashInOut) ?? false;
@@ -221,11 +224,11 @@ class _PaymentFormState extends ConsumerState<_PaymentForm> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(live.name, style: t.textTheme.titleMedium),
-            if (widget.order != null) Text('Заказ №${widget.order!.number}'),
+            if (widget.order != null) Text(l.purOrderNumber('${widget.order!.number}')),
             Text(
               live.balance >= 0
-                  ? 'Наш долг: ${Money.format(live.balance)}'
-                  : 'Аванс у поставщика: ${Money.format(-live.balance)}',
+                  ? l.purOurDebtValue(Money.format(live.balance))
+                  : l.purAdvanceValue(Money.format(-live.balance)),
               style: TextStyle(
                 color: live.balance > 0 ? AppColors.danger : AppColors.success,
                 fontWeight: FontWeight.w600,
@@ -233,7 +236,7 @@ class _PaymentFormState extends ConsumerState<_PaymentForm> {
             ),
             const SizedBox(height: Gap.l),
             MoneyField(
-              label: 'Сумма *',
+              label: l.purAmountRequired,
               initial: _amount,
               required: true,
               allowZero: false,
@@ -242,15 +245,15 @@ class _PaymentFormState extends ConsumerState<_PaymentForm> {
               onSubmitted: (_) => _submit(),
             ),
             const SizedBox(height: Gap.m),
-            Text('Способ оплаты', style: t.textTheme.labelLarge),
+            Text(l.commonPaymentMethod, style: t.textTheme.labelLarge),
             const SizedBox(height: Gap.s),
             Wrap(
               spacing: Gap.s,
               runSpacing: Gap.xs,
               children: [
-                for (final e in paymentMethodLabels.entries)
+                for (final e in paymentMethodLabelsOf(l).entries)
                   Tooltip(
-                    message: e.key == 'cash' && !canCash ? 'Нет права на выдачу наличных из кассы' : '',
+                    message: e.key == 'cash' && !canCash ? l.purNoCashOutPermission : '',
                     child: ChoiceChip(
                       label: Text(e.value),
                       selected: _method == e.key,
@@ -264,22 +267,22 @@ class _PaymentFormState extends ConsumerState<_PaymentForm> {
                 padding: const EdgeInsets.only(top: Gap.s),
                 child: Text(
                   shift == null
-                      ? 'Смена закрыта — наличные из кассы выдать нельзя'
-                      : 'Будет учтено как выплата из кассы смены №${shift.number}',
+                      ? l.purShiftClosedNoCash
+                      : l.purCashOutFromShift('${shift.number}'),
                   style: t.textTheme.bodySmall?.copyWith(color: shift == null ? AppColors.danger : null),
                 ),
               ),
             const SizedBox(height: Gap.m),
             TextField(
               controller: _note,
-              decoration: const InputDecoration(labelText: 'Комментарий (№ платёжки…)'),
+              decoration: InputDecoration(labelText: l.purPaymentCommentLabel),
               onSubmitted: (_) => _submit(),
             ),
             const SizedBox(height: Gap.l),
             FilledButton.icon(
               onPressed: _busy ? null : _submit,
               icon: const Icon(Icons.payments_outlined),
-              label: const Text('Оплатить'),
+              label: Text(l.purPay),
             ),
           ],
         ),

@@ -14,6 +14,7 @@ import '../../core/theme.dart';
 import '../../core/widgets/pickers.dart';
 import '../../core/widgets/widgets.dart';
 import '../../domain/errors.dart';
+import '../../l10n/l10n.dart';
 import '../pos/pos_providers.dart' show resolveDeviceRegisterId;
 import 'gift_cards_tab.dart' show printGiftCard;
 import 'gift_sales_logic.dart';
@@ -39,7 +40,19 @@ List<int> giftQuickNominals(String? setting) {
 }
 
 /// Payment mode of the dialog: one method or a split.
-const _modes = {'cash': 'Наличные', 'card': 'Карта', 'transfer': 'Перевод', 'mixed': 'Смешанная'};
+Map<String, String> _modes(AppLocalizations l) => {
+  'cash': l.payCash,
+  'card': l.payCard,
+  'transfer': l.payTransfer,
+  'mixed': l.mktPayMixed,
+};
+
+/// Whether [e] is the domain error «code already exists» (in any UI language).
+bool _isCodeExistsError(Object e) {
+  if (e is! BusinessException) return false;
+  final text = e.toString();
+  return L.current.errGiftCodeExists('\u0000').split('\u0000').every((part) => text.contains(part));
+}
 
 /// Context of the flow in progress; a flow whose screen was disposed (e.g.
 /// logout) no longer blocks new ones.
@@ -52,11 +65,11 @@ Future<GiftSaleResult?> sellGiftCard(BuildContext context, WidgetRef ref) async 
   if (_flowContext?.mounted ?? false) return null;
   final s = ref.read(sessionProvider);
   if (s == null || !s.can(Perm.sell)) {
-    showError(context, 'Нет права продавать');
+    showError(context, context.l10n.mktNoSellRight);
     return null;
   }
   if (ref.read(currentShiftProvider).value == null) {
-    showError(context, 'Откройте смену, чтобы продать сертификат');
+    showError(context, context.l10n.errOpenShiftToSellGift);
     return null;
   }
   final Object started = _flowContext = context;
@@ -140,7 +153,7 @@ class _GiftSaleFormState extends ConsumerState<GiftSaleForm> {
       initialDate: _expires ?? DateTime(now.year + 1, now.month, now.day),
       firstDate: now,
       lastDate: DateTime(now.year + 10),
-      helpText: 'Действует до (включительно)',
+      helpText: context.l10n.mktValidUntilInclusive,
     );
     if (d != null) setState(() => _expires = d);
   }
@@ -174,12 +187,13 @@ class _GiftSaleFormState extends ConsumerState<GiftSaleForm> {
   /// Why the payment part is not valid yet (shown under the payment block).
   String? get _payError {
     if (_nominal <= 0) return null;
+    final l = L.current;
     if (_mode == 'mixed') {
-      if (_cash < 0) return 'Карта и перевод больше номинала на ${Money.format(-_cash)}';
-      if (_card + _transfer == 0) return 'Укажите сумму картой и/или переводом';
+      if (_cash < 0) return l.mktPayExceeds(Money.format(-_cash));
+      if (_card + _transfer == 0) return l.mktPayEnterCardTransfer;
     }
     final t = _cashTendered;
-    if (t != null && t < _cash) return 'Получено меньше, чем нужно: ${Money.format(_cash)}';
+    if (t != null && t < _cash) return l.mktPayTenderedShort(Money.format(_cash));
     return null;
   }
 
@@ -217,7 +231,7 @@ class _GiftSaleFormState extends ConsumerState<GiftSaleForm> {
       if (await ref.read(marketingRepoProvider).isGiftCodeTaken(_code.text)) {
         if (mounted) {
           setState(() {
-            _codeError = 'Такой код уже существует';
+            _codeError = context.l10n.mktCodeExists;
             _busy = false;
           });
         }
@@ -244,8 +258,8 @@ class _GiftSaleFormState extends ConsumerState<GiftSaleForm> {
       if (!mounted) return;
       setState(() {
         _busy = false;
-        if (e is BusinessException && e.toString().contains('уже существует')) {
-          _codeError = 'Такой код уже существует';
+        if (_isCodeExistsError(e)) {
+          _codeError = context.l10n.mktCodeExists;
         }
       });
       showError(context, e);
@@ -257,6 +271,7 @@ class _GiftSaleFormState extends ConsumerState<GiftSaleForm> {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final shift = ref.watch(currentShiftProvider).value;
     final nominals = giftQuickNominals(ref.watch(settingProvider(giftQuickNominalsKey)));
     final payErr = _payError;
@@ -285,23 +300,23 @@ class _GiftSaleFormState extends ConsumerState<GiftSaleForm> {
     );
 
     final expiry = picker(
-      label: 'Действует до',
+      label: l.mktValidUntilLabel,
       icon: Icons.event,
-      value: _expires == null ? 'Без срока' : formatDate(_expires!),
+      value: _expires == null ? l.mktNoExpiryCap : formatDate(_expires!),
       onTap: _pickExpiry,
       onClear: _expires == null ? null : () => setState(() => _expires = null),
-      clearTooltip: 'Без срока',
+      clearTooltip: l.mktNoExpiryCap,
     );
     final customer = picker(
-      label: 'Покупатель (необязательно)',
+      label: l.mktBuyerOptional,
       icon: Icons.person_outline,
-      value: _customer?.name ?? 'Не выбран',
+      value: _customer?.name ?? l.mktNotSelected,
       onTap: () async {
         final c = await pickCustomer(context);
         if (c != null && mounted) setState(() => _customer = c);
       },
       onClear: _customer == null ? null : () => setState(() => _customer = null),
-      clearTooltip: 'Убрать покупателя',
+      clearTooltip: l.mktRemoveBuyer,
     );
 
     return PopScope(
@@ -316,11 +331,11 @@ class _GiftSaleFormState extends ConsumerState<GiftSaleForm> {
               padding: const EdgeInsets.fromLTRB(Gap.xl, Gap.l, Gap.s, 0),
               child: Row(
                 children: [
-                  Expanded(child: Text('Продажа сертификата', style: t.textTheme.titleLarge)),
+                  Expanded(child: Text(l.mktGiftSaleTitle, style: t.textTheme.titleLarge)),
                   IconButton(
                     onPressed: _busy ? null : () => Navigator.pop(context),
                     icon: const Icon(Icons.close),
-                    tooltip: 'Закрыть',
+                    tooltip: l.commonClose,
                   ),
                 ],
               ),
@@ -336,14 +351,14 @@ class _GiftSaleFormState extends ConsumerState<GiftSaleForm> {
                       children: [
                         Text(
                           shift == null
-                              ? 'Смена закрыта: откройте смену, чтобы продать сертификат.'
-                              : 'Смена №${shift.number}. Это аванс, не выручка: оплата попадёт в раздел «Сертификаты» отчёта смены.',
+                              ? l.mktShiftClosedNote
+                              : l.mktShiftAdvanceNote('${shift.number}'),
                           style: shift == null ? const TextStyle(color: AppColors.danger, fontSize: 12) : muted,
                         ),
                         const SizedBox(height: Gap.m),
                         MoneyField(
                           key: const Key('gift-sale-amount'),
-                          label: 'Номинал *',
+                          label: l.mktFaceValueRequired,
                           controller: _amount,
                           autofocus: true,
                           required: true,
@@ -380,21 +395,21 @@ class _GiftSaleFormState extends ConsumerState<GiftSaleForm> {
                             TextInputFormatter.withFunction((o, n) => n.copyWith(text: n.text.toUpperCase())),
                           ],
                           decoration: InputDecoration(
-                            labelText: 'Код сертификата *',
+                            labelText: l.mktGiftCodeRequired,
                             errorText: _codeError,
-                            helperText: 'Сгенерирован автоматически; можно отсканировать или ввести свой',
+                            helperText: l.mktGiftCodeHelper,
                             helperMaxLines: 2,
                             prefixIcon: const Icon(Icons.qr_code_scanner),
                             suffixIcon: IconButton(
-                              tooltip: 'Сгенерировать',
+                              tooltip: l.mktGenerate,
                               icon: const Icon(Icons.refresh),
                               onPressed: _busy ? null : _regen,
                             ),
                           ),
                           validator: (v) {
                             final c = normalizeGiftCode(v ?? '');
-                            if (c.length < 6) return 'Минимум 6 символов';
-                            if (c.length > 32) return 'Максимум 32 символа';
+                            if (c.length < 6) return l.mktMin6Chars;
+                            if (c.length > 32) return l.mktMax32Chars;
                             return null;
                           },
                           onChanged: (_) {
@@ -416,13 +431,13 @@ class _GiftSaleFormState extends ConsumerState<GiftSaleForm> {
                           customer,
                         ],
                         const SizedBox(height: Gap.l),
-                        Text('Оплата', style: t.textTheme.labelLarge),
+                        Text(l.commonPayment, style: t.textTheme.labelLarge),
                         const SizedBox(height: Gap.s),
                         Wrap(
                           spacing: Gap.xs,
                           runSpacing: Gap.xs,
                           children: [
-                            for (final e in _modes.entries)
+                            for (final e in _modes(l).entries)
                               ChoiceChip(
                                 label: Text(e.value),
                                 selected: _mode == e.key,
@@ -446,7 +461,7 @@ class _GiftSaleFormState extends ConsumerState<GiftSaleForm> {
                           icon: _busy
                               ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
                               : const Icon(Icons.check),
-                          label: const Text('Продать сертификат'),
+                          label: Text(l.mktSellGift),
                         ),
                       ],
                     );
@@ -461,12 +476,13 @@ class _GiftSaleFormState extends ConsumerState<GiftSaleForm> {
   }
 
   List<Widget> _paymentFields(bool twoCol) {
+    final l = context.l10n;
     final tendered = MoneyField(
       key: const Key('gift-sale-tendered'),
-      label: 'Получено наличными',
+      label: l.mktTenderedCash,
       controller: _tendered,
       enabled: !_busy,
-      helper: 'Пусто — без сдачи',
+      helper: l.mktTenderedHelper,
       onChanged: (_) => setState(() {}),
       onSubmitted: (_) => _submit(),
     );
@@ -474,7 +490,7 @@ class _GiftSaleFormState extends ConsumerState<GiftSaleForm> {
       controller: _reference,
       enabled: !_busy,
       decoration: InputDecoration(
-        labelText: _mode == 'card' ? 'Номер слипа (необязательно)' : 'Номер перевода (необязательно)',
+        labelText: _mode == 'card' ? l.mktSlipNumber : l.mktTransferNumber,
       ),
     );
     switch (_mode) {
@@ -486,14 +502,14 @@ class _GiftSaleFormState extends ConsumerState<GiftSaleForm> {
     }
     final card = MoneyField(
       key: const Key('gift-sale-card'),
-      label: 'Карта',
+      label: l.payCard,
       controller: _cardPart,
       enabled: !_busy,
       onChanged: (_) => setState(() {}),
     );
     final transfer = MoneyField(
       key: const Key('gift-sale-transfer'),
-      label: 'Перевод',
+      label: l.payTransfer,
       controller: _transferPart,
       enabled: !_busy,
       onChanged: (_) => setState(() {}),
@@ -530,6 +546,7 @@ class _Summary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final l = context.l10n;
     Widget line(String label, String value, {TextStyle? style}) => Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
@@ -549,9 +566,9 @@ class _Summary extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          line('К оплате', Money.format(nominal), style: big),
-          if (cash != null && cash! > 0) line('Наличными', Money.format(cash!)),
-          if (change > 0) line('Сдача', Money.format(change), style: big?.copyWith(color: AppColors.warning)),
+          line(l.mktSimToPay, Money.format(nominal), style: big),
+          if (cash != null && cash! > 0) line(l.mktInCash, Money.format(cash!)),
+          if (change > 0) line(l.commonChange, Money.format(change), style: big?.copyWith(color: AppColors.warning)),
           if (error != null)
             Padding(
               padding: const EdgeInsets.only(top: Gap.xs),
@@ -592,7 +609,7 @@ class _GiftSaleSuccessDialogState extends ConsumerState<GiftSaleSuccessDialog> {
     try {
       await job();
     } catch (e) {
-      if (mounted) showError(context, 'Не удалось напечатать: ${errorText(e)}');
+      if (mounted) showError(context, context.l10n.mktPrintFailed(errorText(e)));
     } finally {
       if (mounted) setState(() => _printing = false);
     }
@@ -601,18 +618,19 @@ class _GiftSaleSuccessDialogState extends ConsumerState<GiftSaleSuccessDialog> {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final r = widget.result;
     final g = r.giftCard;
     return AlertDialog(
       icon: const Icon(Icons.check_circle, color: AppColors.success, size: 56),
-      title: const Text('Сертификат продан'),
+      title: Text(l.mktGiftSold),
       content: SizedBox(
         width: 400,
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Продажа сертификата №${r.number}', style: t.textTheme.titleMedium),
+              Text(l.coreGiftSlipTitle('${r.number}'), style: t.textTheme.titleMedium),
               const SizedBox(height: Gap.m),
               FittedBox(
                 fit: BoxFit.scaleDown,
@@ -628,7 +646,8 @@ class _GiftSaleSuccessDialogState extends ConsumerState<GiftSaleSuccessDialog> {
               ),
               const SizedBox(height: Gap.xs),
               Text(
-                '${Money.format(g.initialAmount)} · ${g.expiresAt == null ? 'без срока' : 'до ${formatDate(g.expiresAt!)}'}',
+                '${Money.format(g.initialAmount)} · '
+                '${g.expiresAt == null ? l.coreGiftNoExpiry : l.mktUntil(formatDate(g.expiresAt!))}',
                 style: t.textTheme.bodyMedium,
               ),
               if (r.changeDue > 0) ...[
@@ -642,7 +661,7 @@ class _GiftSaleSuccessDialogState extends ConsumerState<GiftSaleSuccessDialog> {
                   ),
                   child: Column(
                     children: [
-                      Text('Сдача', style: t.textTheme.titleMedium),
+                      Text(l.commonChange, style: t.textTheme.titleMedium),
                       FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Text(
@@ -667,15 +686,15 @@ class _GiftSaleSuccessDialogState extends ConsumerState<GiftSaleSuccessDialog> {
               ? null
               : () => _run(() => printGiftCard(g, store: ref.read(settingProvider('store_name')) ?? 'DreamPOS')),
           icon: const Icon(Icons.card_giftcard),
-          label: const Text('Бланк'),
+          label: Text(l.mktBlank),
         ),
         OutlinedButton.icon(
           key: const Key('gift-success-print'),
           onPressed: _printing ? null : () => _run(() => printGiftReceipt(ref.read(databaseProvider), r.saleId)),
           icon: const Icon(Icons.print_outlined),
-          label: const Text('Печать'),
+          label: Text(l.commonPrint),
         ),
-        FilledButton(autofocus: true, onPressed: () => Navigator.pop(context), child: const Text('Готово')),
+        FilledButton(autofocus: true, onPressed: () => Navigator.pop(context), child: Text(l.commonDone)),
       ],
     );
   }

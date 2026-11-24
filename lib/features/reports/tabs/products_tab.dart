@@ -6,6 +6,7 @@ import '../../../core/permissions.dart';
 import '../../../core/providers.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets/widgets.dart';
+import '../../../l10n/l10n.dart';
 import '../data/analytics.dart';
 import '../data/report_queries.dart';
 import '../data/report_table.dart';
@@ -34,14 +35,15 @@ class _ProductsTabState extends ConsumerState<ProductsTab> {
 
   @override
   Widget build(BuildContext context) {
+    final l = context.l10n;
     final period = ref.watch(reportPeriodProvider);
     final withCost = ref.watch(sessionProvider)?.can(Perm.viewCost) ?? false;
     final switcher = Align(
       alignment: Alignment.centerLeft,
       child: SegmentedButton<bool>(
-        segments: const [
-          ButtonSegment(value: false, label: Text('По товарам'), icon: Icon(Icons.inventory_2_outlined)),
-          ButtonSegment(value: true, label: Text('По категориям'), icon: Icon(Icons.category_outlined)),
+        segments: [
+          ButtonSegment(value: false, label: Text(l.repByProducts), icon: const Icon(Icons.inventory_2_outlined)),
+          ButtonSegment(value: true, label: Text(l.repByCategories), icon: const Icon(Icons.category_outlined)),
         ],
         selected: {_byCategory},
         onSelectionChanged: (s) => setState(() => _byCategory = s.first),
@@ -55,19 +57,19 @@ class _ProductsTabState extends ConsumerState<ProductsTab> {
         data: (list) {
           final total = list.fold<int>(0, (s, c) => s + c.revenue);
           final table = RTable(
-            title: 'Продажи по категориям',
-            subtitle: period.label,
+            title: l.repSalesByCategory,
+            subtitle: period.labelIn(l),
             columns: [
-              const RCol('Категория'),
-              const RCol('Товаров', numeric: true),
-              const RCol('Кол-во', numeric: true),
-              const RCol('Выручка', numeric: true),
-              if (withCost) ...const [
-                RCol('Себестоимость', numeric: true),
-                RCol('Прибыль', numeric: true),
-                RCol('Маржа', numeric: true),
+              RCol(l.commonCategory),
+              RCol(l.repColProducts, numeric: true),
+              RCol(l.repColQty, numeric: true),
+              RCol(l.repColRevenue, numeric: true),
+              if (withCost) ...[
+                RCol(l.commonCost, numeric: true),
+                RCol(l.repProfit, numeric: true),
+                RCol(l.repMargin, numeric: true),
               ],
-              const RCol('Доля выручки', numeric: true),
+              RCol(l.repColRevenueShare, numeric: true),
             ],
             rows: [
               for (final c in list)
@@ -90,7 +92,7 @@ class _ProductsTabState extends ConsumerState<ProductsTab> {
             const SizedBox(height: Gap.m),
             if (list.isNotEmpty)
               SectionCard(
-                title: withCost ? 'Прибыль по категориям' : 'Выручка по категориям',
+                title: withCost ? l.repProfitByCategory : l.repRevenueByCategory,
                 child: ShareBars(items: [
                   for (final c in list.take(10))
                     ShareItem(c.name, withCost ? c.profit : c.revenue,
@@ -123,27 +125,27 @@ class _ProductsTabState extends ConsumerState<ProductsTab> {
                 (q.isEmpty || p.name.toLowerCase().contains(q)))
             .toList();
         final table = RTable(
-          title: 'Продажи по товарам',
-          subtitle: period.label,
+          title: l.repSalesByProduct,
+          subtitle: period.labelIn(l),
           columns: [
-            const RCol('Товар'),
-            const RCol('Категория'),
-            const RCol('Кол-во', numeric: true),
-            const RCol('Выручка', numeric: true),
-            if (withCost) ...const [
-              RCol('Себестоимость', numeric: true),
-              RCol('Прибыль', numeric: true),
-              RCol('Маржа', numeric: true),
+            RCol(l.commonProduct),
+            RCol(l.commonCategory),
+            RCol(l.repColQty, numeric: true),
+            RCol(l.repColRevenue, numeric: true),
+            if (withCost) ...[
+              RCol(l.commonCost, numeric: true),
+              RCol(l.repProfit, numeric: true),
+              RCol(l.repMargin, numeric: true),
             ],
-            const RCol('Доля', numeric: true),
-            const RCol('ABC', tooltip: 'A — 80% выручки, B — следующие 15%, C — последние 5%'),
+            RCol(l.repColShare, numeric: true),
+            RCol('ABC', tooltip: l.repAbcTooltip),
           ],
           rows: [
             for (final p in filtered)
               [
                 RCell(p.name),
                 RCell(p.categoryName ?? '—'),
-                RCell.qty(p.qty, p.unit),
+                RCell.qty(p.qty, p.unit, l),
                 RCell.money(p.revenue),
                 if (withCost) ...[
                   RCell.money(p.cost),
@@ -167,12 +169,12 @@ class _ProductsTabState extends ConsumerState<ProductsTab> {
           ResponsiveGrid(minTile: 220, maxColumns: 3, children: [
             for (final c in AbcClass.values)
               KpiTile(
-                label: 'Класс ${c.label} — ${c.hint}',
-                value: '${counts[c]} тов.',
+                label: l.repAbcClass(c.label, c.hintIn(l)),
+                value: l.repProductsShort('${counts[c]}'),
                 icon: Icons.label_important_outline,
                 color: Color(abcColor(c)),
                 hint: '${Money.format(revenueBy[c]!)} · '
-                    '${(total == 0 ? 0 : revenueBy[c]! * 100 / total).toStringAsFixed(0)}% выручки',
+                    '${l.repRevenueSharePct((total == 0 ? 0 : revenueBy[c]! * 100 / total).toStringAsFixed(0))}',
                 onTap: () => setState(() => _abc = _abc == c ? null : c),
               ),
           ]),
@@ -181,24 +183,24 @@ class _ProductsTabState extends ConsumerState<ProductsTab> {
             key: const ValueKey('products-table'),
             table: table,
             initialSort: 3,
-            emptyText: list.isEmpty ? 'Нет продаж за период' : 'Ничего не найдено',
+            emptyText: list.isEmpty ? l.repNoSales : l.commonNothingFound,
             header: Padding(
               padding: const EdgeInsets.only(bottom: Gap.m),
               child: Wrap(spacing: Gap.s, runSpacing: Gap.s, crossAxisAlignment: WrapCrossAlignment.center, children: [
                 SizedBox(
                   // full width on phones, a compact field next to the chips otherwise
                   width: context.isCompact ? double.infinity : 260,
-                  child: SearchField(hint: 'Поиск товара', onChanged: (v) => setState(() => _q = v)),
+                  child: SearchField(hint: l.repSearchProduct, onChanged: (v) => setState(() => _q = v)),
                 ),
                 ChoiceChip(
-                  label: const Text('Все'),
+                  label: Text(l.commonAll),
                   selected: _abc == null,
                   onSelected: (_) => setState(() => _abc = null),
                 ),
                 for (final c in AbcClass.values)
                   ChoiceChip(
                     label: Text('${c.label} (${counts[c]})'),
-                    tooltip: c.hint,
+                    tooltip: c.hintIn(l),
                     selected: _abc == c,
                     onSelected: (_) => setState(() => _abc = _abc == c ? null : c),
                   ),

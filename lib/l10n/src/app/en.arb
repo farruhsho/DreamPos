@@ -1,0 +1,21 @@
+{
+  "navDashboard": "Overview",
+  "navPos": "Register",
+  "navSales": "Receipts",
+  "navShifts": "Shift",
+  "navProducts": "Products",
+  "navInventory": "Stock",
+  "navPurchasing": "Purchasing",
+  "navCustomers": "Customers",
+  "navMarketing": "Marketing",
+  "navWarranty": "Warranty",
+  "navReports": "Reports",
+  "navStaff": "Staff",
+  "navSettings": "Settings",
+  "navNotifications": "Notifications",
+  "appMenu": "Menu",
+  "appShiftClosed": "Shift closed",
+  "appShiftChip": "Shift No. {number} · since {time}",
+  "appProfile": "Profile",
+  "appLockSwitch": "Lock / switch cashier"
+}

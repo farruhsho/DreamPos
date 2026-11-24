@@ -2,6 +2,7 @@
 // expects), validation and status computation.
 import '../../core/db/database.dart';
 import '../../core/money.dart';
+import '../../l10n/l10n.dart';
 
 const promoTypes = [
   'percent_order',
@@ -12,36 +13,31 @@ const promoTypes = [
   'promo_code',
 ];
 
-String promoTypeLabel(String t) => switch (t) {
-      'percent_order' => 'Скидка % на чек',
-      'amount_order' => 'Скидка суммой на чек',
-      'percent_category' => 'Скидка % на категорию',
-      'percent_product' => 'Скидка % на товар',
-      'buy_x_get_y' => 'Купи X — получи Y',
-      'promo_code' => 'Промокод',
-      _ => t,
-    };
+String promoTypeLabel(String t, [AppLocalizations? l]) {
+  final s = l ?? L.current;
+  return switch (t) {
+    'percent_order' => s.mktTypePercentOrder,
+    'amount_order' => s.mktTypeAmountOrder,
+    'percent_category' => s.mktTypePercentCategory,
+    'percent_product' => s.mktTypePercentProduct,
+    'buy_x_get_y' => s.mktTypeBuyXGetY,
+    'promo_code' => s.mktTypePromoCode,
+    _ => t,
+  };
+}
 
-String promoTypeHelp(String t) => switch (t) {
-      'percent_order' =>
-        'Процент от суммы чека после скидок по позициям. Можно задать минимальную сумму чека. '
-            'Из скидок на чек применяется только одна — самая выгодная.',
-      'amount_order' =>
-        'Фиксированная сумма скидки на чек (например, 10 000 при покупке от 100 000). '
-            'Распределяется по позициям пропорционально — возвраты считаются точно.',
-      'percent_category' =>
-        'Процент на все товары выбранной категории. Не суммируется с другими скидками на позицию '
-            'и персональной скидкой клиента — берётся лучшая.',
-      'percent_product' =>
-        'Процент на один товар. Не суммируется с другими скидками на позицию — берётся лучшая.',
-      'buy_x_get_y' =>
-        'При покупке X штук товара ещё Y штук бесплатно. Например, «2+1»: каждая третья единица '
-            'бесплатно. Работает на одну позицию товара.',
-      'promo_code' =>
-        'Скидка на чек по коду, который кассир вводит на кассе. Можно задать процент или сумму '
-            'и минимальную сумму чека. Конкурирует с другими скидками на чек — применяется лучшая.',
-      _ => '',
-    };
+String promoTypeHelp(String t, [AppLocalizations? l]) {
+  final s = l ?? L.current;
+  return switch (t) {
+    'percent_order' => s.mktHelpPercentOrder,
+    'amount_order' => s.mktHelpAmountOrder,
+    'percent_category' => s.mktHelpPercentCategory,
+    'percent_product' => s.mktHelpPercentProduct,
+    'buy_x_get_y' => s.mktHelpBuyXGetY,
+    'promo_code' => s.mktHelpPromoCode,
+    _ => '',
+  };
+}
 
 /// Types whose value is always a percent.
 bool promoTypeIsPercent(String t) =>
@@ -71,13 +67,19 @@ String normalizePromoCode(String s) =>
 // ------------------------------------------------------------------ status
 
 enum PromoStatus {
-  active('Активна'),
-  scheduled('Запланирована'),
-  finished('Завершена'),
-  disabled('Выключена');
+  active,
+  scheduled,
+  finished,
+  disabled;
 
-  const PromoStatus(this.label);
-  final String label;
+  String labelIn(AppLocalizations l) => switch (this) {
+        PromoStatus.active => l.mktStatusActive,
+        PromoStatus.scheduled => l.mktStatusScheduled,
+        PromoStatus.finished => l.mktStatusFinished,
+        PromoStatus.disabled => l.mktStatusDisabled,
+      };
+
+  String get label => labelIn(L.current);
 }
 
 /// endsAt is exclusive (the engine applies a promo while now < endsAt).
@@ -172,46 +174,47 @@ class PromoDraft {
 
 /// Returns a user-facing error, or null when the draft is valid.
 /// [codeTaken] — whether another active promotion already uses this code.
-String? validatePromo(PromoDraft d, {bool codeTaken = false}) {
-  if (d.name.trim().isEmpty) return 'Введите название акции';
-  if (!promoTypes.contains(d.type)) return 'Выберите тип акции';
+String? validatePromo(PromoDraft d, {bool codeTaken = false, AppLocalizations? l}) {
+  final s = l ?? L.current;
+  if (d.name.trim().isEmpty) return s.mktErrEnterName;
+  if (!promoTypes.contains(d.type)) return s.mktErrSelectType;
   if (d.type != 'buy_x_get_y') {
     if (d.usesPercent) {
       final p = d.percent;
-      if (p == null) return 'Укажите процент скидки';
-      if (p <= 0 || p > 100) return 'Процент скидки должен быть больше 0 и не больше 100';
+      if (p == null) return s.mktErrEnterPercent;
+      if (p <= 0 || p > 100) return s.mktErrPercentRange;
     } else {
       final a = d.amount;
-      if (a == null || a <= 0) return 'Укажите сумму скидки';
+      if (a == null || a <= 0) return s.mktErrEnterAmount;
       if (d.type == 'promo_code' && a < promoCodeMinAmount) {
-        return 'Сумма скидки по промокоду должна быть не меньше ${Money.format(promoCodeMinAmount)}';
+        return s.mktErrPromoCodeMinAmount(Money.format(promoCodeMinAmount));
       }
       if (d.minOrderTotal > 0 && a > d.minOrderTotal) {
-        return 'Скидка не может быть больше минимальной суммы чека';
+        return s.mktErrDiscountAboveMin;
       }
     }
   }
   if (promoTypeHasTarget(d.type) && (d.targetId == null || d.targetId!.isEmpty)) {
-    return d.type == 'percent_category' ? 'Выберите категорию' : 'Выберите товар';
+    return d.type == 'percent_category' ? s.mktErrSelectCategory : s.mktErrSelectProduct;
   }
   if (d.type == 'buy_x_get_y') {
-    if (d.buyQty < 1) return '«Купи» — минимум 1 шт.';
-    if (d.getQty < 1) return '«Получи» — минимум 1 шт.';
-    if (d.buyQty > 1000 || d.getQty > 1000) return 'Слишком большое количество';
+    if (d.buyQty < 1) return s.mktErrBuyMin;
+    if (d.getQty < 1) return s.mktErrGetMin;
+    if (d.buyQty > 1000 || d.getQty > 1000) return s.mktErrQtyTooLarge;
   }
   if (d.type == 'promo_code') {
     final c = normalizePromoCode(d.code ?? '');
-    if (c.isEmpty) return 'Введите промокод';
-    if (c.length < 3) return 'Промокод — минимум 3 символа';
-    if (c.length > 32) return 'Промокод слишком длинный';
-    if (!RegExp(r'^[A-ZА-ЯЁ0-9_-]+$').hasMatch(c)) {
-      return 'Промокод: только буквы, цифры, «-» и «_»';
+    if (c.isEmpty) return s.mktErrEnterCode;
+    if (c.length < 3) return s.mktErrCodeTooShort;
+    if (c.length > 32) return s.mktErrCodeTooLong;
+    if (!RegExp(r'^[A-ZА-ЯЁ0-9_-]+$').hasMatch(c)) { // l10n-ignore: allowed code characters
+      return s.mktErrCodeChars;
     }
-    if (codeTaken) return 'Промокод $c уже используется в другой активной акции';
+    if (codeTaken) return s.mktErrCodeTaken(c);
   }
-  if (d.minOrderTotal < 0) return 'Минимальная сумма не может быть отрицательной';
+  if (d.minOrderTotal < 0) return s.mktErrMinNegative;
   if (d.startsAt != null && d.endsAt != null && !d.endsAt!.isAfter(d.startsAt!)) {
-    return 'Дата окончания должна быть не раньше даты начала';
+    return s.mktErrEndBeforeStart;
   }
   return null;
 }
@@ -219,27 +222,29 @@ String? validatePromo(PromoDraft d, {bool codeTaken = false}) {
 String _pct(double p) => p == p.roundToDouble() ? p.toStringAsFixed(0) : p.toStringAsFixed(1);
 
 /// Human description, e.g. "−10% на чек от 100 000 сум".
-String describePromo(Promotion p, {String? targetName}) {
+String describePromo(Promotion p, {String? targetName, AppLocalizations? l}) {
+  final s = l ?? L.current;
   final isPct = promoValueIsPercent(p.type, p.value);
   final v = isPct ? '−${_pct(p.value)}%' : '−${Money.format(p.value.round())}';
-  final min = p.minOrderTotal > 0 ? ' от ${Money.format(p.minOrderTotal)}' : '';
+  final min = p.minOrderTotal > 0 ? s.mktDescMinOrder(Money.format(p.minOrderTotal)) : '';
   final target = targetName ?? '…';
   return switch (p.type) {
-    'percent_order' || 'amount_order' => '$v на чек$min',
-    'percent_category' => '$v на категорию «$target»',
-    'percent_product' => '$v на «$target»',
-    'buy_x_get_y' => '${p.buyQty}+${p.getQty}: купи ${p.buyQty}, ещё ${p.getQty} бесплатно — «$target»',
-    'promo_code' => 'Код ${p.code ?? ''}: $v на чек$min',
+    'percent_order' || 'amount_order' => s.mktDescOrder(v, min),
+    'percent_category' => s.mktDescCategory(v, target),
+    'percent_product' => s.mktDescProduct(v, target),
+    'buy_x_get_y' => s.mktDescBuyXGetY('${p.buyQty}', '${p.getQty}', target),
+    'promo_code' => s.mktDescPromoCode(p.code ?? '', v, min),
     _ => p.type,
   };
 }
 
-String formatPeriod(DateTime? startsAt, DateTime? endsAt) {
+String formatPeriod(DateTime? startsAt, DateTime? endsAt, [AppLocalizations? l]) {
+  final s = l ?? L.current;
   String d(DateTime x) =>
       '${x.day.toString().padLeft(2, '0')}.${x.month.toString().padLeft(2, '0')}.${x.year}';
   final lastDay = endsAt?.subtract(const Duration(days: 1));
-  if (startsAt == null && lastDay == null) return 'Бессрочно';
-  if (startsAt == null) return 'по ${d(lastDay!)}';
-  if (lastDay == null) return 'с ${d(startsAt)}';
+  if (startsAt == null && lastDay == null) return s.mktPeriodUnlimited;
+  if (startsAt == null) return s.mktPeriodUntil(d(lastDay!));
+  if (lastDay == null) return s.mktPeriodFrom(d(startsAt));
   return '${d(startsAt)} — ${d(lastDay)}';
 }

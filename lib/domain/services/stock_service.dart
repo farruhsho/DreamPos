@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 
+import '../../l10n/l10n.dart';
 import '../../core/db/database.dart';
 import '../../core/money.dart';
 import '../errors.dart';
@@ -32,7 +33,7 @@ class StockService {
       final globalAllow = await db.getSetting('allow_negative_stock') == '1';
       if (!globalAllow) {
         throw BusinessException(
-            'Недостаточно товара «${p.name}»: в наличии ${Qty.format(p.stockQty, p.unit)}',
+            L.current.errInsufficientStock(p.name, Qty.format(p.stockQty, p.unit)),
             code: 'stock');
       }
     }
@@ -65,7 +66,7 @@ class StockService {
     String? userId,
     String? reason,
   }) async {
-    if (qty <= 0) throw BusinessException('Количество должно быть больше нуля');
+    if (qty <= 0) throw BusinessException(L.current.errQtyMustBePositive);
     await db.transaction(() async {
       final p = await (db.select(db.products)..where((t) => t.id.equals(productId)))
           .getSingle();
@@ -96,7 +97,7 @@ class StockService {
     String? refType,
     String? refId,
   }) async {
-    if (qty <= 0) throw BusinessException('Количество должно быть больше нуля');
+    if (qty <= 0) throw BusinessException(L.current.errQtyMustBePositive);
     await db.transaction(() async {
       await move(
           productId: productId,
@@ -150,7 +151,7 @@ class StockService {
             ..where((c) => c.id.equals(countId)))
           .getSingle();
       if (count.status != 'draft') {
-        throw BusinessException('Инвентаризация уже закрыта');
+        throw BusinessException(L.current.errCountClosed);
       }
       final items = await (db.select(db.inventoryCountItems)
             ..where((i) => i.countId.equals(countId) & i.countedQty.isNotNull()))

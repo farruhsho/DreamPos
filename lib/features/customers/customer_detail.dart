@@ -9,6 +9,7 @@ import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
 import '../../domain/services/sale_service.dart' show paymentMethodLabel;
+import '../../l10n/l10n.dart';
 import 'customer_dialogs.dart';
 import 'customer_editor.dart';
 import 'customer_logic.dart';
@@ -21,7 +22,7 @@ class CustomerDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Карточка клиента')),
+    appBar: AppBar(title: Text(context.l10n.custCardTitle)),
     body: CustomerDetailView(customerId: customerId, onDeleted: () => Navigator.pop(context)),
   );
 }
@@ -41,29 +42,28 @@ class _CustomerDetailViewState extends ConsumerState<CustomerDetailView> {
   _DetailTab _tab = _DetailTab.sales;
 
   Future<void> _delete(Customer c) async {
+    final l = context.l10n;
     if (c.debtBalance != 0) {
       showError(
         context,
-        c.debtBalance > 0
-            ? 'Нельзя удалить клиента с долгом ${Money.format(c.debtBalance)}. Сначала примите оплату.'
-            : 'Нельзя удалить клиента с переплатой.',
+        c.debtBalance > 0 ? l.custDeleteDebt(Money.format(c.debtBalance)) : l.custDeleteOverpaid,
       );
       return;
     }
     final ok = await confirm(
       context,
-      title: 'Удалить клиента?',
+      title: l.custDeleteTitle,
       message:
-          '«${c.name}» будет скрыт из списка. История продаж сохранится.'
-          '${c.bonusBalance > 0 ? '\nБонусы ${Money.format(c.bonusBalance)} будут недоступны.' : ''}',
-      ok: 'Удалить',
+          l.custDeleteMessage(c.name) +
+          (c.bonusBalance > 0 ? '\n${l.custDeleteBonusLost(Money.format(c.bonusBalance))}' : ''),
+      ok: l.commonDelete,
       destructive: true,
     );
     if (!ok || !mounted) return;
     final done = await runGuarded(
       context,
       () => ref.read(customerRepoProvider).delete(c.id, userId: ref.read(sessionProvider)!.user.id),
-      success: 'Клиент удалён',
+      success: l.custDeleted,
     );
     if (done) widget.onDeleted?.call();
   }
@@ -76,7 +76,7 @@ class _CustomerDetailViewState extends ConsumerState<CustomerDetailView> {
       onRetry: () => ref.invalidate(customerProvider(widget.customerId)),
       data: (c) {
         if (c == null || c.deletedAt != null) {
-          return const EmptyState(icon: Icons.person_off_outlined, title: 'Клиент не найден или удалён');
+          return EmptyState(icon: Icons.person_off_outlined, title: context.l10n.custNotFoundOrDeleted);
         }
         return _buildBody(c);
       },
@@ -93,32 +93,33 @@ class _CustomerDetailViewState extends ConsumerState<CustomerDetailView> {
     final avg = c.visits > 0 ? (c.totalSpent / c.visits).round() : 0;
     final tags = parseTags(c.tags);
     final bday = daysUntilBirthday(c.birthday, DateTime.now());
+    final l = context.l10n;
 
     return LayoutBuilder(
       builder: (context, box) {
         final wideKpis = box.maxWidth >= 760;
         final shortTabs = box.maxWidth < 560;
         final kpis = <Widget>[
-          StatCard(label: 'Сумма покупок', value: Money.format(c.totalSpent), icon: Icons.shopping_bag_outlined),
-          StatCard(label: 'Визитов', value: '${c.visits}', icon: Icons.repeat),
-          StatCard(label: 'Средний чек', value: Money.format(avg), icon: Icons.receipt_outlined),
+          StatCard(label: l.custKpiSpent, value: Money.format(c.totalSpent), icon: Icons.shopping_bag_outlined),
+          StatCard(label: l.custKpiVisits, value: '${c.visits}', icon: Icons.repeat),
+          StatCard(label: l.custKpiAvg, value: Money.format(avg), icon: Icons.receipt_outlined),
           StatCard(
-            label: 'Последний визит',
+            label: l.custKpiLastVisit,
             value: c.lastVisitAt == null ? '—' : formatDate(c.lastVisitAt!),
-            hint: c.lastVisitAt == null ? 'Покупок ещё не было' : _ago(c.lastVisitAt!),
+            hint: c.lastVisitAt == null ? l.custNoPurchasesYet : _ago(c.lastVisitAt!, l),
             icon: Icons.event_outlined,
           ),
           StatCard(
-            label: 'Долг',
+            label: l.commonDebt,
             value: Money.format(c.debtBalance),
             color: c.debtBalance > 0 ? AppColors.danger : AppColors.success,
             hint: overdue > 0
-                ? 'Просрочено ${Money.format(overdue)}'
-                : (c.debtLimit > 0 ? 'Лимит ${Money.format(c.debtLimit)}' : 'Кредит не открыт'),
+                ? l.custOverdue(Money.format(overdue))
+                : (c.debtLimit > 0 ? l.custLimit(Money.format(c.debtLimit)) : l.custNoCredit),
             icon: Icons.account_balance_wallet_outlined,
           ),
           StatCard(
-            label: 'Бонусы',
+            label: l.commonBonuses,
             value: Money.format(c.bonusBalance),
             color: AppColors.success,
             icon: Icons.stars_outlined,
@@ -153,13 +154,13 @@ class _CustomerDetailViewState extends ConsumerState<CustomerDetailView> {
                               icon: Icons.cake_outlined,
                               text:
                                   '${formatDate(c.birthday!)}${bday == 0
-                                      ? ' · сегодня!'
+                                      ? ' · ${l.custBdayToday}'
                                       : bday != null && bday < 7
-                                      ? ' · через $bday дн.'
+                                      ? ' · ${l.custBdayIn('$bday')}'
                                       : ''}',
                             ),
                           if (c.discountPercent > 0)
-                            StatusChip('Скидка ${formatPercent(c.discountPercent)}%', color: AppColors.info),
+                            StatusChip(l.custDiscountChip(formatPercent(c.discountPercent)), color: AppColors.info),
                           for (final tag in tags) StatusChip(tag),
                         ],
                       ),
@@ -174,18 +175,18 @@ class _CustomerDetailViewState extends ConsumerState<CustomerDetailView> {
                 // the same row as (or wraps under) the everyday actions.
                 if (canEdit)
                   PopupMenuButton<String>(
-                    tooltip: 'Ещё',
+                    tooltip: l.commonMore,
                     icon: const Icon(Icons.more_vert),
                     onSelected: (v) {
                       if (v == 'delete') _delete(c);
                     },
-                    itemBuilder: (_) => const [
+                    itemBuilder: (_) => [
                       PopupMenuItem(
                         value: 'delete',
                         child: ListTile(
                           contentPadding: EdgeInsets.zero,
-                          leading: Icon(Icons.delete_outline, color: AppColors.danger),
-                          title: Text('Удалить клиента', style: TextStyle(color: AppColors.danger)),
+                          leading: const Icon(Icons.delete_outline, color: AppColors.danger),
+                          title: Text(l.custDelete, style: const TextStyle(color: AppColors.danger)),
                         ),
                       ),
                     ],
@@ -199,28 +200,28 @@ class _CustomerDetailViewState extends ConsumerState<CustomerDetailView> {
                 primary: c.debtBalance > 0
                     ? _perm(
                         canPay,
-                        'Нет права принимать оплату',
+                        l.custNoPayPerm,
                         FilledButton.icon(
                           onPressed: canPay ? () => showPayDebtDialog(context, c) : null,
                           icon: const Icon(Icons.payments_outlined),
-                          label: const Text('Принять оплату долга'),
+                          label: Text(l.custAcceptDebtPayment),
                         ),
                       )
                     : null,
                 actions: [
                   (
                     Icons.edit_outlined,
-                    'Изменить',
+                    l.commonEdit,
                     canEdit ? () => showCustomerEditor(context, customer: c) : null,
-                    canEdit ? null : 'Нет права редактировать клиентов',
+                    canEdit ? null : l.custNoEditPerm,
                   ),
                   if (c.debtBalance > 0)
-                    (Icons.sms_outlined, 'Напомнить', () => showDebtReminderDialog(context, ref, c), null),
+                    (Icons.sms_outlined, l.custRemind, () => showDebtReminderDialog(context, ref, c), null),
                   (
                     Icons.stars_outlined,
-                    'Бонусы',
+                    l.commonBonuses,
                     canBonus ? () => showBonusAdjustDialog(context, c) : null,
-                    canBonus ? null : 'Нужно право «Акции и бонусы»',
+                    canBonus ? null : l.custNeedPromoPerm,
                   ),
                 ],
               )
@@ -232,35 +233,35 @@ class _CustomerDetailViewState extends ConsumerState<CustomerDetailView> {
                   if (c.debtBalance > 0)
                     _perm(
                       canPay,
-                      'Нет права принимать оплату',
+                      l.custNoPayPerm,
                       FilledButton.icon(
                         onPressed: canPay ? () => showPayDebtDialog(context, c) : null,
                         icon: const Icon(Icons.payments_outlined),
-                        label: const Text('Принять оплату долга'),
+                        label: Text(l.custAcceptDebtPayment),
                       ),
                     ),
                   _perm(
                     canEdit,
-                    'Нет права редактировать клиентов',
+                    l.custNoEditPerm,
                     OutlinedButton.icon(
                       onPressed: canEdit ? () => showCustomerEditor(context, customer: c) : null,
                       icon: const Icon(Icons.edit_outlined),
-                      label: const Text('Изменить'),
+                      label: Text(l.commonEdit),
                     ),
                   ),
                   if (c.debtBalance > 0)
                     OutlinedButton.icon(
                       onPressed: () => showDebtReminderDialog(context, ref, c),
                       icon: const Icon(Icons.sms_outlined),
-                      label: const Text('Напоминание'),
+                      label: Text(l.custReminder),
                     ),
                   _perm(
                     canBonus,
-                    'Нужно право «Акции и бонусы»',
+                    l.custNeedPromoPerm,
                     OutlinedButton.icon(
                       onPressed: canBonus ? () => showBonusAdjustDialog(context, c) : null,
                       icon: const Icon(Icons.stars_outlined),
-                      label: const Text('Бонусы'),
+                      label: Text(l.commonBonuses),
                     ),
                   ),
                 ],
@@ -295,26 +296,37 @@ class _CustomerDetailViewState extends ConsumerState<CustomerDetailView> {
                 width: shortTabs ? double.infinity : null,
                 child: SegmentedButton<_DetailTab>(
                   segments: shortTabs
-                      ? const [
-                          ButtonSegment(value: _DetailTab.sales, label: Text('Покупки'), tooltip: 'Покупки'),
-                          ButtonSegment(value: _DetailTab.ledger, label: Text('Операции'), tooltip: 'Долги и бонусы'),
-                          ButtonSegment(value: _DetailTab.favorites, label: Text('Любимое'), tooltip: 'Любимые товары'),
+                      ? [
+                          // one line each: longer languages ellipsize instead of
+                          // growing the control to two lines
+                          ButtonSegment(
+                              value: _DetailTab.sales,
+                              label: Text(l.custTabSalesShort, maxLines: 1, overflow: TextOverflow.ellipsis),
+                              tooltip: l.custTabSales),
+                          ButtonSegment(
+                              value: _DetailTab.ledger,
+                              label: Text(l.custTabLedgerShort, maxLines: 1, overflow: TextOverflow.ellipsis),
+                              tooltip: l.custTabLedger),
+                          ButtonSegment(
+                              value: _DetailTab.favorites,
+                              label: Text(l.custTabFavShort, maxLines: 1, overflow: TextOverflow.ellipsis),
+                              tooltip: l.custTabFav),
                         ]
-                      : const [
+                      : [
                           ButtonSegment(
                             value: _DetailTab.sales,
-                            label: Text('Покупки'),
-                            icon: Icon(Icons.receipt_long_outlined),
+                            label: Text(l.custTabSales),
+                            icon: const Icon(Icons.receipt_long_outlined),
                           ),
                           ButtonSegment(
                             value: _DetailTab.ledger,
-                            label: Text('Долги и бонусы'),
-                            icon: Icon(Icons.history),
+                            label: Text(l.custTabLedger),
+                            icon: const Icon(Icons.history),
                           ),
                           ButtonSegment(
                             value: _DetailTab.favorites,
-                            label: Text('Любимые товары'),
-                            icon: Icon(Icons.favorite_border),
+                            label: Text(l.custTabFav),
+                            icon: const Icon(Icons.favorite_border),
                           ),
                         ],
                   selected: {_tab},
@@ -395,25 +407,26 @@ class _KpiGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final l = context.l10n;
+    final overdueHint = overdue > 0 ? l.custOverdueLower(Money.format(overdue)) : null;
     final cells = <(String, String, Color?, String?)>[
-      ('Сумма покупок', Money.format(c.totalSpent), null, null),
-      ('Визитов', '${c.visits}', null, null),
-      ('Средний чек', Money.format(avg), null, null),
+      (l.custKpiSpent, Money.format(c.totalSpent), null, null),
+      (l.custKpiVisits, '${c.visits}', null, null),
+      (l.custKpiAvg, Money.format(avg), null, null),
       (
-        'Последний визит',
+        l.custKpiLastVisit,
         c.lastVisitAt == null ? '—' : formatDate(c.lastVisitAt!),
         null,
-        c.lastVisitAt == null ? 'покупок не было' : _ago(c.lastVisitAt!),
+        c.lastVisitAt == null ? l.custNoPurchasesLower : _ago(c.lastVisitAt!, l),
       ),
       (
-        'Долг',
+        l.commonDebt,
         Money.format(c.debtBalance),
         c.debtBalance > 0 ? AppColors.danger : AppColors.success,
-        overdue > 0
-            ? 'просрочено ${Money.format(overdue)}'
-            : (c.debtLimit > 0 ? 'лимит ${Money.format(c.debtLimit)}' : 'кредит не открыт'),
+        overdueHint ??
+            (c.debtLimit > 0 ? l.custLimitLower(Money.format(c.debtLimit)) : l.custNoCreditLower),
       ),
-      ('Бонусы', Money.format(c.bonusBalance), AppColors.success, null),
+      (l.commonBonuses, Money.format(c.bonusBalance), AppColors.success, null),
     ];
     Widget cell((String, String, Color?, String?) e) => Padding(
       padding: const EdgeInsets.all(Gap.m),
@@ -441,7 +454,7 @@ class _KpiGrid extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: t.textTheme.bodySmall?.copyWith(
-                color: e.$4!.startsWith('просрочено') ? AppColors.danger : t.colorScheme.onSurfaceVariant,
+                color: overdueHint != null && e.$4 == overdueHint ? AppColors.danger : t.colorScheme.onSurfaceVariant,
               ),
             ),
         ],
@@ -470,11 +483,11 @@ class _KpiGrid extends StatelessWidget {
   }
 }
 
-String _ago(DateTime d) {
+String _ago(DateTime d, AppLocalizations l) {
   final days = DateTime.now().difference(d).inDays;
-  if (days <= 0) return 'сегодня';
-  if (days == 1) return 'вчера';
-  return '$days дн. назад';
+  if (days <= 0) return l.custAgoToday;
+  if (days == 1) return l.custAgoYesterday;
+  return l.custAgoDays('$days');
 }
 
 class _InfoChip extends StatelessWidget {
@@ -496,12 +509,12 @@ class _InfoChip extends StatelessWidget {
     );
     if (!copy) return row;
     return Tooltip(
-      message: 'Скопировать',
+      message: context.l10n.custCopy,
       child: InkWell(
         borderRadius: BorderRadius.circular(6),
         onTap: () async {
           await Clipboard.setData(ClipboardData(text: text));
-          if (context.mounted) showSuccess(context, 'Скопировано: $text');
+          if (context.mounted) showSuccess(context, context.l10n.custCopied(text));
         },
         child: Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: row),
       ),
@@ -521,10 +534,10 @@ class _SalesHistory extends ConsumerWidget {
       value: ref.watch(customerSalesProvider(customerId)),
       data: (sales) {
         if (sales.isEmpty) {
-          return const EmptyState(
+          return EmptyState(
             icon: Icons.receipt_long_outlined,
-            title: 'Покупок пока нет',
-            message: 'Выберите клиента на кассе, чтобы копить историю и бонусы.',
+            title: context.l10n.custSalesEmptyTitle,
+            message: context.l10n.custSalesEmptyMessage,
           );
         }
         return Card(
@@ -547,6 +560,7 @@ class _SaleTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = Theme.of(context);
     final s = sale;
+    final l = context.l10n;
     final color = switch (s.status) {
       'voided' => AppColors.danger,
       'returned' || 'partially_returned' => AppColors.warning,
@@ -555,12 +569,12 @@ class _SaleTile extends ConsumerWidget {
     return ExpansionTile(
       shape: const Border(),
       collapsedShape: const Border(),
-      title: Text('Чек №${s.number}', style: const TextStyle(fontWeight: FontWeight.w600)),
+      title: Text(l.custReceiptNo('${s.number}'), style: const TextStyle(fontWeight: FontWeight.w600)),
       subtitle: Text(
         [
           formatDateTime(s.createdAt),
-          if (s.discountTotal > 0) 'скидка ${Money.format(s.discountTotal)}',
-          if (s.refundedTotal > 0) 'возврат ${Money.format(s.refundedTotal)}',
+          if (s.discountTotal > 0) l.custDiscountLower(Money.format(s.discountTotal)),
+          if (s.refundedTotal > 0) l.custReturnLower(Money.format(s.refundedTotal)),
         ].join(' · '),
       ),
       trailing: Column(
@@ -575,7 +589,7 @@ class _SaleTile extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 2),
-          StatusChip(saleStatusLabel(s.status), color: color),
+          StatusChip(saleStatusLabel(s.status, l), color: color),
         ],
       ),
       childrenPadding: const EdgeInsets.fromLTRB(Gap.l, 0, Gap.l, Gap.m),
@@ -604,8 +618,8 @@ class _SaleTile extends ConsumerWidget {
                                 Text(
                                   [
                                     '${Qty.format(i.qty)} × ${Money.format(i.unitPrice)}',
-                                    if (i.discount > 0) 'скидка ${Money.format(i.discount)}',
-                                    if (i.returnedQty > 0) 'возвращено ${Qty.format(i.returnedQty)}',
+                                    if (i.discount > 0) l.custDiscountLower(Money.format(i.discount)),
+                                    if (i.returnedQty > 0) l.custReturnedQty(Qty.format(i.returnedQty)),
                                   ].join(' · '),
                                   style: t.textTheme.bodySmall?.copyWith(
                                     color: i.returnedQty > 0 ? AppColors.warning : t.colorScheme.onSurfaceVariant,
@@ -623,7 +637,7 @@ class _SaleTile extends ConsumerWidget {
                     Align(
                       alignment: Alignment.centerRight,
                       child: Text(
-                        'Начислено бонусов: ${Money.format(s.bonusEarned)}',
+                        l.custBonusEarned(Money.format(s.bonusEarned)),
                         style: const TextStyle(color: AppColors.success, fontSize: 12),
                       ),
                     ),
@@ -645,11 +659,12 @@ class _LedgerHistory extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = Theme.of(context);
     final now = DateTime.now();
+    final l = context.l10n;
     return AsyncView<List<LedgerEntry>>(
       value: ref.watch(customerLedgerProvider(customerId)),
       data: (list) {
         if (list.isEmpty) {
-          return const EmptyState(icon: Icons.history, title: 'Операций по долгу и бонусам нет');
+          return EmptyState(icon: Icons.history, title: l.custLedgerEmpty);
         }
         return Card(
           child: Column(
@@ -666,12 +681,12 @@ class _LedgerHistory extends ConsumerWidget {
                       size: 20,
                     ),
                   ),
-                  title: Text(ledgerKindLabel(e.kind)),
+                  title: Text(ledgerKindLabel(e.kind, l)),
                   subtitle: Text(
                     [
                       formatDateTime(e.createdAt),
-                      if (e.paymentMethod != null) paymentMethodLabel(e.paymentMethod!),
-                      if (e.dueDate != null) 'срок до ${formatDate(e.dueDate!)}',
+                      if (e.paymentMethod != null) paymentMethodLabel(e.paymentMethod!, l),
+                      if (e.dueDate != null) l.custDueUntil(formatDate(e.dueDate!)),
                       if (e.note != null) e.note!,
                     ].join(' · '),
                   ),
@@ -683,9 +698,9 @@ class _LedgerHistory extends ConsumerWidget {
                         '${e.amount > 0 ? '+' : ''}${Money.format(e.amount)}',
                         style: t.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700, color: _amountColor(e)),
                       ),
-                      Text('остаток ${Money.format(e.balanceAfter)}', style: t.textTheme.bodySmall),
+                      Text(l.custBalanceAfter(Money.format(e.balanceAfter)), style: t.textTheme.bodySmall),
                       if (e.kind == 'debt_sale' && e.dueDate != null && e.dueDate!.isBefore(now))
-                        const Text('срок прошёл', style: TextStyle(color: AppColors.danger, fontSize: 11)),
+                        Text(l.custDuePassed, style: const TextStyle(color: AppColors.danger, fontSize: 11)),
                     ],
                   ),
                 ),
@@ -714,7 +729,7 @@ class _Favorites extends ConsumerWidget {
       value: ref.watch(favoriteProductsProvider(customerId)),
       data: (list) {
         if (list.isEmpty) {
-          return const EmptyState(icon: Icons.favorite_border, title: 'Пока нет данных о покупках');
+          return EmptyState(icon: Icons.favorite_border, title: context.l10n.custFavEmpty);
         }
         final maxQ = list.first.qty;
         return Card(
@@ -741,7 +756,7 @@ class _Favorites extends ConsumerWidget {
                         Money.format(list[i].total),
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
                       ),
-                      Text('куплено ${Qty.format(list[i].qty)}', style: Theme.of(context).textTheme.bodySmall),
+                      Text(context.l10n.custBought(Qty.format(list[i].qty)), style: Theme.of(context).textTheme.bodySmall),
                     ],
                   ),
                 ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme.dart';
+import '../../l10n/l10n.dart';
 import 'sales_logic.dart';
 
 class _Opt<T> {
@@ -73,11 +74,11 @@ class PeriodMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => FilterMenu<Period>(
-    label: 'Период',
+    label: context.l10n.commonPeriod,
     icon: Icons.calendar_today_outlined,
     value: period,
-    valueLabel: periodTitle(period, custom),
-    options: [for (final p in Period.values) (p, p.label)],
+    valueLabel: periodTitle(period, custom, context.l10n),
+    options: [for (final p in Period.values) (p, p.labelIn(context.l10n))],
     onSelected: (p) async {
       if (p == null) return;
       if (p != Period.custom) return onChanged(p, null);
@@ -89,8 +90,8 @@ class PeriodMenu extends StatelessWidget {
         initialDateRange: custom?.from == null
             ? null
             : DateTimeRange(start: custom!.from!, end: custom!.to!.subtract(const Duration(days: 1))),
-        helpText: 'Выберите период',
-        saveText: 'Готово',
+        helpText: context.l10n.salesPickPeriod,
+        saveText: context.l10n.commonDone,
       );
       if (r == null) return;
       onChanged(

@@ -7,6 +7,7 @@ import '../../core/permissions.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
+import '../../l10n/l10n.dart';
 import 'shift_logic.dart';
 import 'shift_providers.dart';
 import 'shift_widgets.dart';
@@ -24,6 +25,7 @@ class _ShiftHistoryViewState extends ConsumerState<ShiftHistoryView> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = context.l10n;
     final rows = ref.watch(shiftHistoryProvider);
     final users = ref.watch(shiftUsersProvider).value ?? const <String, User>{};
     final all = ref.watch(sessionProvider)?.can(Perm.viewAllShifts) ?? false;
@@ -34,16 +36,21 @@ class _ShiftHistoryViewState extends ConsumerState<ShiftHistoryView> {
       runSpacing: Gap.s,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        for (final (d, l) in const [(7, '7 дней'), (30, '30 дней'), (90, '90 дней'), (null, 'Все')])
+        for (final (d, l) in [
+          (7, loc.commonDaysCount(7)),
+          (30, loc.commonDaysCount(30)),
+          (90, loc.commonDaysCount(90)),
+          (null, loc.commonAll),
+        ])
           ChoiceChip(
             label: Text(l),
             selected: period == d,
             onSelected: (_) => ref.read(historyPeriodProvider.notifier).set(d),
           ),
         if (!all)
-          const Padding(
-            padding: EdgeInsets.only(left: Gap.s),
-            child: StatusChip('Только мои смены', color: AppColors.info),
+          Padding(
+            padding: const EdgeInsets.only(left: Gap.s),
+            child: StatusChip(loc.shiftOnlyMine, color: AppColors.info),
           ),
       ],
     );
@@ -57,11 +64,11 @@ class _ShiftHistoryViewState extends ConsumerState<ShiftHistoryView> {
           onRetry: () => ref.invalidate(shiftHistoryProvider),
           data: (items) {
             if (items.isEmpty) {
-              return const FillScroll(
+              return FillScroll(
                 child: EmptyState(
                   icon: Icons.history,
-                  title: 'Смен пока нет',
-                  message: 'Закрытые смены и их Z-отчёты появятся здесь',
+                  title: loc.shiftHistoryEmptyTitle,
+                  message: loc.shiftHistoryEmptyMessage,
                 ),
               );
             }
@@ -111,10 +118,10 @@ class _ShiftHistoryViewState extends ConsumerState<ShiftHistoryView> {
                 child: Padding(
                   padding: const EdgeInsets.all(Gap.l),
                   child: _selected == null
-                      ? const EmptyState(
+                      ? EmptyState(
                           icon: Icons.receipt_long_outlined,
-                          title: 'Выберите смену',
-                          message: 'Здесь будет её отчёт с возможностью печати',
+                          title: loc.shiftPickShift,
+                          message: loc.shiftPickShiftMessage,
                         )
                       : ZReportPanel(key: ValueKey(_selected), shiftId: _selected!),
                 ),
@@ -137,6 +144,7 @@ class _HistoryTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final s = row.shift;
     final open = s.status == 'open';
     final diff = row.difference;
@@ -150,7 +158,7 @@ class _HistoryTile extends StatelessWidget {
       if (s.closedBy != null && s.closedBy != s.openedBy) users[s.closedBy]?.name ?? '—',
     ].join(' → ');
     final when = s.closedAt == null
-        ? '${formatDateTime(s.openedAt)} — сейчас'
+        ? '${formatDateTime(s.openedAt)} — ${l.shiftNow}'
         : '${formatDateTime(s.openedAt)} — ${formatSameDayTime(s.openedAt, s.closedAt!)}';
     return ListTile(
       selected: selected,
@@ -171,9 +179,9 @@ class _HistoryTile extends StatelessWidget {
       ),
       title: Row(
         children: [
-          Flexible(child: Text('Смена №${s.number}', overflow: TextOverflow.ellipsis)),
+          Flexible(child: Text(l.shiftNumber('${s.number}'), overflow: TextOverflow.ellipsis)),
           const SizedBox(width: Gap.s),
-          if (open) const StatusChip('Открыта', color: AppColors.success),
+          if (open) StatusChip(l.shiftStatusOpen, color: AppColors.success),
         ],
       ),
       subtitle: Text('$when\n$who', maxLines: 3, overflow: TextOverflow.ellipsis),
@@ -183,10 +191,10 @@ class _HistoryTile extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Text(Money.format(row.salesTotal), style: t.textTheme.titleSmall),
-          Text('${row.salesCount} ${pluralRu(row.salesCount, 'чек', 'чека', 'чеков')}', style: t.textTheme.bodySmall),
+          Text(l.commonReceiptsCount(row.salesCount), style: t.textTheme.bodySmall),
           if (diff != null)
             Text(
-              diff == 0 ? 'без расхождений' : '${diff < 0 ? '−' : '+'}${Money.format(diff.abs())}',
+              diff == 0 ? l.shiftNoDifference : '${diff < 0 ? '−' : '+'}${Money.format(diff.abs())}',
               style: t.textTheme.bodySmall?.copyWith(color: diffColor, fontWeight: FontWeight.w600),
             ),
         ],

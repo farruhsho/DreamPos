@@ -200,3 +200,10 @@
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
+
+--------------------------------------------------------------------------
+Modification notice (DreamPOS): in Roboto-Regular.ttf, Roboto-Bold.ttf,
+RobotoMono-Regular.ttf and RobotoMono-Bold.ttf the character U+02BB
+MODIFIER LETTER TURNED COMMA (Uzbek oʻ / gʻ) was added to the cmap,
+mapped to the existing U+2018 LEFT SINGLE QUOTATION MARK glyph. No glyph
+outlines were changed. Regenerate with tool/patch_fonts_02bb.py.

@@ -10,13 +10,14 @@ import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
 import '../../domain/services/sale_service.dart';
+import '../../l10n/l10n.dart';
 import 'sales_logic.dart';
 import 'sales_queries.dart';
 
 /// Opens the wizard (dialog on wide screens, full-screen page on phones).
 /// Returns the created [Return] or null if cancelled.
 Future<Return?> showReturnWizard(BuildContext context, SaleDetail detail) {
-  final title = 'Возврат по чеку №${detail.sale.number}';
+  final title = context.l10n.salesReturnWizardTitle('${detail.sale.number}');
   if (context.isCompact) {
     return Navigator.of(context).push<Return>(
       MaterialPageRoute(
@@ -73,10 +74,11 @@ class _ReturnWizardState extends ConsumerState<ReturnWizard> {
   /// Validation message for a line or null.
   String? _lineError(SaleItem it) {
     final q = _parse(_ctl[it.id]!.text);
-    if (q == null || q < 0) return 'Введите число';
+    final l = context.l10n;
+    if (q == null || q < 0) return l.commonEnterNumber;
     final avail = availableToReturn(it);
-    if (q > avail + 1e-9) return 'Не больше ${Qty.format(avail)}';
-    if (!Qty.isFractional(widget.detail.unitOf(it)) && q != q.roundToDouble()) return 'Только целое';
+    if (q > avail + 1e-9) return l.salesNotMore(Qty.format(avail));
+    if (!Qty.isFractional(widget.detail.unitOf(it)) && q != q.roundToDouble()) return l.salesIntegerOnly;
     return null;
   }
 
@@ -109,24 +111,28 @@ class _ReturnWizardState extends ConsumerState<ReturnWizard> {
     if (_busy) return; // Enter / Ctrl+Enter / double click while confirming or saving
     setState(() => _triedSubmit = true);
     final d = widget.detail;
+    final l = context.l10n;
     final sel = _selection;
     final hasErrors = _items.any((i) => _lineError(i) != null);
-    if (hasErrors) return showError(context, 'Проверьте количество в отмеченных строках');
-    if (sel.isEmpty) return showError(context, 'Выберите товары и количество для возврата');
-    if (_reason.text.trim().isEmpty) return showError(context, 'Укажите причину возврата');
+    if (hasErrors) return showError(context, l.salesCheckQty);
+    if (sel.isEmpty) return showError(context, l.salesSelectItems);
+    if (_reason.text.trim().isEmpty) return showError(context, l.salesEnterReason);
     final shift = ref.read(currentShiftProvider).value;
     if (_method == 'cash' && shift == null) {
-      return showError(context, 'Для возврата наличными откройте смену');
+      return showError(context, l.salesOpenShiftForCash);
     }
     final total = previewRefund(_items, sel);
     setState(() => _busy = true);
     final ok = await confirm(
       context,
-      title: 'Оформить возврат?',
-      message:
-          '${paymentMethodLabel(_method)}: ${Money.format(total)}\n'
-          'Позиций: ${sel.length}. ${_restock ? 'Товар вернётся на склад.' : 'Товар НЕ вернётся на склад.'}',
-      ok: 'Оформить возврат',
+      title: l.salesConfirmReturnTitle,
+      message: l.salesConfirmReturnMessage(
+        paymentMethodLabel(_method, l),
+        Money.format(total),
+        '${sel.length}',
+        _restock ? l.salesRestockYes : l.salesRestockNo,
+      ),
+      ok: l.salesDoReturn,
     );
     if (!mounted) return;
     if (!ok) {
@@ -159,6 +165,7 @@ class _ReturnWizardState extends ConsumerState<ReturnWizard> {
   Widget build(BuildContext context) {
     final d = widget.detail;
     final t = Theme.of(context);
+    final l = context.l10n;
     final now = widget.now ?? DateTime.now();
     final expired = returnPeriodExpired(d.sale, ref.watch(settingProvider('return_days')), now);
     final shift = ref.watch(currentShiftProvider).value;
@@ -170,7 +177,7 @@ class _ReturnWizardState extends ConsumerState<ReturnWizard> {
     final cashBlocked = _method == 'cash' && shift == null;
 
     if (_items.isEmpty) {
-      return const EmptyState(icon: Icons.done_all, title: 'Все товары уже возвращены');
+      return EmptyState(icon: Icons.done_all, title: l.salesAllReturned);
     }
 
     final body = ListView(
@@ -181,20 +188,18 @@ class _ReturnWizardState extends ConsumerState<ReturnWizard> {
           InfoBanner(
             color: AppColors.danger,
             icon: Icons.event_busy,
-            text:
-                '$expired. Возврат по чеку от ${formatDate(d.sale.createdAt)} невозможен — '
-                'для брака оформите гарантийную заявку.',
+            text: l.salesReturnExpiredBanner(expired, formatDate(d.sale.createdAt)),
           ),
         Row(
           children: [
-            Expanded(child: Text('Что возвращаем', style: t.textTheme.titleSmall)),
+            Expanded(child: Text(l.salesWhatToReturn, style: t.textTheme.titleSmall)),
             Expanded(
               flex: 2,
               child: Wrap(
                 alignment: WrapAlignment.end,
                 children: [
-                  TextButton(onPressed: _none, child: const Text('Сбросить')),
-                  TextButton(onPressed: _all, child: const Text('Вернуть всё')),
+                  TextButton(onPressed: _none, child: Text(l.commonReset)),
+                  TextButton(onPressed: _all, child: Text(l.salesReturnAll)),
                 ],
               ),
             ),
@@ -202,7 +207,7 @@ class _ReturnWizardState extends ConsumerState<ReturnWizard> {
         ),
         for (final it in _items) _line(it),
         const Divider(height: Gap.xl),
-        Text('Как вернуть деньги', style: t.textTheme.titleSmall),
+        Text(l.salesHowToRefund, style: t.textTheme.titleSmall),
         const SizedBox(height: Gap.s),
         Wrap(
           spacing: Gap.s,
@@ -210,7 +215,7 @@ class _ReturnWizardState extends ConsumerState<ReturnWizard> {
           children: [
             for (final m in options)
               ChoiceChip(
-                label: Text(paymentMethodLabel(m)),
+                label: Text(paymentMethodLabel(m, l)),
                 selected: _method == m,
                 onSelected: (_) => setState(() => _method = m),
               ),
@@ -219,11 +224,13 @@ class _ReturnWizardState extends ConsumerState<ReturnWizard> {
         const SizedBox(height: Gap.xs),
         Text(
           cashBlocked
-              ? 'Смена не открыта — возврат наличными невозможен'
+              ? l.salesNoShiftNoCash
               : _method == 'debt' && d.customer != null && total > d.customer!.debtBalance
-              ? 'Долг клиента ${Money.format(d.customer!.debtBalance)} — '
-                    'излишек ${Money.format(total - d.customer!.debtBalance)} станет авансом клиента'
-              : refundMethodHint(_method),
+              ? l.salesDebtExcess(
+                  Money.format(d.customer!.debtBalance),
+                  Money.format(total - d.customer!.debtBalance),
+                )
+              : refundMethodHint(_method, l),
           style: t.textTheme.bodySmall?.copyWith(
             color: cashBlocked ? AppColors.danger : t.colorScheme.onSurfaceVariant,
           ),
@@ -232,7 +239,9 @@ class _ReturnWizardState extends ConsumerState<ReturnWizard> {
           Padding(
             padding: const EdgeInsets.only(top: Gap.xs),
             child: Text(
-              'Оплачено: ${d.payments.map((p) => '${paymentMethodLabel(p.method)} ${Money.format(p.amount)}').join(', ')}',
+              l.salesPaidList(
+                d.payments.map((p) => '${paymentMethodLabel(p.method, l)} ${Money.format(p.amount)}').join(', '),
+              ),
               style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant),
             ),
           ),
@@ -241,26 +250,26 @@ class _ReturnWizardState extends ConsumerState<ReturnWizard> {
           contentPadding: EdgeInsets.zero,
           value: _restock,
           onChanged: (v) => setState(() => _restock = v),
-          title: const Text('Вернуть товар на склад'),
+          title: Text(l.salesRestockTitle),
           subtitle: Text(
             _restock
-                ? 'Остаток увеличится на возвращаемое количество'
-                : 'Товар не вернётся в остаток (брак). После возврата можно оформить гарантийную заявку',
+                ? l.salesRestockOn
+                : l.salesRestockOff,
           ),
         ),
         const SizedBox(height: Gap.s),
-        Text('Причина', style: t.textTheme.titleSmall),
+        Text(l.commonReason, style: t.textTheme.titleSmall),
         const SizedBox(height: Gap.s),
         Wrap(
           spacing: Gap.s,
           runSpacing: Gap.s,
           children: [
-            for (final r in quickReturnReasons)
+            for (final (i, r) in quickReturnReasons(l).indexed)
               ActionChip(
                 label: Text(r),
                 onPressed: () => setState(() {
-                  _reason.text = r == 'Другое' ? '' : r;
-                  if (r == 'Брак') _restock = false;
+                  _reason.text = i == quickReasonOther ? '' : r;
+                  if (i == quickReasonDefect) _restock = false;
                 }),
               ),
           ],
@@ -269,8 +278,8 @@ class _ReturnWizardState extends ConsumerState<ReturnWizard> {
         TextField(
           controller: _reason,
           decoration: InputDecoration(
-            labelText: 'Причина возврата *',
-            errorText: _triedSubmit && _reason.text.trim().isEmpty ? 'Укажите причину' : null,
+            labelText: l.salesReasonLabel,
+            errorText: _triedSubmit && _reason.text.trim().isEmpty ? l.salesReasonRequired : null,
           ),
           textInputAction: TextInputAction.done,
           onChanged: (_) => setState(() {}),
@@ -282,7 +291,7 @@ class _ReturnWizardState extends ConsumerState<ReturnWizard> {
             child: InfoBanner(
               color: AppColors.info,
               icon: Icons.stars_outlined,
-              text: 'С клиента будет списано до ${Money.format(claw)} начисленных бонусов',
+              text: l.salesBonusClawback(Money.format(claw)),
             ),
           ),
       ],
@@ -300,11 +309,16 @@ class _ReturnWizardState extends ConsumerState<ReturnWizard> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('К возврату', style: t.textTheme.bodySmall),
-                Text(
-                  Money.format(total),
-                  key: const Key('return-total'),
-                  style: t.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                Text(l.salesToRefund, style: t.textTheme.bodySmall),
+                // Scales down instead of wrapping next to a long button label (uz/ky).
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    Money.format(total),
+                    key: const Key('return-total'),
+                    style: t.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                  ),
                 ),
               ],
             ),
@@ -314,7 +328,7 @@ class _ReturnWizardState extends ConsumerState<ReturnWizard> {
             icon: _busy
                 ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                 : const Icon(Icons.assignment_return),
-            label: const Text('Оформить возврат'),
+            label: Text(l.salesDoReturn),
           ),
         ],
       ),
@@ -340,6 +354,7 @@ class _ReturnWizardState extends ConsumerState<ReturnWizard> {
 
   Widget _line(SaleItem it) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final unit = widget.detail.unitOf(it);
     final avail = availableToReturn(it);
     final err = _lineError(it);
@@ -353,9 +368,9 @@ class _ReturnWizardState extends ConsumerState<ReturnWizard> {
         Text(it.productName, style: const TextStyle(fontWeight: FontWeight.w600)),
         Text(
           [
-            'куплено ${Qty.format(it.qty, unit)}',
-            if (it.returnedQty > 0) 'возвращено ${Qty.format(it.returnedQty, unit)}',
-            'оплачено ${Money.format(it.total)}',
+            l.salesBought(Qty.format(it.qty, unit, l)),
+            if (it.returnedQty > 0) l.salesReturnedQty(Qty.format(it.returnedQty, unit, l)),
+            l.salesPaidAmount(Money.format(it.total)),
           ].join(' · '),
           style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant),
         ),
@@ -365,7 +380,7 @@ class _ReturnWizardState extends ConsumerState<ReturnWizard> {
       mainAxisSize: MainAxisSize.min,
       children: [
         IconButton(
-          tooltip: 'Меньше',
+          tooltip: l.salesLess,
           onPressed: q <= 0 ? null : () => _setQty(it, q - step),
           icon: const Icon(Icons.remove_circle_outline),
         ),
@@ -377,12 +392,12 @@ class _ReturnWizardState extends ConsumerState<ReturnWizard> {
             textAlign: TextAlign.center,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
-            decoration: InputDecoration(errorText: err, errorMaxLines: 2, helperText: 'из ${Qty.format(avail)}'),
+            decoration: InputDecoration(errorText: err, errorMaxLines: 2, helperText: l.salesOfQty(Qty.format(avail))),
             onChanged: (_) => setState(() {}),
           ),
         ),
         IconButton(
-          tooltip: 'Больше',
+          tooltip: l.salesMore,
           onPressed: q >= avail - 1e-9 ? null : () => _setQty(it, q + step),
           icon: const Icon(Icons.add_circle_outline),
         ),

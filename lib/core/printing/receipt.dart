@@ -4,6 +4,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
 import '../../domain/services/sale_service.dart' show paymentMethodLabel;
+import '../../l10n/l10n.dart';
 import '../db/database.dart';
 import '../money.dart';
 import '../widgets/widgets.dart' show formatDateTime;
@@ -52,7 +53,9 @@ class ReceiptData {
   }
 
   /// Plain-text receipt (for preview, ESC/POS printers, sharing). [width] chars.
+  /// Language: store setting `receipt_locale` (default ru).
   String toText({int width = 42}) {
+    final l = L.forReceipt(settings);
     final b = StringBuffer();
     String center(String s) => s.length >= width ? s : ' ' * ((width - s.length) ~/ 2) + s;
     String lr(String l, String r) {
@@ -63,38 +66,40 @@ class ReceiptData {
     final line = '-' * width;
     b.writeln(center(settings['store_name'] ?? 'DreamPOS'));
     if ((settings['store_address'] ?? '').isNotEmpty) b.writeln(center(settings['store_address']!));
-    if ((settings['store_phone'] ?? '').isNotEmpty) b.writeln(center('Тел: ${settings['store_phone']}'));
-    if ((settings['store_tax_id'] ?? '').isNotEmpty) b.writeln(center('ИНН: ${settings['store_tax_id']}'));
+    if ((settings['store_phone'] ?? '').isNotEmpty) b.writeln(center(l.corePrintPhone(settings['store_phone']!)));
+    if ((settings['store_tax_id'] ?? '').isNotEmpty) b.writeln(center(l.corePrintTaxId(settings['store_tax_id']!)));
     b.writeln(line);
-    b.writeln(center('${copy ? 'КОПИЯ ' : ''}ЧЕК №${sale.number}'));
+    b.writeln(center(copy ? l.coreReceiptCopyTitle('${sale.number}') : l.coreReceiptTitle('${sale.number}')));
     b.writeln(center(formatDateTime(sale.createdAt)));
-    if (cashier != null) b.writeln('Кассир: ${cashier!.name}');
-    if (customer != null) b.writeln('Клиент: ${customer!.name}');
+    if (cashier != null) b.writeln(l.corePrintCashier(cashier!.name));
+    if (customer != null) b.writeln(l.corePrintCustomer(customer!.name));
     b.writeln(line);
     for (final i in items) {
       b.writeln(i.productName);
       b.writeln(lr('  ${Qty.format(i.qty)} x ${Money.format(i.unitPrice, withSymbol: false)}',
           Money.format((i.qty * i.unitPrice).round(), withSymbol: false)));
-      if (i.discount > 0) b.writeln(lr('  Скидка', '-${Money.format(i.discount, withSymbol: false)}'));
-      if (i.warrantyUntil != null) b.writeln('  Гарантия до ${formatDateTime(i.warrantyUntil!).split(' ').first}');
+      if (i.discount > 0) b.writeln(lr('  ${l.commonDiscount}', '-${Money.format(i.discount, withSymbol: false)}'));
+      if (i.warrantyUntil != null) {
+        b.writeln('  ${l.corePrintWarrantyUntil(formatDateTime(i.warrantyUntil!).split(' ').first)}');
+      }
     }
     b.writeln(line);
     if (sale.discountTotal > 0) {
-      b.writeln(lr('Сумма', Money.format(sale.subtotal)));
-      b.writeln(lr('Скидка', '-${Money.format(sale.discountTotal)}'));
+      b.writeln(lr(l.commonAmount, Money.format(sale.subtotal)));
+      b.writeln(lr(l.commonDiscount, '-${Money.format(sale.discountTotal)}'));
     }
-    b.writeln(lr('ИТОГО', Money.format(sale.total)));
-    if (sale.vatTotal > 0) b.writeln(lr('в т.ч. НДС', Money.format(sale.vatTotal)));
+    b.writeln(lr(l.corePrintTotal, Money.format(sale.total)));
+    if (sale.vatTotal > 0) b.writeln(lr(l.corePrintVatIncluded, Money.format(sale.vatTotal)));
     for (final p in payments) {
       final amount = p.method == 'cash' ? p.amount + sale.changeDue : p.amount;
-      b.writeln(lr(paymentMethodLabel(p.method), Money.format(amount)));
+      b.writeln(lr(paymentMethodLabel(p.method, l), Money.format(amount)));
     }
-    if (sale.changeDue > 0) b.writeln(lr('Сдача', Money.format(sale.changeDue)));
-    if (sale.bonusEarned > 0) b.writeln(lr('Начислено бонусов', Money.format(sale.bonusEarned)));
+    if (sale.changeDue > 0) b.writeln(lr(l.commonChange, Money.format(sale.changeDue)));
+    if (sale.bonusEarned > 0) b.writeln(lr(l.corePrintBonusEarned, Money.format(sale.bonusEarned)));
     if (customer != null && customer!.debtBalance > 0) {
-      b.writeln(lr('Долг клиента', Money.format(customer!.debtBalance)));
+      b.writeln(lr(l.corePrintCustomerDebt, Money.format(customer!.debtBalance)));
     }
-    if (sale.status == 'voided') b.writeln(center('*** АННУЛИРОВАН ***'));
+    if (sale.status == 'voided') b.writeln(center(l.corePrintVoided));
     b.writeln(line);
     for (final l in (settings['receipt_footer'] ?? '').split('\n')) {
       if (l.trim().isEmpty) continue;
@@ -102,7 +107,7 @@ class ReceiptData {
         b.writeln(center(l.substring(i, i + width > l.length ? l.length : i + width).trim()));
       }
     }
-    return b.toString();
+    return L.printable(b.toString());
   }
 }
 
@@ -124,7 +129,7 @@ Future<void> printReceipt(AppDatabase db, String saleId, {bool copy = false}) as
   final data = await ReceiptData.load(db, saleId, copy: copy);
   final width = double.tryParse(data.settings['receipt_width_mm'] ?? '') ?? 80;
   await Printing.layoutPdf(
-    name: 'Чек ${data.sale.number}',
+    name: L.forReceipt(data.settings).corePrintJobReceipt('${data.sale.number}'),
     format: PdfPageFormat(width * PdfPageFormat.mm, double.infinity),
     onLayout: (_) => buildReceiptPdf(data, widthMm: width),
   );

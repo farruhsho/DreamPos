@@ -12,29 +12,34 @@ import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
 import '../reports/tabs/insights_tab.dart' show canOpenRoute;
 import 'notification_engine.dart';
+import '../../l10n/l10n.dart';
 
-/// Kind metadata for display and navigation.
-({String label, IconData icon, Color color, String? route}) kindInfo(String kind) => switch (kind) {
+/// Kind metadata for display and navigation ([l] defaults to the UI language).
+({String label, IconData icon, Color color, String? route}) kindInfo(String kind, [AppLocalizations? l]) =>
+    _kindInfo(kind, l ?? L.current);
+
+({String label, IconData icon, Color color, String? route}) _kindInfo(String kind, AppLocalizations l) =>
+    switch (kind) {
       NotificationKind.lowStock =>
-        (label: 'Мало товара', icon: Icons.inventory_outlined, color: AppColors.warning, route: '/inventory'),
+        (label: l.notifKindLowStock, icon: Icons.inventory_outlined, color: AppColors.warning, route: '/inventory'),
       NotificationKind.outOfStock => (
-          label: 'Нет в наличии',
+          label: l.notifKindOutOfStock,
           icon: Icons.remove_shopping_cart_outlined,
           color: AppColors.danger,
           route: '/inventory'
         ),
       NotificationKind.debtDue => (
-          label: 'Долги',
+          label: l.notifKindDebt,
           icon: Icons.account_balance_wallet_outlined,
           color: AppColors.danger,
           route: '/customers'
         ),
       NotificationKind.birthday =>
-        (label: 'Дни рождения', icon: Icons.cake_outlined, color: AppColors.info, route: '/customers'),
+        (label: l.notifKindBirthday, icon: Icons.cake_outlined, color: AppColors.info, route: '/customers'),
       NotificationKind.shift =>
-        (label: 'Смены', icon: Icons.schedule_outlined, color: AppColors.warning, route: '/shifts'),
-      NotificationKind.task => (label: 'Задачи', icon: Icons.task_alt, color: AppColors.brand, route: null),
-      _ => (label: 'Система', icon: Icons.info_outline, color: AppColors.info, route: null),
+        (label: l.notifKindShift, icon: Icons.schedule_outlined, color: AppColors.warning, route: '/shifts'),
+      NotificationKind.task => (label: l.notifKindTask, icon: Icons.task_alt, color: AppColors.brand, route: null),
+      _ => (label: l.notifKindSystem, icon: Icons.info_outline, color: AppColors.info, route: null),
     };
 
 final _notificationsProvider = StreamProvider.autoDispose<List<AppNotification>>((ref) {
@@ -100,6 +105,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   /// Soft-deletes one notification and offers "Отменить" in a snackbar.
   Future<void> _deleteWithUndo(AppNotification n) async {
     final messenger = ScaffoldMessenger.of(context);
+    final l = context.l10n;
     final db = _db;
     setState(() => _hidden.add(n.id));
     try {
@@ -114,9 +120,9 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     messenger
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(
-        content: const Text('Уведомление удалено'),
+        content: Text(l.notifDeleted),
         action: SnackBarAction(
-          label: 'Отменить',
+          label: l.notifUndo,
           onPressed: () async {
             await softDeleteNotifications(db, [n.id], restore: true);
             if (mounted) setState(() => _hidden.remove(n.id));
@@ -133,8 +139,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       showSuccess(
           context,
           r.created == 0
-              ? 'Проверка завершена — новых уведомлений нет'
-              : 'Новых уведомлений: ${r.created}');
+              ? context.l10n.notifCheckNone
+              : context.l10n.notifCheckCreated('${r.created}'));
     } catch (e) {
       if (mounted) showError(context, e);
     } finally {
@@ -145,13 +151,14 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   Future<void> _deleteRead(List<AppNotification> all) async {
     final read = all.where((n) => n.isRead).map((n) => n.id).toList();
     if (read.isEmpty) return;
+    final l = context.l10n;
     final ok = await confirm(context,
-        title: 'Удалить прочитанные?',
-        message: 'Будет удалено уведомлений: ${read.length}. Непрочитанные останутся.',
-        ok: 'Удалить',
+        title: l.notifDeleteReadTitle,
+        message: l.notifDeleteReadMessage('${read.length}'),
+        ok: l.commonDelete,
         destructive: true);
     if (!ok || !mounted) return;
-    await runGuarded(context, () => _softDelete(read), success: 'Прочитанные уведомления удалены');
+    await runGuarded(context, () => _softDelete(read), success: l.notifDeleteReadDone);
   }
 
   void _open(AppNotification n) {
@@ -159,7 +166,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     final route = kindInfo(n.kind).route;
     if (route == null) return;
     if (!canOpenRoute(ref.read(sessionProvider), route)) {
-      showError(context, 'Нет доступа к разделу — обратитесь к администратору');
+      showError(context, context.l10n.notifNoAccess);
       return;
     }
     context.go(route);
@@ -174,6 +181,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     ];
     final unread = all.where((n) => !n.isRead).length;
     final compact = context.isCompact;
+    final l = context.l10n;
 
     return CallbackShortcuts(
       bindings: {
@@ -184,13 +192,13 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       child: Focus(
         autofocus: true,
         child: PageScaffold(
-          title: 'Уведомления',
-          subtitle: unread == 0 ? 'Все прочитаны' : 'Непрочитанных: $unread',
+          title: l.navNotifications,
+          subtitle: unread == 0 ? l.notifAllReadShort : l.notifUnreadCount('$unread'),
           padding: EdgeInsets.zero,
           actions: [
             if (compact)
               IconButton(
-                tooltip: 'Проверить сейчас (F5)',
+                tooltip: l.notifCheckNowTooltip,
                 onPressed: _checking ? null : _checkNow,
                 icon: _checking
                     ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
@@ -203,21 +211,21 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                 icon: _checking
                     ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
                     : const Icon(Icons.refresh, size: 18),
-                label: const Text('Проверить сейчас'),
+                label: Text(l.notifCheckNow),
                 style: FilledButton.styleFrom(minimumSize: const Size(0, 40)),
               ),
             const SizedBox(width: Gap.xs),
             IconButton(
-              tooltip: 'Прочитать все',
+              tooltip: l.notifReadAll,
               onPressed: unread == 0
                   ? null
                   : () => runGuarded(
                       context, () => _setRead(all.where((n) => !n.isRead).map((n) => n.id), true),
-                      success: 'Все уведомления прочитаны'),
+                      success: l.notifAllRead),
               icon: const Icon(Icons.done_all),
             ),
             PopupMenuButton<String>(
-              tooltip: 'Ещё',
+              tooltip: l.commonMore,
               onSelected: (v) {
                 if (v == 'delete_read') _deleteRead(all);
               },
@@ -225,10 +233,10 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                 PopupMenuItem(
                   value: 'delete_read',
                   enabled: all.any((n) => n.isRead),
-                  child: const ListTile(
+                  child: ListTile(
                       dense: true,
-                      leading: Icon(Icons.delete_sweep_outlined),
-                      title: Text('Удалить прочитанные')),
+                      leading: const Icon(Icons.delete_sweep_outlined),
+                      title: Text(l.notifDeleteRead)),
                 ),
               ],
             ),
@@ -244,8 +252,9 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   }
 
   Widget _body(BuildContext context, List<AppNotification> list) {
+    final l = context.l10n;
     final kinds = <String>{for (final n in list) n.kind}.toList()
-      ..sort((a, b) => kindInfo(a).label.compareTo(kindInfo(b).label));
+      ..sort((a, b) => kindInfo(a, l).label.compareTo(kindInfo(b, l).label));
     final unread = list.where((n) => !n.isRead).length;
     final filtered = list
         .where((n) => _filter == null || (_filter == '' ? !n.isRead : n.kind == _filter))
@@ -254,13 +263,12 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     if (list.isEmpty) {
       return EmptyState(
         icon: Icons.notifications_none,
-        title: 'Уведомлений нет',
-        message: 'Здесь появятся напоминания о заканчивающихся товарах, просроченных долгах, '
-            'днях рождения клиентов и незакрытых сменах. Проверка идёт автоматически каждые 10 минут.',
+        title: l.notifEmptyTitle,
+        message: l.notifEmptyMessage,
         action: FilledButton.icon(
           onPressed: _checking ? null : _checkNow,
           icon: const Icon(Icons.refresh),
-          label: const Text('Проверить сейчас'),
+          label: Text(l.notifCheckNow),
         ),
       );
     }
@@ -268,7 +276,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     // group by local calendar day
     final groups = <String, List<AppNotification>>{};
     for (final n in filtered) {
-      groups.putIfAbsent(_dayLabel(n.createdAt), () => []).add(n);
+      groups.putIfAbsent(_dayLabel(n.createdAt, l), () => []).add(n);
     }
 
     return Align(
@@ -281,19 +289,19 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
             sliver: SliverToBoxAdapter(
               child: _filterBar(context, [
                 ChoiceChip(
-                  label: Text('Все (${list.length})'),
+                  label: Text(l.notifFilterAll('${list.length}')),
                   selected: _filter == null,
                   onSelected: (_) => setState(() => _filter = null),
                 ),
                 ChoiceChip(
-                  label: Text('Непрочитанные ($unread)'),
+                  label: Text(l.notifFilterUnread('$unread')),
                   selected: _filter == '',
                   onSelected: (_) => setState(() => _filter = ''),
                 ),
                 for (final k in kinds)
                   ChoiceChip(
-                    avatar: Icon(kindInfo(k).icon, size: 16),
-                    label: Text('${kindInfo(k).label} (${list.where((n) => n.kind == k).length})'),
+                    avatar: Icon(kindInfo(k, l).icon, size: 16),
+                    label: Text('${kindInfo(k, l).label} (${list.where((n) => n.kind == k).length})'),
                     selected: _filter == k,
                     onSelected: (_) => setState(() => _filter = _filter == k ? null : k),
                   ),
@@ -305,9 +313,9 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
               hasScrollBody: false,
               child: EmptyState(
                 icon: Icons.filter_alt_off_outlined,
-                title: _filter == '' ? 'Все уведомления прочитаны' : 'Нет уведомлений этого типа',
+                title: _filter == '' ? l.notifAllRead : l.notifNoneOfKind,
                 action: TextButton(
-                    onPressed: () => setState(() => _filter = null), child: const Text('Показать все')),
+                    onPressed: () => setState(() => _filter = null), child: Text(l.commonShowAll)),
               ),
             ),
           for (final e in groups.entries) ...[
@@ -352,7 +360,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
 
   Widget _tile(BuildContext context, AppNotification n) {
     final t = Theme.of(context);
-    final info = kindInfo(n.kind);
+    final l = context.l10n;
+    final info = kindInfo(n.kind, l);
     final hasBody = n.body != null && n.body!.isNotEmpty;
     // Phones: the menu moves to the time line, so the title gets the full
     // width of the card instead of wrapping into 3 short lines.
@@ -360,7 +369,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     final time = Text(formatTime(n.createdAt),
         style: t.textTheme.labelSmall?.copyWith(color: t.colorScheme.onSurfaceVariant));
     final menu = PopupMenuButton<String>(
-      tooltip: 'Действия',
+      tooltip: l.commonActions,
       onSelected: (v) {
         switch (v) {
           case 'read':
@@ -372,11 +381,11 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         }
       },
       itemBuilder: (_) => [
-        if (info.route != null) const PopupMenuItem(value: 'open', child: Text('Перейти')),
+        if (info.route != null) PopupMenuItem(value: 'open', child: Text(l.notifGoTo)),
         PopupMenuItem(
             value: 'read',
-            child: Text(n.isRead ? 'Отметить непрочитанным' : 'Отметить прочитанным')),
-        const PopupMenuItem(value: 'delete', child: Text('Удалить')),
+            child: Text(n.isRead ? l.notifMarkUnread : l.notifMarkRead)),
+        PopupMenuItem(value: 'delete', child: Text(l.commonDelete)),
       ],
     );
     return Dismissible(
@@ -438,13 +447,13 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     );
   }
 
-  String _dayLabel(DateTime d) {
+  String _dayLabel(DateTime d, AppLocalizations l) {
     final now = DateTime.now();
     final day = DateTime(d.year, d.month, d.day);
     final today = DateTime(now.year, now.month, now.day);
     final diff = today.difference(day).inDays;
-    if (diff == 0) return 'Сегодня';
-    if (diff == 1) return 'Вчера';
+    if (diff == 0) return l.commonToday;
+    if (diff == 1) return l.commonYesterday;
     return formatDate(d);
   }
 }

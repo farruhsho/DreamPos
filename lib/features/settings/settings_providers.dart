@@ -12,9 +12,7 @@ import 'backup_service.dart';
 import 'settings_logic.dart';
 
 /// Documents directory resolver (overridden in tests with a temp dir).
-final settingsDocumentsDirProvider = Provider<Future<Directory> Function()>(
-  (ref) => getApplicationDocumentsDirectory,
-);
+final settingsDocumentsDirProvider = Provider<Future<Directory> Function()>((ref) => getApplicationDocumentsDirectory);
 
 /// Path of the live database file (overridden in tests).
 final settingsDbPathProvider = Provider<Future<String> Function()>((ref) => DbLocation.dbPath);
@@ -78,9 +76,7 @@ class DeviceRegisterNotifier extends AsyncNotifier<String?> {
   }
 }
 
-final deviceRegisterProvider = AsyncNotifierProvider<DeviceRegisterNotifier, String?>(
-  DeviceRegisterNotifier.new,
-);
+final deviceRegisterProvider = AsyncNotifierProvider<DeviceRegisterNotifier, String?>(DeviceRegisterNotifier.new);
 
 class Diagnostics {
   Diagnostics(this.platform, this.dbSize, this.counts);

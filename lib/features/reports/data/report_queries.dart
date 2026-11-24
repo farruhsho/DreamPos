@@ -15,6 +15,7 @@
 import 'package:drift/drift.dart';
 
 import '../../../core/db/database.dart';
+import '../../../l10n/l10n.dart';
 import 'period.dart';
 
 const validSale = "s.deleted_at IS NULL AND s.status NOT IN ('voided', 'held')";
@@ -266,7 +267,7 @@ class CategoryRow {
 }
 
 const _byCategorySql = '''
-SELECT p.category_id AS cid, COALESCE(c.name, 'Без категории') AS cname,
+SELECT p.category_id AS cid, c.name AS cname,
        SUM(x.qty) AS qty, SUM(x.rev) AS rev, SUM(x.cost) AS cost, COUNT(DISTINCT x.pid) AS n
   FROM ($_netLinesSql) x
   LEFT JOIN products p ON p.id = x.pid
@@ -279,7 +280,7 @@ Selectable<CategoryRow> byCategoryQuery(AppDatabase db, ReportPeriod p) => db
     .customSelect(_byCategorySql,
         variables: periodVars(p),
         readsFrom: {db.sales, db.saleItems, db.returns, db.returnItems, db.products, db.categories})
-    .map((r) => CategoryRow(qs(r, 'cid'), qs(r, 'cname') ?? 'Без категории', qd(r, 'qty'),
+    .map((r) => CategoryRow(qs(r, 'cid'), qs(r, 'cname') ?? L.current.repNoCategory, qd(r, 'qty'),
         qi(r, 'rev'), qi(r, 'cost'), qi(r, 'n')));
 
 Stream<List<CategoryRow>> watchByCategory(AppDatabase db, ReportPeriod p) =>
@@ -316,7 +317,7 @@ class StaffRow {
 String _staffSql(StaffGrouping g) {
   final col = g == StaffGrouping.cashier ? 'cashier_id' : 'seller_id';
   return '''
-SELECT x.uid AS uid, COALESCE(u.name, 'Не указан') AS name,
+SELECT x.uid AS uid, u.name AS name,
        SUM(x.n) AS receipts, SUM(x.rev) AS rev, SUM(x.disc) AS disc,
        SUM(x.ret) AS ret, SUM(x.retn) AS retn, SUM(x.v) AS voids
   FROM (
@@ -346,7 +347,7 @@ Stream<List<StaffRow>> watchByStaff(AppDatabase db, ReportPeriod p, StaffGroupin
           for (final r in rows)
             StaffRow(
               userId: qs(r, 'uid'),
-              name: qs(r, 'name') ?? 'Не указан',
+              name: qs(r, 'name') ?? L.current.repNotSpecified,
               receipts: qi(r, 'receipts'),
               revenue: qi(r, 'rev'),
               discounts: qi(r, 'disc'),
@@ -434,7 +435,7 @@ class StockValueRow {
 }
 
 const _stockValueSql = '''
-SELECT COALESCE(c.name, 'Без категории') AS cname, COUNT(*) AS n, SUM(p.stock_qty) AS qty,
+SELECT c.name AS cname, COUNT(*) AS n, SUM(p.stock_qty) AS qty,
        SUM(p.stock_qty * p.cost_price) AS cost_value, SUM(p.stock_qty * p.price) AS retail_value
   FROM products p LEFT JOIN categories c ON c.id = p.category_id
  WHERE p.deleted_at IS NULL AND p.track_stock = 1 AND p.stock_qty > 0
@@ -447,7 +448,7 @@ Stream<List<StockValueRow>> watchStockValue(AppDatabase db) => db
     .watch()
     .map((rows) => [
           for (final r in rows)
-            StockValueRow(qs(r, 'cname') ?? 'Без категории', qi(r, 'n'), qd(r, 'qty'),
+            StockValueRow(qs(r, 'cname') ?? L.current.repNoCategory, qi(r, 'n'), qd(r, 'qty'),
                 qi(r, 'cost_value'), qi(r, 'retail_value')),
         ]);
 
@@ -495,7 +496,7 @@ class WriteOffRow {
 }
 
 const _writeOffSql = '''
-SELECT COALESCE(NULLIF(TRIM(reason), ''), 'Без причины') AS reason, COUNT(*) AS n,
+SELECT NULLIF(TRIM(reason), '') AS reason, COUNT(*) AS n,
        SUM(-qty) AS qty, SUM(-qty * unit_cost) AS cost
   FROM stock_movements
  WHERE type = 'writeoff' AND created_at >= ?1 AND created_at < ?2 AND deleted_at IS NULL
@@ -508,7 +509,7 @@ Stream<List<WriteOffRow>> watchWriteOffs(AppDatabase db, ReportPeriod p) => db
     .watch()
     .map((rows) => [
           for (final r in rows)
-            WriteOffRow(qs(r, 'reason') ?? '', qi(r, 'n'), qd(r, 'qty'), qi(r, 'cost')),
+            WriteOffRow(qs(r, 'reason') ?? L.current.repNoReason, qi(r, 'n'), qd(r, 'qty'), qi(r, 'cost')),
         ]);
 
 // ------------------------------------------------------------------ demand

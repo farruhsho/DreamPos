@@ -6,19 +6,23 @@ import 'package:flutter/material.dart';
 import '../../core/db/database.dart';
 import '../../core/money.dart';
 import '../../core/theme.dart';
+import '../../l10n/l10n.dart';
 
 // ------------------------------------------------------------------ statuses
 
 const saleStatuses = ['completed', 'partially_returned', 'returned', 'voided'];
 
-String saleStatusLabel(String s) => switch (s) {
-  'completed' => 'Проведён',
-  'partially_returned' => 'Частичный возврат',
-  'returned' => 'Возвращён',
-  'voided' => 'Аннулирован',
-  'held' => 'Отложен',
-  _ => s,
-};
+String saleStatusLabel(String s, [AppLocalizations? loc]) {
+  final l = loc ?? L.current;
+  return switch (s) {
+    'completed' => l.salesStatusCompleted,
+    'partially_returned' => l.salesStatusPartial,
+    'returned' => l.salesStatusReturned,
+    'voided' => l.commonVoided,
+    'held' => l.salesStatusHeld,
+    _ => s,
+  };
+}
 
 Color saleStatusColor(String s) => switch (s) {
   'completed' => AppColors.success,
@@ -39,15 +43,23 @@ IconData saleStatusIcon(String s) => switch (s) {
 // ------------------------------------------------------------------ period
 
 enum Period {
-  today('Сегодня'),
-  yesterday('Вчера'),
-  week('7 дней'),
-  month('Месяц'),
-  all('Всё время'),
-  custom('Период…');
+  today,
+  yesterday,
+  week,
+  month,
+  all,
+  custom;
 
-  const Period(this.label);
-  final String label;
+  String labelIn(AppLocalizations l) => switch (this) {
+    today => l.commonToday,
+    yesterday => l.commonYesterday,
+    week => l.salesPeriodWeek,
+    month => l.commonMonth,
+    all => l.salesPeriodAll,
+    custom => l.salesPeriodCustom,
+  };
+
+  String get label => labelIn(L.current);
 }
 
 /// Half-open interval [from, to). Null bounds mean "unbounded".
@@ -83,8 +95,8 @@ DateTime _monthAgo(DateTime today) {
   return DateTime(y, m, today.day > lastDay ? lastDay : today.day);
 }
 
-String periodTitle(Period p, DateSpan? custom) {
-  if (p != Period.custom || custom?.from == null) return p.label;
+String periodTitle(Period p, DateSpan? custom, [AppLocalizations? l]) {
+  if (p != Period.custom || custom?.from == null) return p.labelIn(l ?? L.current);
   final from = custom!.from!;
   final to = custom.to!.subtract(const Duration(days: 1));
   String d(DateTime x) => '${x.day.toString().padLeft(2, '0')}.${x.month.toString().padLeft(2, '0')}';
@@ -235,21 +247,24 @@ String defaultRefundMethod(List<SalePayment> payments, {required bool hasCustome
   return 'cash';
 }
 
-String refundMethodHint(String m) => switch (m) {
-  'cash' => 'Выдать деньги из кассы',
-  'card' => 'Вернуть на карту через терминал',
-  'transfer' => 'Вернуть переводом',
-  'debt' => 'Уменьшить долг клиента',
-  'bonus' => 'Начислить на бонусный счёт клиента',
-  _ => '',
-};
+String refundMethodHint(String m, [AppLocalizations? loc]) {
+  final l = loc ?? L.current;
+  return switch (m) {
+    'cash' => l.salesRefundHintCash,
+    'card' => l.salesRefundHintCard,
+    'transfer' => l.salesRefundHintTransfer,
+    'debt' => l.salesRefundHintDebt,
+    'bonus' => l.salesRefundHintBonus,
+    _ => '',
+  };
+}
 
 /// Null if the return period is still open, otherwise a user message.
 /// Mirrors SaleService.returnItems (`return_days`, default 14, 0 = no limit).
 String? returnPeriodExpired(Sale sale, String? returnDaysSetting, DateTime now) {
   final days = int.tryParse(returnDaysSetting ?? '') ?? 14;
   if (days > 0 && now.difference(sale.createdAt).inDays > days) {
-    return 'Срок возврата ($days дн.) истёк';
+    return L.current.salesReturnPeriodExpired('$days');
   }
   return null;
 }
@@ -259,15 +274,26 @@ bool canReturnStatus(String status) => status == 'completed' || status == 'parti
 /// Null if the sale can be voided now, otherwise the reason why not.
 /// Mirrors SaleService.voidSale.
 String? voidBlockReason(Sale sale, Shift? currentShift) {
-  if (sale.status == 'voided') return 'Чек уже аннулирован';
-  if (sale.status != 'completed') return 'Аннулировать можно только чек без возвратов';
+  if (sale.status == 'voided') return L.current.salesVoidAlready;
+  if (sale.status != 'completed') return L.current.salesVoidOnlyNoReturns;
   if (sale.shiftId != null) {
     if (currentShift == null || currentShift.status != 'open') {
-      return 'Смена чека закрыта — оформите возврат';
+      return L.current.salesVoidShiftClosed;
     }
-    if (currentShift.id != sale.shiftId) return 'Чек из другой смены — оформите возврат';
+    if (currentShift.id != sale.shiftId) return L.current.salesVoidOtherShift;
   }
   return null;
 }
 
-const quickReturnReasons = ['Брак', 'Не подошёл', 'Ошибка кассира', 'Другое'];
+/// Quick reason chips of the return wizard, in this order:
+/// defect ([quickReasonDefect]), did not fit, cashier error, other ([quickReasonOther]).
+List<String> quickReturnReasons([AppLocalizations? loc]) {
+  final l = loc ?? L.current;
+  return [l.salesReasonDefect, l.salesReasonNotFit, l.salesReasonCashierError, l.salesReasonOther];
+}
+
+/// Index of «Брак» in [quickReturnReasons] (turns restocking off).
+const quickReasonDefect = 0;
+
+/// Index of «Другое» in [quickReturnReasons] (clears the reason field).
+const quickReasonOther = 3;

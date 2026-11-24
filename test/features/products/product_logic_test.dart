@@ -1,5 +1,6 @@
 import 'package:dreampos/core/money.dart';
 import 'package:dreampos/features/products/product_logic.dart';
+import 'package:dreampos/l10n/l10n.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const uzs = CurrencyConfig(code: 'UZS', symbol: 'сум', decimals: 0);
@@ -172,6 +173,12 @@ void main() {
       expect(parseUnit(''), 'pcs');
       expect(parseUnit('уп'), 'pack');
       expect(parseUnit('коробка'), isNull);
+      // Unit labels of every UI language re-import (CSV written under uz/ky).
+      for (final code in supportedLanguageCodes) {
+        for (final u in Qty.units) {
+          expect(parseUnit(Qty.unitLabel(u, L.of(code))), u, reason: '$code $u');
+        }
+      }
       expect(parseDecimal('1 234,5'), 1234.5);
       expect(parseDecimal('abc'), isNull);
       expect(parseDecimal('1.2.3'), isNull);

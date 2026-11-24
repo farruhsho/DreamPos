@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../l10n/l10n.dart';
+
 /// Numeric PIN pad with dots. Supports physical keyboard input.
 class PinPad extends StatefulWidget {
   const PinPad({
@@ -118,7 +120,7 @@ class PinPadState extends State<PinPad> {
                     height: 64,
                     child: switch (k) {
                       '<' => Tooltip(
-                          message: 'Стереть',
+                          message: context.l10n.coreErase,
                           child: OutlinedButton(
                               onPressed: _back,
                               style: OutlinedButton.styleFrom(padding: EdgeInsets.zero),

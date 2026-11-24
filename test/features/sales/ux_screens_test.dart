@@ -1,4 +1,5 @@
 // Visual QA screenshots for the sales module (run with SCREENSHOTS=1).
+import 'package:dreampos/l10n/l10n.dart';
 import 'package:drift/drift.dart' hide Column;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,6 +14,7 @@ void main() {
   for (final size in ['desktop', 'tablet', 'phone']) {
     testWidgets('sales screens $size', (tester) async {
       final h = await UxHarness.start(tester, size: size);
+      final l = L.of(h.locale);
       final wide = size != 'phone';
       await h.go('/sales');
       await h.shot('sales_list');
@@ -27,43 +29,46 @@ void main() {
       await h.shot('sales_detail');
 
       // receipt text preview
-      await tester.ensureVisible(find.text('Текст чека'));
-      await tester.tap(find.text('Текст чека'));
+      await tester.ensureVisible(find.text(l.salesReceiptText));
+      await tester.tap(find.text(l.salesReceiptText));
       await h.settle();
       await h.shot('sales_receipt_text');
-      await tester.tap(find.text('Закрыть'));
+      await tester.tap(find.text(l.commonClose));
       await h.settle();
 
       // return wizard
-      await tester.tap(find.text('Возврат').last);
+      // longer labels can scroll the action row out of view
+      await tester.ensureVisible(find.text(l.commonReturn).last);
+      await h.settle();
+      await tester.tap(find.text(l.commonReturn).last);
       await h.settle();
       await h.shot('sales_return_wizard');
-      if (find.text('Вернуть всё').evaluate().isNotEmpty) {
-        await tester.tap(find.text('Вернуть всё'));
+      if (find.text(l.salesReturnAll).evaluate().isNotEmpty) {
+        await tester.tap(find.text(l.salesReturnAll));
         await h.settle();
         await h.shot('sales_return_wizard_all');
       }
-      await popFrom(tester, find.text('Что возвращаем'));
+      await popFrom(tester, find.text(l.salesWhatToReturn));
       await h.settle();
       if (!wide) {
-        await popFrom(tester, find.text('Текст чека'));
+        await popFrom(tester, find.text(l.salesReceiptText));
         await h.settle();
       }
 
       // returns tab
-      await tester.tap(find.text('Возвраты').first);
+      await tester.tap(find.text(l.salesTabReturns).first);
       await h.settle();
       await h.shot('sales_returns');
-      await tester.tap(find.textContaining('Возврат №').first);
+      await tester.tap(find.textContaining(l.salesReturnTitle('#', '').split('#').first).first);
       await h.settle();
       await h.shot('sales_returns_detail');
       if (!wide) {
-        await popFrom(tester, find.text('Текст чека'));
+        await popFrom(tester, find.text(l.salesReceiptText));
         await h.settle();
       }
 
       // empty search
-      await tester.tap(find.text('Чеки').last);
+      await tester.tap(find.text(l.salesTitle).last);
       await h.settle();
       await tester.enterText(find.byType(TextField).first, 'zzzzzz');
       await h.settle();

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
+import '../../l10n/l10n.dart';
 import 'settings_logic.dart';
 
 /// Saves settings with audit as the current user.
@@ -28,9 +29,9 @@ class SettingsDirtyScope extends InheritedWidget {
 
 Future<bool> confirmDiscard(BuildContext context) => confirm(
   context,
-  title: 'Отменить изменения?',
-  message: 'В разделе есть несохранённые изменения. Если уйти, они будут потеряны.',
-  ok: 'Не сохранять',
+  title: context.l10n.settingsDiscardTitle,
+  message: context.l10n.settingsDiscardMessage,
+  ok: context.l10n.settingsDiscardOk,
   destructive: true,
 );
 
@@ -85,13 +86,7 @@ class SectionView extends StatelessWidget {
 
 /// Sticky bar shown when a form has unsaved edits.
 class SaveBar extends StatelessWidget {
-  const SaveBar({
-    super.key,
-    required this.visible,
-    required this.saving,
-    required this.onSave,
-    required this.onReset,
-  });
+  const SaveBar({super.key, required this.visible, required this.saving, required this.onSave, required this.onReset});
   final bool visible;
   final bool saving;
   final VoidCallback onSave;
@@ -120,23 +115,16 @@ class SaveBar extends StatelessWidget {
                     Expanded(
                       child: compact
                           ? const SizedBox.shrink()
-                          : const Text(
-                              'Есть несохранённые изменения (Ctrl+S — сохранить)',
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                          : Text(context.l10n.settingsUnsavedBar, overflow: TextOverflow.ellipsis),
                     ),
-                    TextButton(onPressed: saving ? null : onReset, child: const Text('Отменить')),
+                    TextButton(onPressed: saving ? null : onReset, child: Text(context.l10n.settingsCancelVerb)),
                     const SizedBox(width: Gap.s),
                     FilledButton.icon(
                       onPressed: saving ? null : onSave,
                       icon: saving
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
+                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                           : (compact ? null : const Icon(Icons.save_outlined)),
-                      label: const Text('Сохранить'),
+                      label: Text(context.l10n.commonSave),
                     ),
                   ],
                 ),
@@ -164,8 +152,7 @@ mixin SettingsFormMixin<T extends ConsumerStatefulWidget> on ConsumerState<T> {
   String toDisplay(String key, String stored) => stored;
   String toStored(String key, String display) => display.trim();
 
-  TextEditingController ctl(String key) =>
-      _ctls.putIfAbsent(key, () => TextEditingController()..addListener(_changed));
+  TextEditingController ctl(String key) => _ctls.putIfAbsent(key, () => TextEditingController()..addListener(_changed));
 
   String _display(String key) {
     final v = _baseline[key];
@@ -242,7 +229,7 @@ mixin SettingsFormMixin<T extends ConsumerStatefulWidget> on ConsumerState<T> {
     setState(() => saving = true);
     final ok = await runGuarded(context, () async {
       await applySettings(ref, changes);
-    }, success: 'Настройки сохранены');
+    }, success: context.l10n.settingsSaved);
     if (!mounted) return;
     setState(() {
       saving = false;
@@ -321,7 +308,7 @@ class SettingSwitch extends ConsumerWidget {
               await runGuarded(
                 context,
                 () => applySettings(ref, {settingKey: v ? '1' : '0'}),
-                success: v ? '«$title» — включено' : '«$title» — выключено',
+                success: v ? context.l10n.settingsSwitchOn(title) : context.l10n.settingsSwitchOff(title),
               );
             },
     );
@@ -343,15 +330,9 @@ class TileCard extends StatelessWidget {
         if (title != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(Gap.l, Gap.l, Gap.l, Gap.xs),
-            child: Text(
-              title!,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-            ),
+            child: Text(title!, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
           ),
-        for (final (i, c) in children.indexed) ...[
-          if (i > 0) const Divider(indent: Gap.l, endIndent: Gap.l),
-          c,
-        ],
+        for (final (i, c) in children.indexed) ...[if (i > 0) const Divider(indent: Gap.l, endIndent: Gap.l), c],
       ],
     ),
   );
@@ -406,7 +387,7 @@ class InfoBanner extends StatelessWidget {
 }
 
 /// Copies text and confirms with a toast.
-Future<void> copyToClipboard(BuildContext context, String text, {String message = 'Скопировано'}) async {
+Future<void> copyToClipboard(BuildContext context, String text, {String? message}) async {
   await Clipboard.setData(ClipboardData(text: text));
-  if (context.mounted) showSuccess(context, message);
+  if (context.mounted) showSuccess(context, message ?? context.l10n.settingsCopied);
 }

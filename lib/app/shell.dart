@@ -8,6 +8,7 @@ import '../core/theme.dart';
 import '../core/widgets/widgets.dart';
 import '../features/notifications/notification_engine.dart';
 import '../features/staff/time_tab.dart' show ClockButton;
+import '../l10n/l10n.dart';
 import 'background_jobs.dart';
 import 'nav.dart';
 
@@ -37,21 +38,25 @@ class AppShell extends ConsumerWidget {
       const SingleActivator(LogicalKeyboardKey.f2): () => context.go('/sales'),
     };
 
-    final body = Column(children: [
-      _TopStatusBar(onLock: lock, showMenu: !wide),
-      Expanded(child: child),
-    ]);
+    final body = Column(
+      children: [
+        _TopStatusBar(onLock: lock, showMenu: !wide),
+        Expanded(child: child),
+      ],
+    );
 
     return CallbackShortcuts(
       bindings: shortcuts,
       child: Scaffold(
         drawer: wide ? null : _NavDrawer(items: items, selected: idx),
         body: wide
-            ? Row(children: [
-                _Rail(items: items, selected: idx),
-                const VerticalDivider(width: 1),
-                Expanded(child: body),
-              ])
+            ? Row(
+                children: [
+                  _Rail(items: items, selected: idx),
+                  const VerticalDivider(width: 1),
+                  Expanded(child: body),
+                ],
+              )
             : body,
       ),
     );
@@ -65,34 +70,36 @@ class _Rail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(builder: (context, c) {
-      return SingleChildScrollView(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: c.maxHeight),
-          child: IntrinsicHeight(
-            child: NavigationRail(
-              selectedIndex: selected < 0 ? null : selected,
-              labelType: NavigationRailLabelType.all,
-              minWidth: 84,
-              leading: Padding(
-                padding: const EdgeInsets.symmetric(vertical: Gap.m),
-                child: _Logo(),
+    return LayoutBuilder(
+      builder: (context, c) {
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: c.maxHeight),
+            child: IntrinsicHeight(
+              child: NavigationRail(
+                selectedIndex: selected < 0 ? null : selected,
+                labelType: NavigationRailLabelType.all,
+                minWidth: 84,
+                leading: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: Gap.m),
+                  child: _Logo(),
+                ),
+                onDestinationSelected: (i) => context.go(items[i].path),
+                destinations: [
+                  for (final n in items)
+                    NavigationRailDestination(
+                      icon: Icon(n.icon),
+                      selectedIcon: Icon(n.selectedIcon),
+                      label: Text(n.labelOf(context.l10n), style: const TextStyle(fontSize: 12)),
+                      padding: const EdgeInsets.symmetric(vertical: 2),
+                    ),
+                ],
               ),
-              onDestinationSelected: (i) => context.go(items[i].path),
-              destinations: [
-                for (final n in items)
-                  NavigationRailDestination(
-                    icon: Icon(n.icon),
-                    selectedIcon: Icon(n.selectedIcon),
-                    label: Text(n.label, style: const TextStyle(fontSize: 12)),
-                    padding: const EdgeInsets.symmetric(vertical: 2),
-                  ),
-              ],
             ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
   }
 }
 
@@ -108,8 +115,10 @@ class _Logo extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
       ),
       alignment: Alignment.center,
-      child: Text('D',
-          style: t.textTheme.titleLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
+      child: Text(
+        'D',
+        style: t.textTheme.titleLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.w800),
+      ),
     );
   }
 }
@@ -126,12 +135,18 @@ class _NavDrawer extends StatelessWidget {
     for (var i = 0; i < items.length; i++) {
       final n = items[i];
       if (lastGroup != null && n.group != lastGroup) {
-        children.add(const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 28, vertical: 8), child: Divider()));
+        children.add(
+          const Padding(padding: EdgeInsets.symmetric(horizontal: 28, vertical: 8), child: Divider()),
+        );
       }
       lastGroup = n.group;
-      children.add(NavigationDrawerDestination(
-          icon: Icon(n.icon), selectedIcon: Icon(n.selectedIcon), label: Text(n.label)));
+      children.add(
+        NavigationDrawerDestination(
+          icon: Icon(n.icon),
+          selectedIcon: Icon(n.selectedIcon),
+          label: Text(n.labelOf(context.l10n)),
+        ),
+      );
     }
     return NavigationDrawer(
       selectedIndex: selected < 0 ? null : selected,
@@ -142,11 +157,13 @@ class _NavDrawer extends StatelessWidget {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(28, 20, 16, 12),
-          child: Row(children: [
-            _Logo(),
-            const SizedBox(width: Gap.m),
-            Text('DreamPOS', style: Theme.of(context).textTheme.titleLarge),
-          ]),
+          child: Row(
+            children: [
+              _Logo(),
+              const SizedBox(width: Gap.m),
+              Text('DreamPOS', style: Theme.of(context).textTheme.titleLarge),
+            ],
+          ),
         ),
         ...children,
       ],
@@ -174,79 +191,105 @@ class _TopStatusBar extends ConsumerWidget {
           height: 48,
           padding: const EdgeInsets.symmetric(horizontal: Gap.s),
           decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: t.colorScheme.outlineVariant.withValues(alpha: 0.6)))),
-          child: Row(children: [
-            if (showMenu)
-              IconButton(
+            border: Border(bottom: BorderSide(color: t.colorScheme.outlineVariant.withValues(alpha: 0.6))),
+          ),
+          child: Row(
+            children: [
+              if (showMenu)
+                IconButton(
                   icon: const Icon(Icons.menu),
-                  tooltip: 'Меню',
-                  onPressed: () => Scaffold.of(context).openDrawer()),
-            const SizedBox(width: Gap.s),
-            Flexible(
-              child: Text(store,
-                  overflow: TextOverflow.ellipsis,
-                  style: t.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
-            ),
-            const SizedBox(width: Gap.m),
-            InkWell(
-              borderRadius: BorderRadius.circular(6),
-              onTap: () => context.go('/shifts'),
-              child: shift == null
-                  ? const StatusChip('Смена закрыта', color: AppColors.warning)
-                  : StatusChip('Смена №${shift.number} · с ${formatTime(shift.openedAt)}',
-                      color: AppColors.success),
-            ),
-            const Spacer(),
-            const ClockButton(compact: true),
-            const SizedBox(width: Gap.xs),
-            IconButton(
-              tooltip: 'Уведомления',
-              onPressed: () => context.go('/notifications'),
-              icon: Badge(
-                isLabelVisible: unread > 0,
-                label: Text('$unread'),
-                child: const Icon(Icons.notifications_outlined),
-              ),
-            ),
-            const SizedBox(width: Gap.xs),
-            PopupMenuButton<String>(
-              tooltip: 'Профиль',
-              onSelected: (v) {
-                if (v == 'lock') onLock();
-              },
-              itemBuilder: (_) => [
-                PopupMenuItem(
-                  enabled: false,
-                  child: Text('${session.user.name} · ${session.role.label}'),
+                  tooltip: context.l10n.appMenu,
+                  onPressed: () => Scaffold.of(context).openDrawer(),
                 ),
-                const PopupMenuItem(
-                  value: 'lock',
-                  child: ListTile(
-                    leading: Icon(Icons.lock_outline),
-                    title: Text('Заблокировать / сменить кассира'),
-                    subtitle: Text('Ctrl+L'),
-                    contentPadding: EdgeInsets.zero,
+              const SizedBox(width: Gap.s),
+              // Store name takes what the shift chip leaves; the chip itself is capped
+              // to the free width and ellipsized (long uz/ky labels on phones).
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, c) => Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          store,
+                          overflow: TextOverflow.ellipsis,
+                          style: t.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      const SizedBox(width: Gap.m),
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: (c.maxWidth - Gap.m).clamp(0.0, double.infinity),
+                        ),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(6),
+                          onTap: () => context.go('/shifts'),
+                          child: shift == null
+                              ? StatusChip(context.l10n.appShiftClosed, color: AppColors.warning)
+                              : StatusChip(
+                                  context.l10n.appShiftChip('${shift.number}', formatTime(shift.openedAt)),
+                                  color: AppColors.success,
+                                ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: Gap.s),
-                child: Row(children: [
-                  CircleAvatar(
-                    radius: 15,
-                    backgroundColor: t.colorScheme.primaryContainer,
-                    child: Text(session.user.name.characters.first.toUpperCase(),
-                        style: TextStyle(color: t.colorScheme.onPrimaryContainer, fontSize: 13)),
-                  ),
-                  if (MediaQuery.sizeOf(context).width > 700) ...[
-                    const SizedBox(width: Gap.s),
-                    Text(session.user.name, style: t.textTheme.bodyMedium),
-                  ],
-                  const Icon(Icons.arrow_drop_down),
-                ]),
               ),
-            ),
-          ]),
+              const ClockButton(compact: true),
+              const SizedBox(width: Gap.xs),
+              IconButton(
+                tooltip: context.l10n.navNotifications,
+                onPressed: () => context.go('/notifications'),
+                icon: Badge(
+                  isLabelVisible: unread > 0,
+                  label: Text('$unread'),
+                  child: const Icon(Icons.notifications_outlined),
+                ),
+              ),
+              const SizedBox(width: Gap.xs),
+              PopupMenuButton<String>(
+                tooltip: context.l10n.appProfile,
+                onSelected: (v) {
+                  if (v == 'lock') onLock();
+                },
+                itemBuilder: (_) => [
+                  PopupMenuItem(
+                    enabled: false,
+                    child: Text('${session.user.name} · ${session.role.labelIn(context.l10n)}'),
+                  ),
+                  PopupMenuItem(
+                    value: 'lock',
+                    child: ListTile(
+                      leading: const Icon(Icons.lock_outline),
+                      title: Text(context.l10n.appLockSwitch),
+                      subtitle: const Text('Ctrl+L'),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                ],
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: Gap.s),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 15,
+                        backgroundColor: t.colorScheme.primaryContainer,
+                        child: Text(
+                          session.user.name.characters.first.toUpperCase(),
+                          style: TextStyle(color: t.colorScheme.onPrimaryContainer, fontSize: 13),
+                        ),
+                      ),
+                      if (MediaQuery.sizeOf(context).width > 700) ...[
+                        const SizedBox(width: Gap.s),
+                        Text(session.user.name, style: t.textTheme.bodyMedium),
+                      ],
+                      const Icon(Icons.arrow_drop_down),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

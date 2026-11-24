@@ -8,6 +8,7 @@ import '../../core/permissions.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
+import '../../l10n/l10n.dart';
 import '../settings/settings_logic.dart' show SettingKeys;
 import 'categories_dialog.dart';
 import 'product_logic.dart';
@@ -79,7 +80,7 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
     d = src == null ? ProductDraft(categoryId: widget.categoryId) : ProductDraft.fromProduct(src);
     if (widget.copyOf != null) {
       d
-        ..name = '${widget.copyOf!.name} (копия)'
+        ..name = L.current.prodCopySuffix(widget.copyOf!.name)
         ..barcode = null
         ..sku = null
         ..isActive = true;
@@ -131,11 +132,11 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
 
   Future<void> _generateBarcode() async {
     if (_barcode.text.trim().isNotEmpty) {
+      final l = context.l10n;
       final ok = await confirm(context,
-          title: 'Заменить штрихкод?',
-          message: 'Текущий штрихкод ${_barcode.text.trim()} будет заменён внутренним. '
-              'Старые этикетки перестанут сканироваться.',
-          ok: 'Заменить');
+          title: l.prodReplaceBarcodeQ,
+          message: l.prodReplaceBarcodeMessage(_barcode.text.trim()),
+          ok: l.prodReplace);
       if (!ok) return;
     }
     final code = await ref.read(productsRepoProvider).nextInternalBarcode();
@@ -159,10 +160,11 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
 
   Future<void> _close() async {
     if (_dirty) {
+      final l = context.l10n;
       final ok = await confirm(context,
-          title: 'Закрыть без сохранения?',
-          message: 'Внесённые изменения будут потеряны.',
-          ok: 'Закрыть',
+          title: l.prodCloseUnsavedQ,
+          message: l.prodUnsavedLost,
+          ok: l.commonClose,
           destructive: true);
       if (!ok) return;
     }
@@ -188,8 +190,9 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
   /// Returns true when the product was saved and the editor closed.
   Future<bool> _doSave() async {
     setState(() => _barcodeError = null);
+    final l = context.l10n;
     if (!_form.currentState!.validate()) {
-      showError(context, 'Проверьте выделенные поля');
+      showError(context, l.prodCheckFields);
       return false;
     }
     final session = ref.read(sessionProvider);
@@ -209,8 +212,8 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
       final owner = await repo.barcodeOwner(bc, excludeId: widget.product?.id);
       if (owner != null) {
         if (!mounted) return false;
-        setState(() => _barcodeError = 'Уже используется: «${owner.name}»');
-        showError(context, 'Штрихкод $bc уже присвоен товару «${owner.name}»');
+        setState(() => _barcodeError = l.prodBarcodeInUseBy(owner.name));
+        showError(context, l.prodBarcodeAssignedTo(bc, owner.name));
         return false;
       }
     }
@@ -218,17 +221,16 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
     final priceTouched = _isNew || d.price != widget.product!.price || d.costPrice != widget.product!.costPrice;
     if (priceTouched && session.can(Perm.viewCost) && d.costPrice > 0 && d.price < d.costPrice) {
       final ok = await confirm(context,
-          title: 'Цена ниже себестоимости',
-          message: 'Цена ${Money.format(d.price)} меньше себестоимости ${Money.format(d.costPrice)}. '
-              'Каждая продажа будет убыточной. Сохранить?',
-          ok: 'Сохранить');
+          title: l.prodPriceBelowCost,
+          message: l.prodPriceBelowCostMessage(Money.format(d.price), Money.format(d.costPrice)),
+          ok: l.commonSave);
       if (!ok || !mounted) return false;
     }
     if (priceTouched && d.price == 0) {
       final ok = await confirm(context,
-          title: 'Нулевая цена',
-          message: 'Товар будет продаваться бесплатно. Продолжить?',
-          ok: 'Сохранить');
+          title: l.prodZeroPrice,
+          message: l.prodZeroPriceMessage,
+          ok: l.commonSave);
       if (!ok || !mounted) return false;
     }
     setState(() {}); // shows the progress indicator on the save button
@@ -237,7 +239,7 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
         userId: session.user.id,
         canEditPrices: _isNew || session.can(Perm.editPrices));
     if (!mounted) return true;
-    showSuccess(context, _isNew ? 'Товар «${d.name}» создан' : 'Изменения сохранены');
+    showSuccess(context, _isNew ? l.prodCreated(d.name) : l.prodChangesSaved);
     Navigator.of(context).pop(id);
     return true;
   }
@@ -250,7 +252,8 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
     final canPrice = _isNew || session.can(Perm.editPrices);
     final canCost = session.can(Perm.viewCost);
     final compact = context.isCompact;
-    final title = _isNew ? (widget.copyOf != null ? 'Копия товара' : 'Новый товар') : 'Редактирование товара';
+    final l = context.l10n;
+    final title = _isNew ? (widget.copyOf != null ? l.prodCopyTitle : l.prodNewProduct) : l.prodEditTitle;
 
     final body = Form(
       key: _form,
@@ -272,7 +275,7 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
       icon: _saving
           ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
           : const Icon(Icons.check),
-      label: Text(_isNew ? 'Создать товар' : 'Сохранить'),
+      label: Text(_isNew ? l.prodCreateProduct : l.commonSave),
     );
 
     final content = CallbackShortcuts(
@@ -288,7 +291,7 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
         child: compact
             ? Scaffold(
                 appBar: AppBar(
-                  leading: IconButton(icon: const Icon(Icons.close), tooltip: 'Закрыть', onPressed: _close),
+                  leading: IconButton(icon: const Icon(Icons.close), tooltip: l.commonClose, onPressed: _close),
                   title: Text(title),
                 ),
                 body: body,
@@ -301,7 +304,7 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
                   padding: const EdgeInsets.fromLTRB(Gap.xl, Gap.l, Gap.s, Gap.s),
                   child: Row(children: [
                     Expanded(child: Text(title, style: Theme.of(context).textTheme.titleLarge)),
-                    IconButton(onPressed: _close, icon: const Icon(Icons.close), tooltip: 'Закрыть (Esc)'),
+                    IconButton(onPressed: _close, icon: const Icon(Icons.close), tooltip: l.prodCloseEsc),
                   ]),
                 ),
                 Flexible(child: body),
@@ -310,11 +313,11 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
                   padding: const EdgeInsets.symmetric(horizontal: Gap.xl, vertical: Gap.m),
                   child: Row(children: [
                     Expanded(
-                      child: Text('Ctrl+S — сохранить, Esc — закрыть',
+                      child: Text(l.prodEditorShortcuts,
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(
                               color: Theme.of(context).colorScheme.onSurfaceVariant)),
                     ),
-                    TextButton(onPressed: _close, child: const Text('Отмена')),
+                    TextButton(onPressed: _close, child: Text(l.commonCancel)),
                     const SizedBox(width: Gap.s),
                     saveBtn,
                   ]),
@@ -330,14 +333,15 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
   Widget _basicSection() {
     final cats = ref.watch(productCategoriesProvider).value ?? const <Category>[];
     final hasCat = d.categoryId == null || cats.any((c) => c.id == d.categoryId);
-    return FormSection(title: 'Основное', icon: Icons.inventory_2_outlined, children: [
+    final l = context.l10n;
+    return FormSection(title: l.prodSectionBasic, icon: Icons.inventory_2_outlined, children: [
       TextFormField(
         controller: _name,
         autofocus: true,
         maxLength: 200,
         textCapitalization: TextCapitalization.sentences,
-        decoration: const InputDecoration(labelText: 'Название *', counterText: ''),
-        validator: (v) => (v ?? '').trim().isEmpty ? 'Введите название товара' : null,
+        decoration: InputDecoration(labelText: l.prodNameRequired, counterText: ''),
+        validator: (v) => (v ?? '').trim().isEmpty ? l.prodErrEnterName : null,
         onFieldSubmitted: (_) => _save(),
       ),
       FieldRow(children: [
@@ -347,9 +351,9 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
               key: ValueKey('cat-${d.categoryId}-${cats.length}'),
               initialValue: hasCat ? d.categoryId : null,
               isExpanded: true,
-              decoration: const InputDecoration(labelText: 'Категория'),
+              decoration: InputDecoration(labelText: l.commonCategory),
               items: [
-                const DropdownMenuItem(value: null, child: Text('Без категории')),
+                DropdownMenuItem(value: null, child: Text(l.prodNoCategory)),
                 for (final c in cats)
                   DropdownMenuItem(
                     value: c.id,
@@ -367,16 +371,16 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
             ),
           ),
           IconButton(
-              tooltip: 'Новая категория', onPressed: _addCategory, icon: const Icon(Icons.add_circle_outline)),
+              tooltip: l.prodNewCategory, onPressed: _addCategory, icon: const Icon(Icons.add_circle_outline)),
         ]),
         DropdownButtonFormField<String>(
           initialValue: d.unit,
           decoration: InputDecoration(
-            labelText: 'Единица измерения',
-            helperText: Qty.isFractional(d.unit) ? 'Дробное количество (весовой товар)' : null,
+            labelText: l.prodUnitLabel,
+            helperText: Qty.isFractional(d.unit) ? l.prodFractionalHint : null,
           ),
           items: [
-            for (final u in Qty.units) DropdownMenuItem(value: u, child: Text(_unitName(u))),
+            for (final u in Qty.units) DropdownMenuItem(value: u, child: Text(_unitName(u, l))),
           ],
           onChanged: (v) => setState(() {
             d.unit = v ?? 'pcs';
@@ -388,11 +392,11 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
         controller: _desc,
         minLines: 1,
         maxLines: 4,
-        decoration: const InputDecoration(labelText: 'Описание'),
+        decoration: InputDecoration(labelText: l.prodDescription),
       ),
       Wrap(spacing: Gap.l, runSpacing: Gap.s, children: [
-        _switch('Активен (продаётся)', d.isActive, (v) => d.isActive = v),
-        _switch('Избранное на кассе', d.isFavorite, (v) => d.isFavorite = v),
+        _switch(l.prodActiveSwitch, d.isActive, (v) => d.isActive = v),
+        _switch(l.prodFavoriteSwitch, d.isFavorite, (v) => d.isFavorite = v),
       ]),
     ]);
   }
@@ -417,40 +421,41 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
     final margin = marginPercent(d.price, d.costPrice);
     final markup = markupPercent(d.price, d.costPrice);
     final below = canCost && d.costPrice > 0 && d.price < d.costPrice;
-    return FormSection(title: 'Цены', icon: Icons.sell_outlined, children: [
+    final l = context.l10n;
+    return FormSection(title: l.prodSectionPrices, icon: Icons.sell_outlined, children: [
       FieldRow(children: [
         canPrice
             ? MoneyField(
-                label: 'Розничная цена *',
+                label: l.prodRetailPriceRequired,
                 initial: d.price == 0 && _isNew && widget.copyOf == null ? null : d.price,
                 required: true,
                 onChanged: (v) => setState(() => d.price = v ?? 0),
                 onSubmitted: (_) => _save(),
               )
             : ReadOnlyField(
-                label: 'Розничная цена',
+                label: l.prodRetailPrice,
                 value: Money.format(d.price),
-                helper: 'Нет права менять цены'),
+                helper: l.prodNoPricePerm),
         if (canCost)
           canPrice
               ? MoneyField(
-                  label: 'Себестоимость',
+                  label: l.commonCost,
                   // New product: empty like the other price fields, not a bare "0".
                   initial: d.costPrice == 0 && _isNew && widget.copyOf == null ? null : d.costPrice,
-                  helper: _isNew ? 'Для начального остатка' : 'Средняя, по приходам',
+                  helper: _isNew ? l.prodCostHintNew : l.prodCostHintAvg,
                   onChanged: (v) => setState(() => d.costPrice = v ?? 0),
                   onSubmitted: (_) => _save(),
                 )
-              : ReadOnlyField(label: 'Себестоимость', value: Money.format(d.costPrice)),
+              : ReadOnlyField(label: l.commonCost, value: Money.format(d.costPrice)),
         canPrice
             ? MoneyField(
-                label: 'Оптовая цена',
+                label: l.prodWholesalePrice,
                 initial: d.wholesalePrice,
                 onChanged: (v) => setState(() => d.wholesalePrice = v),
                 onSubmitted: (_) => _save(),
               )
             : ReadOnlyField(
-                label: 'Оптовая цена',
+                label: l.prodWholesalePrice,
                 value: d.wholesalePrice == null ? '—' : Money.format(d.wholesalePrice!)),
       ]),
       if (canCost)
@@ -462,35 +467,37 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
           ),
           child: Wrap(spacing: Gap.xl, runSpacing: Gap.xs, crossAxisAlignment: WrapCrossAlignment.center, children: [
             Text.rich(TextSpan(children: [
-              const TextSpan(text: 'Маржа: '),
+              TextSpan(text: l.prodMarginColon),
               TextSpan(text: formatPercent(margin), style: const TextStyle(fontWeight: FontWeight.w700)),
             ])),
             Text.rich(TextSpan(children: [
-              const TextSpan(text: 'Наценка: '),
+              TextSpan(text: l.prodMarkupColon),
               TextSpan(text: formatPercent(markup), style: const TextStyle(fontWeight: FontWeight.w700)),
             ])),
             Text.rich(TextSpan(children: [
-              const TextSpan(text: 'Прибыль с единицы: '),
+              TextSpan(text: l.prodProfitPerUnitColon),
               TextSpan(
                   text: Money.format(d.price - d.costPrice),
                   style: const TextStyle(fontWeight: FontWeight.w700)),
             ])),
             if (below)
-              const Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.warning_amber_rounded, color: AppColors.danger, size: 18),
-                SizedBox(width: Gap.xs),
-                Text('Цена ниже себестоимости',
-                    style: TextStyle(color: AppColors.danger, fontWeight: FontWeight.w600)),
+              Row(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.warning_amber_rounded, color: AppColors.danger, size: 18),
+                const SizedBox(width: Gap.xs),
+                Flexible(
+                  child: Text(l.prodPriceBelowCost,
+                      style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.w600)),
+                ),
               ]),
           ]),
         ),
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('НДС (включён в цену)', style: t.textTheme.bodySmall),
+        Text(l.prodVatIncluded, style: t.textTheme.bodySmall),
         const SizedBox(height: Gap.xs),
         Wrap(spacing: Gap.s, runSpacing: Gap.s, crossAxisAlignment: WrapCrossAlignment.center, children: [
           for (final v in vatPresets)
             ChoiceChip(
-              label: Text(v == 0 ? 'Без НДС' : '${v.toStringAsFixed(0)}%'),
+              label: Text(v == 0 ? l.prodNoVat : '${v.toStringAsFixed(0)}%'),
               selected: d.vatPercent == v,
               onSelected: !canPrice
                   ? null
@@ -508,11 +515,11 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
               enabled: canPrice,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
-              decoration: const InputDecoration(
-                hintText: 'Другой',
+              decoration: InputDecoration(
+                hintText: l.prodVatOther,
                 suffixText: '%',
                 isDense: true,
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               ),
               validator: (v) {
                 if ((v ?? '').trim().isEmpty) return null;
@@ -540,23 +547,24 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
 
   Widget _codesSection() {
     final bc = _barcode.text.trim();
+    final l = context.l10n;
     String? bcHelper;
     var bcInvalid = false;
     if (RegExp(r'^\d{13}$').hasMatch(bc)) {
       bcInvalid = !Ean13.isValid(bc);
       bcHelper = !bcInvalid
-          ? (bc.startsWith(Ean13.internalPrefix) ? 'Внутренний EAN-13' : 'EAN-13 ✓')
-          : 'Неверная контрольная цифра EAN-13';
+          ? (bc.startsWith(Ean13.internalPrefix) ? l.prodInternalEan : 'EAN-13 ✓')
+          : l.prodEan13BadCheck;
     }
-    return FormSection(title: 'Коды', icon: Icons.qr_code_2, children: [
+    return FormSection(title: l.prodSectionCodes, icon: Icons.qr_code_2, children: [
       FieldRow(children: [
         // Generate sits inside the field as a suffix icon: the 13-digit code
         // keeps the full field width (a text button ate ~150px on phones).
         TextFormField(
           controller: _barcode,
           decoration: InputDecoration(
-            labelText: 'Штрихкод',
-            hintText: 'Отсканируйте или введите',
+            labelText: l.commonBarcode,
+            hintText: l.prodScanOrType,
             errorText: _barcodeError,
             helperText: bcHelper,
             helperMaxLines: 2,
@@ -566,7 +574,7 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
             prefixIcon: const Icon(Icons.qr_code_scanner, size: 20),
             suffixIcon: IconButton(
               key: const ValueKey('generate-barcode'),
-              tooltip: 'Сгенерировать внутренний EAN-13 (префикс 200)',
+              tooltip: l.prodGenerateBarcode,
               onPressed: _generateBarcode,
               icon: const Icon(Icons.autorenew),
             ),
@@ -574,8 +582,8 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
           onChanged: (_) => setState(() => _barcodeError = null),
           validator: (v) {
             final s = (v ?? '').trim();
-            if (s.length > 64) return 'Слишком длинный штрихкод';
-            if (s.contains(' ')) return 'Штрихкод не должен содержать пробелы';
+            if (s.length > 64) return l.prodBarcodeTooLong;
+            if (s.contains(' ')) return l.prodBarcodeNoSpaces;
             return null;
           },
           onFieldSubmitted: (_) => _save(),
@@ -583,12 +591,12 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
         TextFormField(
           controller: _sku,
           decoration: InputDecoration(
-            labelText: 'Артикул (SKU)',
-            hintText: _skuHint == null ? null : 'Свободный: $_skuHint',
+            labelText: l.prodSkuLabel,
+            hintText: _skuHint == null ? null : l.prodSkuFree(_skuHint!),
             suffixIcon: _skuHint == null
                 ? null
                 : IconButton(
-                    tooltip: 'Подставить $_skuHint',
+                    tooltip: l.prodSkuUse(_skuHint!),
                     icon: const Icon(Icons.auto_fix_high, size: 20),
                     onPressed: () => setState(() {
                       _sku.text = _skuHint!;
@@ -604,10 +612,11 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
 
   Widget _stockSection() {
     final p = widget.product;
-    return FormSection(title: 'Склад', icon: Icons.warehouse_outlined, children: [
+    final l = context.l10n;
+    return FormSection(title: l.prodSectionStock, icon: Icons.warehouse_outlined, children: [
       Wrap(spacing: Gap.l, runSpacing: Gap.s, children: [
-        _switch('Учитывать остаток', d.trackStock, (v) => d.trackStock = v),
-        if (d.trackStock) _switch('Разрешить продажу в минус', d.allowNegativeStock, (v) => d.allowNegativeStock = v),
+        _switch(l.prodTrackStock, d.trackStock, (v) => d.trackStock = v),
+        if (d.trackStock) _switch(l.prodAllowNegative, d.allowNegativeStock, (v) => d.allowNegativeStock = v),
       ]),
       if (d.trackStock)
         FieldRow(children: [
@@ -616,13 +625,13 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
             decoration: InputDecoration(
-              labelText: 'Минимальный остаток',
-              suffixText: Qty.unitLabel(d.unit),
-              helperText: 'Ниже — товар помечается «Мало»',
+              labelText: l.prodMinStock,
+              suffixText: Qty.unitLabel(d.unit, l),
+              helperText: l.prodMinStockHint,
             ),
             validator: (v) {
               final x = parseDecimal((v ?? '').isEmpty ? '0' : v);
-              if (x == null || x < 0) return 'Введите число ≥ 0';
+              if (x == null || x < 0) return l.prodEnterNonNegative;
               return null;
             },
             onFieldSubmitted: (_) => _save(),
@@ -633,23 +642,23 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
               decoration: InputDecoration(
-                labelText: 'Начальный остаток',
-                suffixText: Qty.unitLabel(d.unit),
-                helperText: 'Оприходуется как «Начальный остаток»',
+                labelText: l.prodInitialStock,
+                suffixText: Qty.unitLabel(d.unit, l),
+                helperText: l.prodInitialStockHint,
               ),
               validator: (v) {
                 final x = parseDecimal((v ?? '').isEmpty ? '0' : v);
-                if (x == null || x < 0) return 'Введите число ≥ 0';
-                if (!Qty.isFractional(d.unit) && x != x.roundToDouble()) return 'Только целое число';
+                if (x == null || x < 0) return l.prodEnterNonNegative;
+                if (!Qty.isFractional(d.unit) && x != x.roundToDouble()) return l.commonIntegerOnly;
                 return null;
               },
               onFieldSubmitted: (_) => _save(),
             )
           else
             ReadOnlyField(
-              label: 'Текущий остаток',
-              value: Qty.format(p!.stockQty, p.unit),
-              helper: 'Изменяется в разделе «Склад»: приход, списание, инвентаризация',
+              label: l.prodCurrentStock,
+              value: Qty.format(p!.stockQty, p.unit, l),
+              helper: l.prodCurrentStockHint,
             ),
         ]),
     ]);
@@ -658,20 +667,21 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
   Widget _extraSection() {
     final suppliers = ref.watch(productSuppliersProvider).value ?? const <Supplier>[];
     final hasSup = d.supplierId == null || suppliers.any((s) => s.id == d.supplierId);
-    return FormSection(title: 'Гарантия и поставщик', icon: Icons.verified_user_outlined, children: [
+    final l = context.l10n;
+    return FormSection(title: l.prodSectionWarranty, icon: Icons.verified_user_outlined, children: [
       FieldRow(children: [
         TextFormField(
           controller: _warranty,
           keyboardType: TextInputType.number,
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          decoration: const InputDecoration(
-            labelText: 'Гарантия',
-            suffixText: 'мес.',
-            helperText: '0 — без гарантии',
+          decoration: InputDecoration(
+            labelText: l.prodWarranty,
+            suffixText: l.prodMonthsSuffix,
+            helperText: l.prodWarrantyHint,
           ),
           validator: (v) {
             final x = int.tryParse((v ?? '').isEmpty ? '0' : v!);
-            if (x == null || x < 0 || x > 240) return 'От 0 до 240 месяцев';
+            if (x == null || x < 0 || x > 240) return l.prodWarrantyRange;
             return null;
           },
           onFieldSubmitted: (_) => _save(),
@@ -681,11 +691,11 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
           initialValue: hasSup ? d.supplierId : null,
           isExpanded: true,
           decoration: InputDecoration(
-            labelText: 'Поставщик',
-            helperText: suppliers.isEmpty ? 'Поставщики добавляются в разделе «Закупки»' : null,
+            labelText: l.commonSupplier,
+            helperText: suppliers.isEmpty ? l.prodSuppliersHint : null,
           ),
           items: [
-            const DropdownMenuItem(value: null, child: Text('Не указан')),
+            DropdownMenuItem(value: null, child: Text(l.prodNotSpecified)),
             for (final s in suppliers)
               DropdownMenuItem(value: s.id, child: Text(s.name, overflow: TextOverflow.ellipsis)),
           ],
@@ -699,12 +709,12 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
   }
 }
 
-String _unitName(String u) => switch (u) {
-      'pcs' => 'Штука (шт)',
-      'kg' => 'Килограмм (кг)',
-      'g' => 'Грамм (г)',
-      'l' => 'Литр (л)',
-      'm' => 'Метр (м)',
-      'pack' => 'Упаковка (уп)',
+String _unitName(String u, AppLocalizations l) => switch (u) {
+      'pcs' => l.prodUnitNamePcs,
+      'kg' => l.prodUnitNameKg,
+      'g' => l.prodUnitNameG,
+      'l' => l.prodUnitNameL,
+      'm' => l.prodUnitNameM,
+      'pack' => l.prodUnitNamePack,
       _ => u,
     };

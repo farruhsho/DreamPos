@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 
+import '../../l10n/l10n.dart';
 import '../../core/db/database.dart';
 import '../../core/permissions.dart';
 import '../../core/security/pin.dart';
@@ -29,12 +30,12 @@ class AuthService {
   }) async {
     final err = PinHasher.validate(pin);
     if (err != null) throw BusinessException(err);
-    if (name.trim().isEmpty) throw BusinessException('Введите имя');
+    if (name.trim().isEmpty) throw BusinessException(L.current.commonEnterName);
     return db.transaction(() async {
       final all = await (db.select(db.users)..where((u) => u.deletedAt.isNull() & u.isActive.equals(true))).get();
       for (final u in all) {
         if (PinHasher.verify(pin, u.pinSalt, u.pinHash)) {
-          throw BusinessException('Этот PIN уже используется другим сотрудником');
+          throw BusinessException(L.current.errPinInUse);
         }
       }
       final salt = PinHasher.newSalt();
@@ -66,7 +67,7 @@ class AuthService {
         .get();
     for (final u in others) {
       if (PinHasher.verify(newPin, u.pinSalt, u.pinHash)) {
-        throw BusinessException('Этот PIN уже используется другим сотрудником');
+        throw BusinessException(L.current.errPinInUse);
       }
     }
     final salt = PinHasher.newSalt();
@@ -84,7 +85,7 @@ class AuthService {
   Future<User> loginWithPin(String pin) async {
     final now = DateTime.now();
     if (await isThrottled()) {
-      throw BusinessException('Слишком много неверных попыток. Подождите $lockMinutes минут',
+      throw BusinessException(L.current.errTooManyAttempts('$lockMinutes'),
           code: 'throttle');
     }
     final users = await (db.select(db.users)
@@ -93,7 +94,7 @@ class AuthService {
     for (final u in users) {
       if (PinHasher.verify(pin, u.pinSalt, u.pinHash)) {
         if (u.lockedUntil != null && u.lockedUntil!.isAfter(now)) {
-          throw BusinessException('Учётная запись временно заблокирована. Попробуйте позже');
+          throw BusinessException(L.current.errAccountLockedTryLater);
         }
         await (db.update(db.users)..where((t) => t.id.equals(u.id))).write(UsersCompanion(
             lastLoginAt: Value(now),
@@ -110,10 +111,10 @@ class AuthService {
               a.at.isBiggerThanValue(now.subtract(const Duration(minutes: lockMinutes)))))
         .get();
     if (recent.length >= maxAttempts * 2) {
-      throw BusinessException('Слишком много неверных попыток. Подождите $lockMinutes минут',
+      throw BusinessException(L.current.errTooManyAttempts('$lockMinutes'),
           code: 'throttle');
     }
-    throw BusinessException('Неверный PIN', code: 'bad_pin');
+    throw BusinessException(L.current.errWrongPin, code: 'bad_pin');
   }
 
   /// Verifies a supervisor PIN for an approval (discount over limit, etc.)
@@ -126,7 +127,7 @@ class AuthService {
           ..where((a) => a.action.equals('auth.approve_fail') & a.at.isBiggerThanValue(since)))
         .get();
     if (fails.length >= maxAttempts) {
-      throw BusinessException('Слишком много неверных попыток. Подождите $lockMinutes минут',
+      throw BusinessException(L.current.errTooManyAttempts('$lockMinutes'),
           code: 'throttle');
     }
     final users = await (db.select(db.users)
@@ -135,13 +136,13 @@ class AuthService {
     for (final u in users) {
       if (PinHasher.verify(pin, u.pinSalt, u.pinHash)) {
         if (u.lockedUntil != null && u.lockedUntil!.isAfter(now)) {
-          throw BusinessException('Учётная запись временно заблокирована');
+          throw BusinessException(L.current.errAccountLocked);
         }
         return u;
       }
     }
     await db.audit('auth.approve_fail');
-    throw BusinessException('Неверный PIN', code: 'bad_pin');
+    throw BusinessException(L.current.errWrongPin, code: 'bad_pin');
   }
 
   Future<bool> isThrottled() async {

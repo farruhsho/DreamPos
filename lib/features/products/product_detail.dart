@@ -7,6 +7,7 @@ import '../../core/permissions.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
+import '../../l10n/l10n.dart';
 import 'price_labels.dart';
 import 'product_editor.dart';
 import 'product_logic.dart';
@@ -18,18 +19,18 @@ import 'products_repo.dart';
 /// Archives / unarchives products (asks before archiving).
 /// Returns true when the change was applied.
 Future<bool> archiveProductsAction(BuildContext context, WidgetRef ref, Set<String> ids, bool active) async {
+  final l = context.l10n;
   if (!active) {
     final ok = await confirm(context,
-        title: ids.length == 1 ? 'Архивировать товар?' : 'Архивировать товары (${ids.length})?',
-        message: 'Архивные товары не продаются и не видны на кассе. История продаж сохраняется. '
-            'Вернуть можно в любой момент (фильтр «Архив»).',
-        ok: 'В архив');
+        title: ids.length == 1 ? l.prodArchiveOneQ : l.prodArchiveManyQ('${ids.length}'),
+        message: l.prodArchiveMessage,
+        ok: l.prodToArchive);
     if (!ok || !context.mounted) return false;
   }
   return runGuarded(
     context,
     () => ref.read(productsRepoProvider).setActive(ids, active, userId: ref.read(sessionProvider)?.user.id),
-    success: active ? 'Товары возвращены в продажу' : 'Перемещено в архив',
+    success: active ? l.prodRestored : l.prodArchived,
   );
 }
 
@@ -40,28 +41,28 @@ Future<bool> deleteProductAction(BuildContext context, WidgetRef ref, Product p)
   final userId = ref.read(sessionProvider)?.user.id;
   final history = await repo.hasHistory(p.id);
   if (!context.mounted) return false;
+  final l = context.l10n;
   if (history) {
     if (!p.isActive) {
-      showError(context, 'По товару есть операции — удалить нельзя, он уже в архиве');
+      showError(context, l.prodCannotDeleteArchived);
       return false;
     }
     final ok = await confirm(context,
-        title: 'Удалить нельзя',
-        message: 'По товару «${p.name}» есть продажи или движения по складу — для отчётов он '
-            'должен остаться в базе. Переместить его в архив?',
-        ok: 'В архив');
+        title: l.prodCannotDeleteTitle,
+        message: l.prodCannotDeleteMessage(p.name),
+        ok: l.prodToArchive);
     if (!ok || !context.mounted) return false;
     await runGuarded(context, () => repo.setActive({p.id}, false, userId: userId),
-        success: 'Товар перемещён в архив');
+        success: l.prodMovedToArchive);
     return false;
   }
   final ok = await confirm(context,
-      title: 'Удалить «${p.name}»?',
-      message: 'Товар без операций будет удалён из каталога.',
-      ok: 'Удалить',
+      title: l.prodDeleteQ(p.name),
+      message: l.prodDeleteMessage,
+      ok: l.commonDelete,
       destructive: true);
   if (!ok || !context.mounted) return false;
-  return runGuarded(context, () => repo.deleteProduct(p.id, userId: userId), success: 'Товар удалён');
+  return runGuarded(context, () => repo.deleteProduct(p.id, userId: userId), success: l.prodDeleted);
 }
 
 // -------------------------------------------------------------------- views
@@ -73,7 +74,7 @@ class ProductDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: const Text('Товар')),
+        appBar: AppBar(title: Text(context.l10n.commonProduct)),
         body: ProductDetailView(productId: productId, onDeleted: () => Navigator.of(context).maybePop()),
       );
 }
@@ -94,7 +95,7 @@ class ProductDetailView extends ConsumerWidget {
       onRetry: () => ref.invalidate(productByIdProvider(productId)),
       data: (p) {
         if (p == null || p.deletedAt != null) {
-          return const EmptyState(icon: Icons.inventory_2_outlined, title: 'Товар не найден или удалён');
+          return EmptyState(icon: Icons.inventory_2_outlined, title: context.l10n.prodNotFoundOrDeleted);
         }
         return _Detail(product: p, session: session, onDeleted: onDeleted, onClose: onClose);
       },
@@ -122,23 +123,24 @@ class _Detail extends ConsumerWidget {
     final stats = ref.watch(productStatsProvider(p.id));
     final moves = ref.watch(productMovementsProvider(p.id));
     final muted = t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant);
+    final l = context.l10n;
 
     final actions = <Widget>[
       if (canEdit)
         FilledButton.icon(
           onPressed: () => openProductEditor(context, product: p),
           icon: const Icon(Icons.edit_outlined),
-          label: const Text('Изменить'),
+          label: Text(l.commonEdit),
         ),
       OutlinedButton.icon(
         onPressed: () => showPriceLabelsDialog(context, {p.id}),
         icon: const Icon(Icons.local_offer_outlined),
-        label: const Text('Ценник'),
+        label: Text(l.prodPriceLabel),
       ),
       if (canEdit)
         MenuAnchor(
           builder: (context, ctl, _) => IconButton(
-            tooltip: 'Ещё',
+            tooltip: l.commonMore,
             onPressed: () => ctl.isOpen ? ctl.close() : ctl.open(),
             icon: const Icon(Icons.more_vert),
           ),
@@ -146,19 +148,19 @@ class _Detail extends ConsumerWidget {
             MenuItemButton(
               leadingIcon: const Icon(Icons.copy_all_outlined),
               onPressed: () => openProductEditor(context, copyOf: p),
-              child: const Text('Дублировать'),
+              child: Text(l.prodDuplicate),
             ),
             MenuItemButton(
               leadingIcon: Icon(p.isFavorite ? Icons.star_outline : Icons.star),
               onPressed: () => runGuarded(
                   context, () => ref.read(productsRepoProvider).setFavorite(p.id, !p.isFavorite),
-                  success: p.isFavorite ? 'Убрано из избранного' : 'Добавлено в избранное'),
-              child: Text(p.isFavorite ? 'Убрать из избранного' : 'В избранное'),
+                  success: p.isFavorite ? l.prodUnfavorited : l.prodFavorited),
+              child: Text(p.isFavorite ? l.prodUnfavorite : l.prodFavorite),
             ),
             MenuItemButton(
               leadingIcon: Icon(p.isActive ? Icons.archive_outlined : Icons.unarchive_outlined),
               onPressed: () => archiveProductsAction(context, ref, {p.id}, !p.isActive),
-              child: Text(p.isActive ? 'В архив' : 'Вернуть из архива'),
+              child: Text(p.isActive ? l.prodToArchive : l.prodRestoreFromArchive),
             ),
             MenuItemButton(
               leadingIcon: const Icon(Icons.delete_outline, color: AppColors.danger),
@@ -166,13 +168,13 @@ class _Detail extends ConsumerWidget {
                 final done = await deleteProductAction(context, ref, p);
                 if (done) onDeleted?.call();
               },
-              child: const Text('Удалить', style: TextStyle(color: AppColors.danger)),
+              child: Text(l.commonDelete, style: const TextStyle(color: AppColors.danger)),
             ),
           ],
         ),
     ];
 
-    String? fmtQty(double q) => Qty.format(q, p.unit);
+    String? fmtQty(double q) => Qty.format(q, p.unit, l);
     final margin = marginPercent(p.price, p.costPrice);
 
     return ListView(padding: const EdgeInsets.all(Gap.l), children: [
@@ -185,16 +187,16 @@ class _Detail extends ConsumerWidget {
               Row(mainAxisSize: MainAxisSize.min, children: [
                 CategoryDot(color: cat?.color),
                 const SizedBox(width: Gap.xs),
-                Text(cat?.name ?? 'Без категории', style: muted),
+                Text(cat?.name ?? l.prodNoCategory, style: muted),
               ]),
-              if (!p.isActive) StatusChip('Архив', color: t.colorScheme.outline),
-              if (p.isFavorite) const StatusChip('Избранное', color: AppColors.warning),
-              if (!p.trackStock) StatusChip('Без учёта остатка', color: t.colorScheme.outline),
+              if (!p.isActive) StatusChip(l.prodArchive, color: t.colorScheme.outline),
+              if (p.isFavorite) StatusChip(l.prodFavoriteChip, color: AppColors.warning),
+              if (!p.trackStock) StatusChip(l.prodNoStockTracking, color: t.colorScheme.outline),
             ]),
           ]),
         ),
         if (onClose != null)
-          IconButton(onPressed: onClose, icon: const Icon(Icons.close), tooltip: 'Закрыть'),
+          IconButton(onPressed: onClose, icon: const Icon(Icons.close), tooltip: l.commonClose),
       ]),
       const SizedBox(height: Gap.m),
       Wrap(spacing: Gap.s, runSpacing: Gap.s, crossAxisAlignment: WrapCrossAlignment.center, children: actions),
@@ -207,36 +209,36 @@ class _Detail extends ConsumerWidget {
         final s = stats.value;
         // Every card carries a hint line so cards in a row have equal height.
         String? daysAgo(DateTime? d) {
-          if (d == null) return 'приходов не было';
+          if (d == null) return l.prodNoReceiptsYet;
           final days = DateTime.now().difference(d).inDays;
-          return days <= 0 ? 'сегодня' : '$days дн. назад';
+          return days <= 0 ? l.prodToday : l.prodDaysAgo('$days');
         }
 
         final cards = <Widget>[
           StatCard(
-            label: 'Цена',
+            label: l.commonPrice,
             value: Money.format(p.price),
             hint: p.wholesalePrice != null
-                ? 'опт. ${Money.format(p.wholesalePrice!)}'
-                : 'за 1 ${Qty.unitLabel(p.unit)}',
+                ? l.prodWholesaleShort(Money.format(p.wholesalePrice!))
+                : l.prodPerUnit(Qty.unitLabel(p.unit, l)),
             icon: showIcons ? Icons.sell_outlined : null,
           ),
           if (canCost)
             StatCard(
-              label: 'Себестоимость',
+              label: l.commonCost,
               value: Money.format(p.costPrice),
-              hint: 'маржа ${formatPercent(margin)}',
+              hint: l.prodMarginLower(formatPercent(margin)),
               icon: showIcons ? Icons.account_balance_wallet_outlined : null,
               color: margin != null && margin < 0 ? AppColors.danger : AppColors.info,
             ),
           StatCard(
-            label: 'Остаток',
+            label: l.commonStock,
             value: p.trackStock ? fmtQty(p.stockQty)! : '—',
             hint: !p.trackStock
-                ? 'без учёта'
+                ? l.prodUntrackedLower
                 : p.minStock > 0
-                    ? 'мин. ${fmtQty(p.minStock)}'
-                    : 'минимум не задан',
+                    ? l.prodMinShort(fmtQty(p.minStock)!)
+                    : l.prodMinNotSet,
             icon: showIcons ? Icons.warehouse_outlined : null,
             color: switch (stockLevel(p)) {
               StockLevel.out || StockLevel.negative => AppColors.danger,
@@ -245,20 +247,20 @@ class _Detail extends ConsumerWidget {
             },
           ),
           StatCard(
-            label: 'Продано',
+            label: l.prodSold,
             value: s == null ? '…' : fmtQty(s.soldQty)!,
-            hint: s == null ? 'за 30 дней' : 'за 30 дней · чеков: ${s.receipts}',
+            hint: s == null ? l.prodLast30Days : l.prodLast30DaysReceipts('${s.receipts}'),
             icon: showIcons ? Icons.shopping_bag_outlined : null,
           ),
           StatCard(
-            label: 'Выручка',
+            label: l.prodRevenue,
             value: s == null ? '…' : Money.format(s.revenue),
-            hint: 'за 30 дней',
+            hint: l.prodLast30Days,
             icon: showIcons ? Icons.payments_outlined : null,
             color: AppColors.success,
           ),
           StatCard(
-            label: 'Последний приход',
+            label: l.prodLastReceipt,
             value: s == null ? '…' : (s.lastReceiptAt == null ? '—' : formatDate(s.lastReceiptAt!)),
             hint: s == null ? ' ' : daysAgo(s.lastReceiptAt),
             icon: showIcons ? Icons.local_shipping_outlined : null,
@@ -273,17 +275,17 @@ class _Detail extends ConsumerWidget {
       }),
       const SizedBox(height: Gap.l),
       SectionCard(
-        title: 'Характеристики',
+        title: l.prodSpecs,
         child: Column(children: [
-          _kv('Штрихкод', p.barcode ?? '—', selectable: true),
-          _kv('Артикул', p.sku ?? '—', selectable: true),
-          _kv('Ед. изм.', Qty.unitLabel(p.unit)),
-          if (p.wholesalePrice != null) _kv('Оптовая цена', Money.format(p.wholesalePrice!)),
-          _kv('НДС', p.vatPercent == 0 ? 'без НДС' : formatPercent(p.vatPercent)),
-          if (p.trackStock) _kv('Продажа в минус', p.allowNegativeStock ? 'разрешена' : 'запрещена'),
-          _kv('Гарантия', p.warrantyMonths == 0 ? 'нет' : '${p.warrantyMonths} мес.'),
-          _kv('Поставщик', supplier?.name ?? '—'),
-          _kv('Изменён', formatDateTime(p.updatedAt)),
+          _kv(l.commonBarcode, p.barcode ?? '—', selectable: true),
+          _kv(l.commonSku, p.sku ?? '—', selectable: true),
+          _kv(l.commonUnit, Qty.unitLabel(p.unit, l)),
+          if (p.wholesalePrice != null) _kv(l.prodWholesalePrice, Money.format(p.wholesalePrice!)),
+          _kv(l.commonVat, p.vatPercent == 0 ? l.prodNoVatLower : formatPercent(p.vatPercent)),
+          if (p.trackStock) _kv(l.prodNegativeSale, p.allowNegativeStock ? l.prodAllowed : l.prodForbidden),
+          _kv(l.prodWarranty, p.warrantyMonths == 0 ? l.prodNoneLower : l.prodMonthsShort('${p.warrantyMonths}')),
+          _kv(l.commonSupplier, supplier?.name ?? '—'),
+          _kv(l.prodUpdatedAt, formatDateTime(p.updatedAt)),
           if (p.description != null) ...[
             const SizedBox(height: Gap.s),
             Align(alignment: Alignment.centerLeft, child: Text(p.description!)),
@@ -292,15 +294,15 @@ class _Detail extends ConsumerWidget {
       ),
       const SizedBox(height: Gap.l),
       SectionCard(
-        title: 'Движение товара',
-        trailing: Text('последние 50', style: muted),
+        title: l.prodMovements,
+        trailing: Text(l.prodLast50, style: muted),
         child: AsyncView<List<StockMovement>>(
           value: moves,
           data: (list) {
             if (list.isEmpty) {
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: Gap.l),
-                child: Text('Движений пока не было. Приход оформляется в разделе «Склад» или «Закупки».',
+                child: Text(l.prodNoMovements,
                     style: muted, textAlign: TextAlign.center),
               );
             }
@@ -315,7 +317,7 @@ class _Detail extends ConsumerWidget {
                     ),
                     Expanded(
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(movementTypeLabel(m.type), style: const TextStyle(fontWeight: FontWeight.w500)),
+                        Text(movementTypeLabel(m.type, l), style: const TextStyle(fontWeight: FontWeight.w500)),
                         if (m.reason != null && m.reason!.isNotEmpty)
                           Text(m.reason!, style: muted, maxLines: 2, overflow: TextOverflow.ellipsis),
                       ]),
@@ -328,7 +330,7 @@ class _Detail extends ConsumerWidget {
                           color: m.qty >= 0 ? AppColors.success : AppColors.danger,
                         ),
                       ),
-                      Text('ост. ${fmtQty(m.qtyAfter)}', style: muted),
+                      Text(l.prodStockAfterShort(fmtQty(m.qtyAfter)!), style: muted),
                     ]),
                   ]),
                 ),

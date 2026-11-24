@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/db/database.dart';
 import '../../core/providers.dart';
 import '../../domain/errors.dart';
+import '../../l10n/l10n.dart';
 import 'customer_logic.dart';
 
 /// Editable customer fields.
@@ -100,7 +101,7 @@ class CustomerRepo {
       final c = generateCardNumber();
       if (!await isCardTaken(c)) return c;
     }
-    throw BusinessException('Не удалось сгенерировать номер карты, попробуйте ещё раз');
+    throw BusinessException(L.current.custCardGenFailed);
   }
 
   /// Validates business rules and inserts/updates. Returns the customer id.
@@ -109,21 +110,21 @@ class CustomerRepo {
   Future<String> save(CustomerDraft d,
       {required String userId, bool canEditDiscount = true, bool canEditDebtLimit = true}) async {
     final name = d.name.trim();
-    if (name.isEmpty) throw BusinessException('Введите имя клиента');
-    if (name.length > 160) throw BusinessException('Имя слишком длинное');
+    if (name.isEmpty) throw BusinessException(L.current.custEnterName);
+    if (name.length > 160) throw BusinessException(L.current.custNameTooLong);
     if (d.discountPercent < 0 || d.discountPercent > 100) {
-      throw BusinessException('Скидка должна быть от 0 до 100%');
+      throw BusinessException(L.current.custDiscountRange);
     }
-    if (d.debtLimit < 0) throw BusinessException('Лимит долга не может быть отрицательным');
+    if (d.debtLimit < 0) throw BusinessException(L.current.custDebtLimitNegative);
     final email = _blank(d.email);
-    if (email != null && !isValidEmail(email)) throw BusinessException('Неверный email');
+    if (email != null && !isValidEmail(email)) throw BusinessException(L.current.custEmailInvalid);
     final card = _blank(d.cardNumber);
     final phone = _blank(d.phone) == null ? null : normalizePhone(d.phone!);
     final now = DateTime.now();
 
     return db.transaction(() async {
       if (card != null && await isCardTaken(card, exceptId: d.id)) {
-        throw BusinessException('Карта $card уже привязана к другому клиенту');
+        throw BusinessException(L.current.custCardTakenBy(card));
       }
       final comp = CustomersCompanion(
         name: Value(name),
@@ -141,10 +142,10 @@ class CustomerRepo {
       );
       if (d.id == null) {
         if (!canEditDiscount && d.discountPercent != 0) {
-          throw BusinessException('Нет права назначать скидку клиенту');
+          throw BusinessException(L.current.custNoAssignDiscountPerm);
         }
         if (!canEditDebtLimit && d.debtLimit != 0) {
-          throw BusinessException('Нет права открывать кредит клиенту');
+          throw BusinessException(L.current.custNoOpenCreditPerm);
         }
         final id = newId();
         await db.into(db.customers).insert(comp.copyWith(id: Value(id), createdAt: Value(now)));
@@ -157,12 +158,12 @@ class CustomerRepo {
         return id;
       }
       final old = await byId(d.id!);
-      if (old == null || old.deletedAt != null) throw BusinessException('Клиент не найден');
+      if (old == null || old.deletedAt != null) throw BusinessException(L.current.commonCustomerNotFound);
       if (!canEditDiscount && old.discountPercent != d.discountPercent) {
-        throw BusinessException('Нет права изменять скидку клиента');
+        throw BusinessException(L.current.custNoChangeDiscountPerm);
       }
       if (!canEditDebtLimit && old.debtLimit != d.debtLimit) {
-        throw BusinessException('Нет права изменять лимит долга');
+        throw BusinessException(L.current.custNoChangeDebtLimitPerm);
       }
       await (db.update(db.customers)..where((c) => c.id.equals(d.id!))).write(comp);
       await db.markDirty('customers', d.id!);
@@ -179,11 +180,11 @@ class CustomerRepo {
   Future<void> delete(String id, {required String userId}) async {
     await db.transaction(() async {
       final c = await byId(id);
-      if (c == null || c.deletedAt != null) throw BusinessException('Клиент не найден');
+      if (c == null || c.deletedAt != null) throw BusinessException(L.current.commonCustomerNotFound);
       if (c.debtBalance != 0) {
         throw BusinessException(c.debtBalance > 0
-            ? 'Нельзя удалить клиента с долгом. Сначала примите оплату долга.'
-            : 'Нельзя удалить клиента с переплатой.');
+            ? L.current.custDeleteDebtRepo
+            : L.current.custDeleteOverpaid);
       }
       final now = DateTime.now();
       await (db.update(db.customers)..where((t) => t.id.equals(id)))

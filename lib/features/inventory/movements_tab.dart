@@ -12,6 +12,7 @@ import 'inventory_logic.dart';
 import 'receipt_document.dart';
 import 'stock_dialogs.dart';
 import 'stock_tab.dart' show InvChipBar;
+import '../../l10n/l10n.dart';
 
 /// Filter for the stock movement journal.
 class MovementQuery {
@@ -48,14 +49,19 @@ final movementsProvider = StreamProvider.family<List<StockMovement>, MovementQue
 });
 
 enum _Period {
-  today('Сегодня'),
-  week('7 дней'),
-  month('30 дней'),
-  all('Всё время'),
-  custom('Период…');
+  today,
+  week,
+  month,
+  all,
+  custom;
 
-  const _Period(this.label);
-  final String label;
+  String labelIn(AppLocalizations l) => switch (this) {
+    _Period.today => l.commonToday,
+    _Period.week => l.invDays7,
+    _Period.month => l.invDays30,
+    _Period.all => l.invAllTime,
+    _Period.custom => l.invPeriodCustom,
+  };
 }
 
 /// «Движения»: stock movement journal.
@@ -91,7 +97,7 @@ class _MovementsTabState extends ConsumerState<MovementsTab> {
       firstDate: DateTime(now.year - 5),
       lastDate: now,
       initialDateRange: _range,
-      helpText: 'Период движений',
+      helpText: context.l10n.invMovementsPeriod,
     );
     if (r != null) {
       setState(() {
@@ -104,6 +110,7 @@ class _MovementsTabState extends ConsumerState<MovementsTab> {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final products = ref.watch(invProductMapProvider).value ?? const {};
     final users = ref.watch(invUserNamesProvider).value ?? const {};
     final receiptNumbers = ref.watch(goodsReceiptNumbersProvider).value ?? const <String, int>{};
@@ -111,22 +118,22 @@ class _MovementsTabState extends ConsumerState<MovementsTab> {
     final typeField = DropdownButtonFormField<String?>(
       initialValue: _type,
       isExpanded: true,
-      decoration: const InputDecoration(labelText: 'Тип'),
+      decoration: InputDecoration(labelText: l.invType),
       items: [
-        const DropdownMenuItem(value: null, child: Text('Все типы')),
-        for (final e in movementTypeLabels.entries) DropdownMenuItem(value: e.key, child: Text(e.value)),
+        DropdownMenuItem(value: null, child: Text(l.invAllTypes)),
+        for (final e in movementTypeLabelsOf(l).entries) DropdownMenuItem(value: e.key, child: Text(e.value)),
       ],
       onChanged: (v) => setState(() => _type = v),
     );
     final productChip = InputChip(
       avatar: const Icon(Icons.inventory_2_outlined, size: 18),
-      label: Text(_product?.name ?? 'Все товары', overflow: TextOverflow.ellipsis),
+      label: Text(_product?.name ?? l.invAllProducts, overflow: TextOverflow.ellipsis),
       onPressed: () async {
-        final p = await pickProduct(context, title: 'Фильтр по товару');
+        final p = await pickProduct(context, title: l.invFilterByProduct);
         if (p != null) setState(() => _product = p);
       },
       onDeleted: _product == null ? null : () => setState(() => _product = null),
-      deleteButtonTooltipMessage: 'Сбросить',
+      deleteButtonTooltipMessage: l.commonReset,
     );
     final periods = [
       for (final p in _Period.values)
@@ -134,7 +141,7 @@ class _MovementsTabState extends ConsumerState<MovementsTab> {
           label: Text(
             p == _Period.custom && _range != null && _period == _Period.custom
                 ? '${formatDate(_range!.start)} – ${formatDate(_range!.end)}'
-                : p.label,
+                : p.labelIn(l),
           ),
           selected: _period == p,
           onSelected: (_) => p == _Period.custom ? _pickRange() : setState(() => _period = p),
@@ -181,10 +188,10 @@ class _MovementsTabState extends ConsumerState<MovementsTab> {
             onRetry: () => ref.invalidate(movementsProvider(q)),
             data: (list) {
               if (list.isEmpty) {
-                return const EmptyState(
+                return EmptyState(
                   icon: Icons.swap_vert,
-                  title: 'Движений нет',
-                  message: 'Измените фильтры или период',
+                  title: l.invNoMovements,
+                  message: l.invChangeFiltersOrPeriod,
                 );
               }
               var inQty = 0.0, outQty = 0.0;
@@ -200,8 +207,10 @@ class _MovementsTabState extends ConsumerState<MovementsTab> {
                 children: [
                   Text(
                     [
-                      'Записей: ${list.length}${list.length >= movementsLimit ? ' (показаны последние $movementsLimit — уточните фильтр)' : ''}',
-                      if (_product != null) 'приход +${Qty.format(inQty)} · расход ${Qty.format(outQty)}',
+                      list.length >= movementsLimit
+                          ? l.invRecordsLimited('${list.length}', '$movementsLimit')
+                          : l.invRecords('${list.length}'),
+                      if (_product != null) l.invInOut(Qty.format(inQty), Qty.format(outQty)),
                     ].join(' · '),
                     style: t.textTheme.bodySmall,
                   ),
@@ -218,7 +227,7 @@ class _MovementsTabState extends ConsumerState<MovementsTab> {
                           return MovementTile(
                             m: m,
                             unit: p?.unit ?? 'pcs',
-                            productName: p?.name ?? 'Удалённый товар',
+                            productName: p?.name ?? l.invDeletedProduct,
                             userName: users[m.userId],
                             reference: reference,
                             onTap: reference == null ? null : () => showReceiptDocument(context, m.refId!),
@@ -236,8 +245,10 @@ class _MovementsTabState extends ConsumerState<MovementsTab> {
           Padding(
             padding: const EdgeInsets.only(top: Gap.s),
             child: Text(
-              'Текущий остаток «${_product!.name}»: '
-              '${Qty.format(products[_product!.id]?.stockQty ?? _product!.stockQty, _product!.unit)}',
+              l.invCurrentStockOf(
+                _product!.name,
+                Qty.format(products[_product!.id]?.stockQty ?? _product!.stockQty, _product!.unit),
+              ),
               style: t.textTheme.titleSmall?.copyWith(color: AppColors.info),
             ),
           ),

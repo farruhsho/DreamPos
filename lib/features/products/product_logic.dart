@@ -1,9 +1,11 @@
 // Pure-Dart helpers of the products module: EAN-13, price rounding,
-// margins, CSV parsing/serialisation and catalog filters. No Flutter, no DB,
-// so everything here is unit-tested directly.
+// margins, CSV parsing/serialisation and catalog filters. No widgets, no DB,
+// so everything here is unit-tested directly. User-visible labels and import
+// errors come from `L.current` (lib/l10n).
 import 'dart:math' as math;
 
 import '../../core/money.dart';
+import '../../l10n/l10n.dart';
 
 // ------------------------------------------------------------------ EAN-13
 
@@ -21,7 +23,7 @@ class Ean13 {
   /// counted from the right of the 12-digit body).
   static int checkDigit(String twelve) {
     if (twelve.length != 12 || !_digits.hasMatch(twelve)) {
-      throw ArgumentError.value(twelve, 'twelve', 'нужно ровно 12 цифр');
+      throw ArgumentError.value(twelve, 'twelve', 'нужно ровно 12 цифр'); // l10n-ignore
     }
     var sum = 0;
     for (var i = 0; i < 12; i++) {
@@ -68,12 +70,16 @@ class Ean13 {
 // ------------------------------------------------------------ prices & margin
 
 enum RoundMode {
-  nearest('До ближайшего'),
-  up('Вверх'),
-  down('Вниз');
+  nearest,
+  up,
+  down;
 
-  const RoundMode(this.label);
-  final String label;
+  String labelIn(AppLocalizations l) => switch (this) {
+        RoundMode.nearest => l.prodRoundNearest,
+        RoundMode.up => l.prodRoundUp,
+        RoundMode.down => l.prodRoundDown,
+      };
+  String get label => labelIn(L.current);
 }
 
 /// Rounds a non-negative minor-unit amount to a multiple of [step].
@@ -114,8 +120,11 @@ List<int> roundingStepsMinor(CurrencyConfig c) {
   return steps.toList()..sort();
 }
 
-String roundingStepLabel(int stepMinor, CurrencyConfig c) =>
-    stepMinor <= 1 ? 'Без округления' : 'До ${Money.format(stepMinor, c: c)}';
+/// [l] defaults to the UI language (pass `L.of('ru')` for text stored in the DB).
+String roundingStepLabel(int stepMinor, CurrencyConfig c, [AppLocalizations? l]) {
+  final t = l ?? L.current;
+  return stepMinor <= 1 ? t.prodRoundNone : t.prodRoundTo(Money.format(stepMinor, c: c));
+}
 
 /// Margin (наценка в цене) in percent: (price-cost)/price.
 double? marginPercent(int price, int cost) =>
@@ -143,34 +152,50 @@ double? parseDecimal(String? s) {
 // -------------------------------------------------------------- list filters
 
 enum StockFilter {
-  all('Все остатки'),
-  inStock('В наличии'),
-  low('Мало'),
-  out('Нет в наличии'),
-  negative('Минус');
+  all,
+  inStock,
+  low,
+  out,
+  negative;
 
-  const StockFilter(this.label);
-  final String label;
+  String labelIn(AppLocalizations l) => switch (this) {
+        StockFilter.all => l.prodStockAll,
+        StockFilter.inStock => l.prodStockIn,
+        StockFilter.low => l.prodStockLow,
+        StockFilter.out => l.prodStockOut,
+        StockFilter.negative => l.prodStockNegative,
+      };
+  String get label => labelIn(L.current);
 }
 
 enum ActiveFilter {
-  active('Активные'),
-  archived('Архив'),
-  all('Все');
+  active,
+  archived,
+  all;
 
-  const ActiveFilter(this.label);
-  final String label;
+  String labelIn(AppLocalizations l) => switch (this) {
+        ActiveFilter.active => l.prodActive,
+        ActiveFilter.archived => l.prodArchive,
+        ActiveFilter.all => l.commonAll,
+      };
+  String get label => labelIn(L.current);
 }
 
 enum ProductSort {
-  name('По названию'),
-  price('По цене'),
-  stock('По остатку'),
-  margin('По марже'),
-  updated('По изменению');
+  name,
+  price,
+  stock,
+  margin,
+  updated;
 
-  const ProductSort(this.label);
-  final String label;
+  String labelIn(AppLocalizations l) => switch (this) {
+        ProductSort.name => l.prodSortName,
+        ProductSort.price => l.prodSortPrice,
+        ProductSort.stock => l.prodSortStock,
+        ProductSort.margin => l.prodSortMargin,
+        ProductSort.updated => l.prodSortUpdated,
+      };
+  String get label => labelIn(L.current);
 }
 
 /// Sentinel for "products without category" in the category filter.
@@ -263,15 +288,24 @@ String likeSafe(String q) => q.replaceAll('%', '').replaceAll('_', '');
 String? parseUnit(String? s) {
   final t = (s ?? '').trim().toLowerCase().replaceAll('.', '');
   if (t.isEmpty) return 'pcs';
+  // Input aliases (matched against user/CSV text), not UI text.
   const map = {
-    'pcs': 'pcs', 'шт': 'pcs', 'штук': 'pcs', 'штука': 'pcs', 'ед': 'pcs', 'pc': 'pcs',
-    'kg': 'kg', 'кг': 'kg', 'килограмм': 'kg',
-    'g': 'g', 'г': 'g', 'гр': 'g', 'грамм': 'g',
-    'l': 'l', 'л': 'l', 'литр': 'l',
-    'm': 'm', 'м': 'm', 'метр': 'm',
-    'pack': 'pack', 'уп': 'pack', 'упак': 'pack', 'упаковка': 'pack',
+    'pcs': 'pcs', 'шт': 'pcs', 'штук': 'pcs', 'штука': 'pcs', 'ед': 'pcs', 'pc': 'pcs', // l10n-ignore
+    'kg': 'kg', 'кг': 'kg', 'килограмм': 'kg', // l10n-ignore
+    'g': 'g', 'г': 'g', 'гр': 'g', 'грамм': 'g', // l10n-ignore
+    'l': 'l', 'л': 'l', 'литр': 'l', // l10n-ignore
+    'm': 'm', 'м': 'm', 'метр': 'm', // l10n-ignore
+    'pack': 'pack', 'уп': 'pack', 'упак': 'pack', 'упаковка': 'pack', // l10n-ignore
   };
-  return map[t];
+  final hit = map[t];
+  if (hit != null) return hit;
+  // Unit labels of every UI language (a CSV exported under uz/ky/en).
+  for (final code in supportedLanguageCodes) {
+    for (final u in Qty.units) {
+      if (Qty.unitLabel(u, L.of(code)).toLowerCase().replaceAll('.', '') == t) return u;
+    }
+  }
+  return null;
 }
 
 // ------------------------------------------------------------------------ CSV
@@ -365,28 +399,38 @@ String toCsv(List<List<String>> rows, {String delimiter = ';'}) =>
     rows.map((r) => r.map((c) => csvEscape(c, delimiter)).join(delimiter)).join('\r\n');
 
 enum ImportField {
-  name('Название'),
-  barcode('Штрихкод'),
-  sku('Артикул'),
-  category('Категория'),
-  price('Цена'),
-  cost('Себестоимость'),
-  unit('Ед.'),
-  stock('Остаток');
+  name,
+  barcode,
+  sku,
+  category,
+  price,
+  cost,
+  unit,
+  stock;
 
-  const ImportField(this.label);
-  final String label;
+  String labelIn(AppLocalizations l) => switch (this) {
+        ImportField.name => l.commonName,
+        ImportField.barcode => l.commonBarcode,
+        ImportField.sku => l.commonSku,
+        ImportField.category => l.commonCategory,
+        ImportField.price => l.commonPrice,
+        ImportField.cost => l.commonCost,
+        ImportField.unit => l.prodUnitShort,
+        ImportField.stock => l.commonStock,
+      };
+  String get label => labelIn(L.current);
 }
 
+// CSV header aliases (matched against file headers), not UI text.
 const _aliases = <ImportField, List<String>>{
-  ImportField.name: ['name', 'название', 'наименование', 'товар', 'имя'],
-  ImportField.barcode: ['barcode', 'штрихкод', 'штрих-код', 'штрих код', 'ean', 'шк'],
-  ImportField.sku: ['sku', 'артикул', 'код', 'арт'],
-  ImportField.category: ['category', 'категория', 'группа'],
-  ImportField.price: ['price', 'цена', 'розница', 'цена продажи', 'розничная цена'],
-  ImportField.cost: ['cost', 'себестоимость', 'закупка', 'закупочная цена', 'цена закупки', 'закупочная'],
-  ImportField.unit: ['unit', 'ед', 'ед.', 'ед. изм.', 'единица', 'ед.изм.', 'ед изм'],
-  ImportField.stock: ['stock', 'остаток', 'количество', 'кол-во', 'qty'],
+  ImportField.name: ['name', 'название', 'наименование', 'товар', 'имя'], // l10n-ignore
+  ImportField.barcode: ['barcode', 'штрихкод', 'штрих-код', 'штрих код', 'ean', 'шк'], // l10n-ignore
+  ImportField.sku: ['sku', 'артикул', 'код', 'арт'], // l10n-ignore
+  ImportField.category: ['category', 'категория', 'группа'], // l10n-ignore
+  ImportField.price: ['price', 'цена', 'розница', 'цена продажи', 'розничная цена'], // l10n-ignore
+  ImportField.cost: ['cost', 'себестоимость', 'закупка', 'закупочная цена', 'цена закупки', 'закупочная'], // l10n-ignore
+  ImportField.unit: ['unit', 'ед', 'ед.', 'ед. изм.', 'единица', 'ед.изм.', 'ед изм'], // l10n-ignore
+  ImportField.stock: ['stock', 'остаток', 'количество', 'кол-во', 'qty'], // l10n-ignore
 };
 
 ImportField? _fieldFor(String header) {
@@ -460,9 +504,9 @@ class ImportParseResult {
   int get errorCount => rows.length - validCount;
 
   String get delimiterLabel => switch (delimiter) {
-        '\t' => 'табуляция',
-        ';' => 'точка с запятой',
-        ',' => 'запятая',
+        '\t' => L.current.prodDelimTab,
+        ';' => L.current.prodDelimSemicolon,
+        ',' => L.current.prodDelimComma,
         _ => delimiter,
       };
 }
@@ -474,15 +518,15 @@ int? _parseMoneyCell(String raw, CurrencyConfig c, List<String> errors, String l
     {bool required = false}) {
   final t = raw.replaceAll(RegExp(r'[\s ]'), '');
   if (t.isEmpty) {
-    if (required) errors.add('$label: не указана');
+    if (required) errors.add(L.current.prodImpErrMissing(label));
     return null;
   }
   if (t.startsWith('-')) {
-    errors.add('$label: не может быть отрицательной');
+    errors.add(L.current.prodImpErrNegative(label));
     return null;
   }
   if (!_moneyRe.hasMatch(t)) {
-    errors.add('$label: «$raw» — не число');
+    errors.add(L.current.prodImpErrNotNumber(label, raw));
     return null;
   }
   return Money.parse(t, c: c);
@@ -491,6 +535,7 @@ int? _parseMoneyCell(String raw, CurrencyConfig c, List<String> errors, String l
 /// Parses pasted CSV/TSV text into validated import rows.
 ImportParseResult parseImport(String text, {CurrencyConfig? currency}) {
   final c = currency ?? Money.currency;
+  final l = L.current;
   final delim = detectDelimiter(text);
   final raw = parseCsvRows(text, delim);
   if (raw.isEmpty) {
@@ -512,23 +557,23 @@ ImportParseResult parseImport(String text, {CurrencyConfig? currency}) {
 
     final r = ImportRow(i + 1);
     r.name = cell(ImportField.name);
-    if (r.name.isEmpty) r.errors.add('Не указано название');
-    if (r.name.length > 200) r.errors.add('Название длиннее 200 символов');
+    if (r.name.isEmpty) r.errors.add(l.prodImpErrNoName);
+    if (r.name.length > 200) r.errors.add(l.prodNameTooLong);
 
     final bc = cell(ImportField.barcode);
     if (bc.isNotEmpty) {
       if (_sciRe.hasMatch(bc)) {
-        r.errors.add('Штрихкод «$bc» испорчен Excel (экспоненциальный формат)');
+        r.errors.add(l.prodImpErrBarcodeSci(bc));
       } else {
         r.barcode = bc;
         final prev = seenBarcodes[bc];
         if (prev != null) {
-          r.errors.add('Штрихкод $bc повторяется (строка $prev)');
+          r.errors.add(l.prodImpErrBarcodeDup(bc, '$prev'));
         } else {
           seenBarcodes[bc] = r.line;
         }
         if (RegExp(r'^\d{13}$').hasMatch(bc) && !Ean13.isValid(bc)) {
-          r.warnings.add('Неверная контрольная цифра EAN-13');
+          r.warnings.add(l.prodEan13BadCheck);
         }
       }
     }
@@ -537,13 +582,13 @@ ImportParseResult parseImport(String text, {CurrencyConfig? currency}) {
     final cat = cell(ImportField.category);
     r.category = cat.isEmpty ? null : cat;
 
-    r.price = _parseMoneyCell(cell(ImportField.price), c, r.errors, 'Цена', required: true);
-    r.cost = _parseMoneyCell(cell(ImportField.cost), c, r.errors, 'Себестоимость');
+    r.price = _parseMoneyCell(cell(ImportField.price), c, r.errors, l.commonPrice, required: true);
+    r.cost = _parseMoneyCell(cell(ImportField.cost), c, r.errors, l.commonCost);
 
     final unitRaw = cell(ImportField.unit);
     final unit = parseUnit(unitRaw);
     if (unit == null) {
-      r.errors.add('Неизвестная ед. изм. «$unitRaw» (шт, кг, г, л, м, уп)');
+      r.errors.add(l.prodImpErrUnit(unitRaw));
     } else {
       r.unit = unit;
       r.unitGiven = unitRaw.isNotEmpty;
@@ -553,18 +598,18 @@ ImportParseResult parseImport(String text, {CurrencyConfig? currency}) {
     if (stockRaw.isNotEmpty) {
       final q = parseDecimal(stockRaw);
       if (q == null) {
-        r.errors.add('Остаток: «$stockRaw» — не число');
+        r.errors.add(l.prodImpErrStockNotNumber(stockRaw));
       } else if (q < 0) {
-        r.errors.add('Остаток не может быть отрицательным');
+        r.errors.add(l.prodImpErrStockNegative);
       } else {
         if (unit != null && !Qty.isFractional(unit) && q != q.roundToDouble()) {
-          r.errors.add('Остаток для «${Qty.unitLabel(unit)}» должен быть целым');
+          r.errors.add(l.prodImpErrStockInteger(Qty.unitLabel(unit, l)));
         }
         r.stock = Qty.round(q);
       }
     }
     if (r.price != null && r.cost != null && r.price! < r.cost!) {
-      r.warnings.add('Цена ниже себестоимости');
+      r.warnings.add(l.prodPriceBelowCost);
     }
     rows.add(r);
   }
@@ -582,18 +627,21 @@ String qtyCsv(double q) {
   return r.toString().replaceAll('.', ',');
 }
 
-/// Russian labels for stock movement types.
-String movementTypeLabel(String type) => switch (type) {
-      'sale' => 'Продажа',
-      'return' => 'Возврат',
-      'receipt' => 'Приход',
-      'receipt_reversal' => 'Сторно прихода',
-      'writeoff' => 'Списание',
-      'adjustment' => 'Корректировка',
-      'inventory' => 'Инвентаризация',
-      'transfer' => 'Перемещение',
-      _ => type,
-    };
+/// Labels for stock movement types ([l] defaults to the UI language).
+String movementTypeLabel(String type, [AppLocalizations? l]) {
+  final t = l ?? L.current;
+  return switch (type) {
+    'sale' => t.commonSale,
+    'return' => t.commonReturn,
+    'receipt' => t.prodMoveReceipt,
+    'receipt_reversal' => t.prodMoveReceiptReversal,
+    'writeoff' => t.prodMoveWriteoff,
+    'adjustment' => t.prodMoveAdjustment,
+    'inventory' => t.prodMoveInventory,
+    'transfer' => t.prodMoveTransfer,
+    _ => type,
+  };
+}
 
 /// VAT presets common in the region (UZ 12%, KZ 12%, TJ 15%, RU 20%).
 const vatPresets = <double>[0, 12, 15, 20];

@@ -11,6 +11,7 @@ import '../../core/providers.dart';
 import '../../domain/errors.dart';
 import '../../domain/services/sale_service.dart' show normalizeGiftCode;
 import '../../domain/services/gift_card_service.dart';
+import '../../l10n/l10n.dart';
 import 'promotion_logic.dart';
 
 // Single source of truth lives in the domain (checkout uses the same rule).
@@ -31,13 +32,19 @@ String generateGiftCode([Random? random]) {
 /// Uppercases and strips spaces/dashes (codes are stored without them).
 
 enum GiftStatus {
-  active('Активен'),
-  used('Использован'),
-  expired('Истёк'),
-  blocked('Заблокирован');
+  active,
+  used,
+  expired,
+  blocked;
 
-  const GiftStatus(this.label);
-  final String label;
+  String labelIn(AppLocalizations l) => switch (this) {
+        GiftStatus.active => l.mktGiftActive,
+        GiftStatus.used => l.mktGiftUsed,
+        GiftStatus.expired => l.mktGiftExpired,
+        GiftStatus.blocked => l.mktGiftBlocked,
+      };
+
+  String get label => labelIn(L.current);
 }
 
 /// Effective status: an active card past its expiry is shown as expired.
@@ -56,11 +63,14 @@ GiftStatus giftStatusOf(GiftCard g, DateTime now) {
 }
 
 /// Methods a certificate can be sold for (see [giftSaleMethods]).
-const giftPaymentMethods = {
-  'cash': 'Наличные',
-  'card': 'Карта',
-  'transfer': 'Перевод',
-};
+Map<String, String> giftPaymentMethodsIn(AppLocalizations l) => {
+      'cash': l.payCash,
+      'card': l.payCard,
+      'transfer': l.payTransfer,
+    };
+
+/// [giftPaymentMethodsIn] in the current UI language.
+Map<String, String> get giftPaymentMethods => giftPaymentMethodsIn(L.current);
 
 class MarketingRepo {
   MarketingRepo(this.db, [GiftCardService? gifts]) : gifts = gifts ?? GiftCardService(db);
@@ -121,7 +131,7 @@ class MarketingRepo {
 
   Future<void> setPromotionActive(Promotion p, bool active, {required String userId}) async {
     if (active && p.type == 'promo_code' && await isPromoCodeTaken(p.code ?? '', exceptId: p.id)) {
-      throw BusinessException('Промокод ${p.code} уже используется в другой активной акции');
+      throw BusinessException(L.current.mktErrCodeTaken('${p.code}'));
     }
     await (db.update(db.promotions)..where((t) => t.id.equals(p.id)))
         .write(PromotionsCompanion(isActive: Value(active), updatedAt: Value(DateTime.now())));
@@ -153,7 +163,7 @@ class MarketingRepo {
       final c = generateGiftCode(random);
       if (!await isGiftCodeTaken(c)) return c;
     }
-    throw BusinessException('Не удалось сгенерировать уникальный код');
+    throw BusinessException(L.current.mktErrUniqueCode);
   }
 
   /// Sells a certificate with a single payment — delegates to
@@ -184,7 +194,7 @@ class MarketingRepo {
     if (!blocked && g.soldSaleId != null) {
       final sale = await (db.select(db.giftCardSales)..where((s) => s.id.equals(g.soldSaleId!))).getSingleOrNull();
       if (sale?.status == GiftSaleStatus.voided) {
-        throw BusinessException('Продажа сертификата аннулирована — разблокировка невозможна');
+        throw BusinessException(L.current.mktErrUnblockVoided);
       }
     }
     final status = blocked ? 'blocked' : (g.balance > 0 ? 'active' : 'used');

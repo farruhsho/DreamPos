@@ -16,6 +16,7 @@ import '../../core/permissions.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
+import '../../l10n/l10n.dart';
 import 'cart_controller.dart';
 import 'parked_carts.dart';
 import 'pos_actions.dart';
@@ -122,7 +123,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         _query = code;
       }
       if (outcome == ScanOutcome.notFound) {
-        _scanError = 'Не найдено: $code';
+        _scanError = context.l10n.posNotFound(code);
         _errorTimer?.cancel();
         _errorTimer = Timer(const Duration(seconds: 3), () {
           if (mounted) setState(() => _scanError = null);
@@ -198,7 +199,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         if (ref.read(posCanSellProvider)) {
           a.pay();
         } else {
-          showError(context, 'Смена не открыта. Откройте смену, чтобы продавать');
+          showError(context, context.l10n.posShiftNotOpenSell);
         }
         return KeyEventResult.handled;
       }
@@ -354,8 +355,7 @@ class _ProductArea extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: Gap.s),
               child: Text(
-                'F2 поиск · F4 клиент · F8 отложить · F9 отложенные · F12 / Ctrl+Enter оплата · '
-                'Del удалить · +/− количество · ↑↓ выбор позиции · Esc очистить поиск · 3*код — несколько штук',
+                context.l10n.posHints,
                 style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
@@ -386,9 +386,7 @@ class _ShiftBanner extends StatelessWidget {
           children: [
             const Icon(Icons.lock_clock, color: AppColors.warning),
             Text(
-              canOpen
-                  ? 'Смена не открыта — продажи недоступны'
-                  : 'Смена не открыта. Попросите менеджера открыть смену',
+              canOpen ? context.l10n.posShiftNotOpenBanner : context.l10n.posShiftNotOpenAskManager,
               style: t.textTheme.titleSmall?.copyWith(color: AppColors.warning, fontWeight: FontWeight.w700),
             ),
             if (canOpen)
@@ -397,7 +395,7 @@ class _ShiftBanner extends StatelessWidget {
                 style: FilledButton.styleFrom(backgroundColor: AppColors.warning),
                 onPressed: onOpen,
                 icon: const Icon(Icons.lock_open),
-                label: const Text('Открыть смену'),
+                label: Text(context.l10n.posOpenShift),
               ),
           ],
         ),
@@ -439,7 +437,7 @@ class _CartBottomBar extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        cart.isEmpty ? 'Чек пуст' : 'Итого · ${cart.lines.length} поз.',
+                        cart.isEmpty ? context.l10n.posCartEmpty : context.l10n.posTotalPositions('${cart.lines.length}'),
                         style: t.textTheme.bodySmall,
                       ),
                       FittedBox(
@@ -458,7 +456,7 @@ class _CartBottomBar extends ConsumerWidget {
                   key: const Key('pos-open-cart'),
                   onPressed: onOpen,
                   icon: const Icon(Icons.receipt_long),
-                  label: const Text('Чек'),
+                  label: Text(context.l10n.commonReceipt),
                 ),
               ],
             ),
@@ -476,7 +474,9 @@ class _CartPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final cart = ref.watch(cartProvider);
     final canSellGift = ref.watch(sessionProvider)?.can(Perm.sell) ?? false;
-    final giftHint = giftSaleMenuHint(canSell: canSellGift, hasShift: ref.watch(currentShiftProvider).value != null);
+    final l = context.l10n;
+    final giftHint =
+        giftSaleMenuHint(canSell: canSellGift, hasShift: ref.watch(currentShiftProvider).value != null, l: l);
     final parked = ref.watch(parkedCartsProvider).value?.length ?? 0;
     final a = PosActions(
       context,
@@ -487,12 +487,12 @@ class _CartPage extends ConsumerWidget {
     );
     return Scaffold(
       appBar: AppBar(
-        title: Text(cart.isEmpty ? 'Чек' : 'Чек · ${cart.lines.length} поз.'),
+        title: Text(cart.isEmpty ? l.commonReceipt : l.posReceiptPositions('${cart.lines.length}')),
         // Two clear targets instead of four look-alike icons: parked carts
         // (with a count) and a labelled menu for the rarer actions.
         actions: [
           IconButton(
-            tooltip: 'Отложенные чеки',
+            tooltip: l.posParkedReceipts,
             onPressed: a.showParked,
             icon: Badge(
               isLabelVisible: parked > 0,
@@ -502,7 +502,7 @@ class _CartPage extends ConsumerWidget {
           ),
           PopupMenuButton<String>(
             key: const Key('pos-cart-menu'),
-            tooltip: 'Действия с чеком',
+            tooltip: l.posCartActions,
             onSelected: (v) => switch (v) {
               'park' => a.park(),
               'seller' => a.chooseSeller(),
@@ -514,27 +514,27 @@ class _CartPage extends ConsumerWidget {
               PopupMenuItem(
                 value: 'park',
                 enabled: cart.isNotEmpty,
-                child: const ListTile(leading: Icon(Icons.pause_circle_outline), title: Text('Отложить чек')),
+                child: ListTile(leading: const Icon(Icons.pause_circle_outline), title: Text(l.posPark)),
               ),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'seller',
-                child: ListTile(leading: Icon(Icons.badge_outlined), title: Text('Продавец')),
+                child: ListTile(leading: const Icon(Icons.badge_outlined), title: Text(l.posSeller)),
               ),
               PopupMenuItem(
                 value: 'gift',
                 enabled: canSellGift,
                 child: ListTile(
                   leading: const Icon(Icons.card_giftcard),
-                  title: const Text('Продать сертификат'),
+                  title: Text(l.posSellGiftCard),
                   subtitle: giftHint == null ? null : Text(giftHint),
                 ),
               ),
               PopupMenuItem(
                 value: 'clear',
                 enabled: cart.isNotEmpty,
-                child: const ListTile(
-                  leading: Icon(Icons.delete_sweep_outlined, color: AppColors.danger),
-                  title: Text('Очистить чек'),
+                child: ListTile(
+                  leading: const Icon(Icons.delete_sweep_outlined, color: AppColors.danger),
+                  title: Text(l.posClearCart),
                 ),
               ),
             ],

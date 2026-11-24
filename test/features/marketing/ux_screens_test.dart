@@ -1,4 +1,5 @@
 import 'package:dreampos/core/db/database.dart';
+import 'package:dreampos/l10n/l10n.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -9,6 +10,7 @@ void main() {
   for (final size in uxSizes.keys) {
     testWidgets('marketing screens $size', skip: !screenshotsEnabled, (tester) async {
       final h = await UxHarness.start(tester, size: size);
+      final l = L.of(h.locale);
       final errors = <String>[];
       Future<void> shot(String n) async => errors.addAll(await h.shot(n));
       Future<void> pop(Finder inside) async {
@@ -19,25 +21,25 @@ void main() {
       await h.go('/marketing');
       await shot('marketing_promotions');
 
-      await tester.tap(find.text('Новая акция').first);
+      await tester.tap(find.text(l.mktNewPromo).first);
       await h.settle();
       await shot('marketing_promo_editor');
-      await pop(find.text('Акция включена'));
+      await pop(find.text(l.mktPromoEnabled));
 
-      await tester.tap(find.text('Проверить на чеке').first);
+      await tester.tap(find.text(l.mktTestOnReceipt).first);
       await h.settle();
       await shot('marketing_simulator');
-      await tester.tap(find.text('Добавить товар').first);
+      await tester.tap(find.text(l.mktSimAddProduct).first);
       await h.settle();
       await shot('marketing_simulator_pick');
       await tester.tap(find.text('Вода минеральная 1.5л').last);
       await h.settle();
-      await tester.enterText(find.widgetWithText(TextField, 'Кол-во').first, '3');
+      await tester.enterText(find.widgetWithText(TextField, l.mktSimQtyShort).first, '3');
       await h.settle();
       await shot('marketing_simulator_cart');
-      await pop(find.text('Проверка акций на чеке'));
+      await pop(find.text(l.mktSimTitle));
 
-      await tester.tap(find.text('Сертификаты').first);
+      await tester.tap(find.text(l.mktTabGiftCards).first);
       await h.settle();
       await shot('marketing_gift_cards_empty');
 
@@ -74,10 +76,10 @@ void main() {
       await h.settle();
       await shot('marketing_gift_cards');
       // D-023: the shared «Продажа сертификата» dialog, success, detail, list.
-      await tester.tap(find.text('Выпустить').first);
+      await tester.tap(find.text(l.mktIssue).first);
       await h.settle();
       await shot('marketing_gift_issue');
-      await tester.tap(find.widgetWithText(ChoiceChip, 'Смешанная'));
+      await tester.tap(find.widgetWithText(ChoiceChip, l.mktPayMixed));
       await h.settle();
       await tester.enterText(find.byKey(const Key('gift-sale-amount')), '100000');
       await tester.enterText(find.byKey(const Key('gift-sale-card')), '30000');
@@ -90,7 +92,7 @@ void main() {
       await tester.tap(find.byKey(const Key('gift-sale-submit')));
       await h.settle(10);
       await shot('marketing_gift_sale_success');
-      await tester.tap(find.text('Готово'));
+      await tester.tap(find.text(l.commonDone));
       await h.settle();
 
       final sold = (await tester.runAsync(() async {
@@ -100,34 +102,34 @@ void main() {
       await tester.tap(find.text(sold.code).first);
       await h.settle();
       await shot('marketing_gift_detail');
-      await pop(find.text('Документ продажи'));
+      await pop(find.text(l.mktSaleDocument));
       await tester.tap(find.text('GCB4T8N2LP').first);
       await h.settle();
       await shot('marketing_gift_detail_legacy');
-      await pop(find.text('Документ продажи'));
+      await pop(find.text(l.mktSaleDocument));
 
-      await tester.tap(find.text('Проверить баланс').first);
+      await tester.tap(find.text(l.mktCheckBalance).first);
       await h.settle();
       await shot('marketing_gift_balance');
-      await pop(find.text('Баланс сертификата'));
+      await pop(find.text(l.mktGiftBalanceTitle));
 
-      await tester.tap(find.text('Продажи').first);
+      await tester.tap(find.text(l.mktGiftSalesSegment).first);
       await h.settle();
       await shot('marketing_gift_sales');
-      await tester.tap(find.widgetWithText(ChoiceChip, 'Аннулирована'));
+      await tester.tap(find.widgetWithText(ChoiceChip, l.mktSaleVoidedStatus));
       await h.settle();
       await shot('marketing_gift_sales_voided_empty');
-      await tester.tap(find.text('Сертификаты').last);
+      await tester.tap(find.text(l.mktTabGiftCards).last);
       await h.settle();
 
-      await tester.tap(find.text('Лояльность').first);
+      await tester.tap(find.text(l.mktTabLoyalty).first);
       await h.settle();
       await shot('marketing_loyalty');
 
-      await tester.tap(find.text('Рассылки').first);
+      await tester.tap(find.text(l.mktTabMailing).first);
       await h.settle();
       await shot('marketing_mailing');
-      await tester.tap(find.textContaining(RegExp(r'^Должники \d')).first);
+      await tester.tap(find.textContaining(RegExp('^${RegExp.escape(l.custSegDebtors)} \\d')).first);
       await h.settle();
       await shot('marketing_mailing_debtors');
       await h.finish();

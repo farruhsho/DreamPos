@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import '../../core/db/database.dart';
 import '../../core/db/db_location.dart';
 import '../../core/money.dart';
+import '../../l10n/l10n.dart';
 import 'settings_logic.dart';
 
 /// File name of the live database (see core `DbLocation`).
@@ -29,8 +30,7 @@ class BackupInfo {
 /// the app-support dir, see `DbLocation`) are injected so tests can use a
 /// temp directory instead of path_provider.
 class BackupService {
-  BackupService(this.db, this.documentsDir, {Future<String> Function()? dbPath})
-    : dbPath = dbPath ?? DbLocation.dbPath;
+  BackupService(this.db, this.documentsDir, {Future<String> Function()? dbPath}) : dbPath = dbPath ?? DbLocation.dbPath;
   final AppDatabase db;
   final Future<Directory> Function() documentsDir;
   final Future<String> Function() dbPath;
@@ -62,7 +62,7 @@ class BackupService {
     await db.customStatement('VACUUM INTO ?', [path]);
     final f = File(path);
     if (!await f.exists() || await f.length() == 0) {
-      throw Exception('Не удалось создать резервную копию');
+      throw Exception(L.current.settingsErrBackupFailed);
     }
     await db.setSetting(SettingKeys.lastBackupAt, t.toUtc().toIso8601String());
     await db.audit('backup.create', userId: userId, entity: 'backup', details: name);
@@ -104,7 +104,7 @@ class BackupService {
   /// replaced on next app start (by main.dart).
   Future<File> stageRestore(BackupInfo backup, {String? userId}) async {
     if (!await isValidBackup(backup.file)) {
-      throw Exception('Файл «${backup.name}» не является резервной копией DreamPOS');
+      throw Exception(L.current.settingsErrNotBackup(backup.name));
     }
     final target = await pendingRestoreFile();
     await target.parent.create(recursive: true);
@@ -140,22 +140,23 @@ class BackupService {
 
   Future<File> exportProducts({DateTime? now, String? userId}) async {
     final c = Money.currency;
+    final l = L.current;
     final cats = {for (final x in await db.select(db.categories).get()) x.id: x.name};
     final rows = await (db.select(db.products)..where((t) => t.deletedAt.isNull())).get();
     rows.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     final lines = [
       csvRow([
-        'Наименование',
-        'Артикул',
-        'Штрихкод',
-        'Категория',
-        'Ед. изм.',
-        'Цена',
-        'Себестоимость',
-        'Остаток',
-        'Мин. остаток',
-        'НДС %',
-        'Активен',
+        l.settingsCsvName,
+        l.commonSku,
+        l.commonBarcode,
+        l.commonCategory,
+        l.commonUnit,
+        l.commonPrice,
+        l.commonCost,
+        l.commonStock,
+        l.settingsCsvMinStock,
+        l.settingsCsvVatPercent,
+        l.settingsCsvActive,
       ]),
       for (final r in rows)
         csvRow([
@@ -163,36 +164,37 @@ class BackupService {
           r.sku,
           r.barcode,
           cats[r.categoryId],
-          Qty.unitLabel(r.unit),
+          Qty.unitLabel(r.unit, l),
           csvMoney(r.price, c),
           csvMoney(r.costPrice, c),
           csvQty(r.stockQty),
           csvQty(r.minStock),
           formatPercentValue(r.vatPercent),
-          r.isActive ? 'да' : 'нет',
+          r.isActive ? l.settingsYesLower : l.settingsNoLower,
         ]),
     ];
     final f = await _writeCsv('products', lines, now ?? DateTime.now());
-    await db.audit('data.export', userId: userId, entity: 'products', details: '${rows.length} строк');
+    await db.audit('data.export', userId: userId, entity: 'products', details: '${rows.length} строк'); // l10n-ignore
     return f;
   }
 
   Future<File> exportCustomers({DateTime? now, String? userId}) async {
     final c = Money.currency;
+    final l = L.current;
     final rows = await (db.select(db.customers)..where((t) => t.deletedAt.isNull())).get();
     rows.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     final lines = [
       csvRow([
-        'Имя',
-        'Телефон',
+        l.commonPersonName,
+        l.commonPhone,
         'Email',
-        'Карта',
-        'Скидка %',
-        'Бонусы',
-        'Долг',
-        'Лимит долга',
-        'Покупок на сумму',
-        'Визитов',
+        l.settingsCsvCard,
+        l.settingsCsvDiscountPercent,
+        l.commonBonuses,
+        l.commonDebt,
+        l.settingsCsvDebtLimit,
+        l.settingsCsvTotalSpent,
+        l.settingsCsvVisits,
       ]),
       for (final r in rows)
         csvRow([
@@ -209,7 +211,7 @@ class BackupService {
         ]),
     ];
     final f = await _writeCsv('customers', lines, now ?? DateTime.now());
-    await db.audit('data.export', userId: userId, entity: 'customers', details: '${rows.length} строк');
+    await db.audit('data.export', userId: userId, entity: 'customers', details: '${rows.length} строк'); // l10n-ignore
     return f;
   }
 }

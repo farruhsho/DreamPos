@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:drift/drift.dart';
 
+import '../../l10n/l10n.dart';
 import '../../core/db/database.dart';
 import '../../core/money.dart';
 import '../errors.dart';
@@ -66,11 +67,11 @@ class ReceiptService {
     String? userId,
     bool canEditPrices = true,
   }) async {
-    if (lines.isEmpty) throw BusinessException('Добавьте хотя бы одну позицию');
+    if (lines.isEmpty) throw BusinessException(L.current.errAddLine);
     for (final l in lines) {
-      if (l.unitCost < 0) throw BusinessException('Цена закупки не может быть отрицательной');
+      if (l.unitCost < 0) throw BusinessException(L.current.errPurchasePriceNegative);
       if (l.newPrice != null && l.newPrice! <= 0) {
-        throw BusinessException('Розничная цена должна быть больше нуля');
+        throw BusinessException(L.current.errRetailPricePositive);
       }
     }
     return db.transaction(() async {
@@ -80,32 +81,32 @@ class ReceiptService {
       for (final l in lines) {
         final p = products[l.productId] ??=
             (await (db.select(db.products)..where((t) => t.id.equals(l.productId))).getSingleOrNull())
-                ?? (throw BusinessException('Товар не найден'));
-        if (p.deletedAt != null) throw BusinessException('Товар «${p.name}» удалён');
+                ?? (throw BusinessException(L.current.errProductNotFound));
+        if (p.deletedAt != null) throw BusinessException(L.current.errProductDeleted(p.name));
         final err = _qtyError(l.qty, p.unit);
         if (err != null) throw BusinessException('${p.name}: $err');
-        if (l.unitCost < 0) throw BusinessException('${p.name}: цена закупки отрицательная');
+        if (l.unitCost < 0) throw BusinessException(L.current.errLinePurchasePriceNegative(p.name));
         if (!seen.add('${l.productId}|${l.orderItemId ?? ''}')) {
-          throw BusinessException('Товар «${p.name}» повторяется в документе — объедините строки');
+          throw BusinessException(L.current.errProductRepeated(p.name));
         }
       }
       Supplier? sup;
       if (supplierId != null) {
         sup = await (db.select(db.suppliers)..where((s) => s.id.equals(supplierId))).getSingleOrNull();
-        if (sup == null || sup.deletedAt != null) throw BusinessException('Поставщик не найден');
+        if (sup == null || sup.deletedAt != null) throw BusinessException(L.current.errSupplierNotFound);
       }
       PurchaseOrder? order;
       if (orderId != null) {
         order = await (db.select(db.purchaseOrders)..where((t) => t.id.equals(orderId))).getSingleOrNull();
-        if (order == null || order.deletedAt != null) throw BusinessException('Заказ не найден');
+        if (order == null || order.deletedAt != null) throw BusinessException(L.current.errOrderNotFound);
         if (sup == null) {
           sup = await (db.select(db.suppliers)..where((s) => s.id.equals(order!.supplierId))).getSingleOrNull();
-          if (sup == null || sup.deletedAt != null) throw BusinessException('Поставщик не найден');
+          if (sup == null || sup.deletedAt != null) throw BusinessException(L.current.errSupplierNotFound);
         } else if (order.supplierId != sup.id) {
-          throw BusinessException('Заказ не относится к этому поставщику');
+          throw BusinessException(L.current.errOrderOtherSupplier);
         }
         if (order.status != 'ordered' && order.status != 'draft') {
-          throw BusinessException('Заказ №${order.number} уже закрыт');
+          throw BusinessException(L.current.errOrderClosed('${order.number}'));
         }
         final itemIds = {
           for (final i in await (db.select(db.purchaseOrderItems)..where((i) => i.orderId.equals(orderId))).get())
@@ -114,10 +115,10 @@ class ReceiptService {
         for (final l in lines) {
           if (l.orderItemId == null) continue;
           final it = itemIds[l.orderItemId];
-          if (it == null || it.productId != l.productId) throw BusinessException('Позиция не найдена в заказе');
+          if (it == null || it.productId != l.productId) throw BusinessException(L.current.errOrderLineNotFound);
         }
       } else if (lines.any((l) => l.orderItemId != null)) {
-        throw BusinessException('Позиция заказа указана без заказа');
+        throw BusinessException(L.current.errOrderLineWithoutOrder);
       }
 
       // ---- header
@@ -212,16 +213,16 @@ class ReceiptService {
   /// purchase order received quantities and supplier debt. All-or-nothing.
   Future<void> reverse(String receiptId, {required String reason, String? userId}) async {
     final why = reason.trim();
-    if (why.isEmpty) throw BusinessException('Укажите причину сторно');
+    if (why.isEmpty) throw BusinessException(L.current.errReversalReasonRequired);
     await db.transaction(() async {
       final r = await (db.select(db.goodsReceipts)..where((t) => t.id.equals(receiptId))).getSingleOrNull();
-      if (r == null || r.deletedAt != null) throw BusinessException('Приход не найден');
-      if (r.status != ReceiptStatus.posted) throw BusinessException('Приход №${r.number} уже сторнирован');
+      if (r == null || r.deletedAt != null) throw BusinessException(L.current.errReceiptNotFound);
+      if (r.status != ReceiptStatus.posted) throw BusinessException(L.current.errReceiptAlreadyReversed('${r.number}'));
       if (r.supplierId != null && r.total != 0) {
         final sup =
             await (db.select(db.suppliers)..where((t) => t.id.equals(r.supplierId!))).getSingleOrNull();
         if (sup != null && sup.deletedAt != null) {
-          throw BusinessException('Поставщик «${sup.name}» удалён — сторно прихода №${r.number} невозможно');
+          throw BusinessException(L.current.errSupplierDeletedNoReversal(sup.name, '${r.number}'));
         }
       }
       final items = await (db.select(db.goodsReceiptItems)
@@ -330,11 +331,11 @@ class ReceiptService {
 }
 
 String? _qtyError(double q, String unit) {
-  if (q <= 0) return 'Количество должно быть больше нуля';
+  if (q <= 0) return L.current.errQtyMustBePositive;
   if (!Qty.isFractional(unit) && q != q.roundToDouble()) {
-    return 'Для «${Qty.unitLabel(unit)}» допускается только целое число';
+    return L.current.errQtyIntegerOnly(Qty.unitLabel(unit));
   }
-  if (q > 1e7) return 'Слишком большое количество';
+  if (q > 1e7) return L.current.errQtyTooLarge;
   return null;
 }
 

@@ -12,6 +12,7 @@ import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/permissions.dart';
 import '../../core/widgets/widgets.dart';
+import '../../l10n/l10n.dart';
 import 'gift_card_detail.dart';
 import 'gift_sale_dialog.dart';
 import 'gift_sales_list.dart';
@@ -47,18 +48,22 @@ class _GiftCardsTabState extends ConsumerState<GiftCardsTab> {
   Future<void> _toggleBlock(GiftCard g, bool block) async {
     final userId = ref.read(sessionProvider)!.user.id;
     if (block) {
-      final reason = await promptText(context, title: 'Заблокировать ${g.code}?', label: 'Причина');
+      final reason = await promptText(
+        context,
+        title: context.l10n.mktBlockTitle(g.code),
+        label: context.l10n.commonReason,
+      );
       if (reason == null || !mounted) return;
       await runGuarded(
         context,
         () => ref.read(marketingRepoProvider).setGiftBlocked(g, true, userId: userId, reason: reason),
-        success: 'Сертификат заблокирован',
+        success: context.l10n.mktGiftBlockedMsg,
       );
     } else {
       await runGuarded(
         context,
         () => ref.read(marketingRepoProvider).setGiftBlocked(g, false, userId: userId),
-        success: 'Сертификат разблокирован',
+        success: context.l10n.mktGiftUnblockedMsg,
       );
     }
   }
@@ -78,9 +83,17 @@ class _GiftCardsTabState extends ConsumerState<GiftCardsTab> {
                 alignment: Alignment.centerLeft,
                 child: SegmentedButton<bool>(
                   showSelectedIcon: false,
-                  segments: const [
-                    ButtonSegment(value: false, icon: Icon(Icons.card_giftcard), label: Text('Сертификаты')),
-                    ButtonSegment(value: true, icon: Icon(Icons.receipt_long_outlined), label: Text('Продажи')),
+                  segments: [
+                    ButtonSegment(
+                      value: false,
+                      icon: const Icon(Icons.card_giftcard),
+                      label: Text(context.l10n.mktTabGiftCards),
+                    ),
+                    ButtonSegment(
+                      value: true,
+                      icon: const Icon(Icons.receipt_long_outlined),
+                      label: Text(context.l10n.mktGiftSalesSegment),
+                    ),
                   ],
                   selected: {_salesView},
                   onSelectionChanged: (v) => setState(() => _salesView = v.first),
@@ -98,10 +111,11 @@ class _GiftCardsTabState extends ConsumerState<GiftCardsTab> {
     final async = ref.watch(giftCardsProvider);
     final session = ref.watch(sessionProvider);
     final shift = ref.watch(currentShiftProvider).value;
+    final l = context.l10n;
     final issueBlocked = session == null || !session.can(Perm.sell)
-        ? 'Нет права продавать'
+        ? l.mktNoSellRight
         : shift == null
-        ? 'Откройте смену, чтобы продать сертификат'
+        ? l.errOpenShiftToSellGift
         : null;
     final names = ref.watch(customerNamesProvider).value ?? const <String, String>{};
     final now = DateTime.now();
@@ -143,9 +157,9 @@ class _GiftCardsTabState extends ConsumerState<GiftCardsTab> {
                             SizedBox(
                               width: narrow ? (box.maxWidth - Gap.l * 2 - Gap.s) / 2 : 260,
                               child: StatCard(
-                                label: narrow ? 'Активных' : 'Активных сертификатов',
+                                label: narrow ? l.mktStatActiveShort : l.mktStatActive,
                                 value: '${active.length}',
-                                hint: narrow ? 'сертификатов' : null,
+                                hint: narrow ? l.mktStatActiveHint : null,
                                 icon: narrow ? null : Icons.card_giftcard,
                                 color: AppColors.success,
                               ),
@@ -154,9 +168,9 @@ class _GiftCardsTabState extends ConsumerState<GiftCardsTab> {
                             SizedBox(
                               width: narrow ? (box.maxWidth - Gap.l * 2 - Gap.s) / 2 : 260,
                               child: StatCard(
-                                label: narrow ? 'К погашению' : 'Остаток к погашению',
+                                label: narrow ? l.mktStatOutstandingShort : l.mktStatOutstanding,
                                 value: Money.format(outstanding),
-                                hint: narrow ? 'на сертификатах' : 'обязательства магазина',
+                                hint: narrow ? l.mktStatOutstandingHintShort : l.mktStatOutstandingHint,
                                 icon: narrow ? null : Icons.account_balance_outlined,
                                 color: AppColors.warning,
                               ),
@@ -174,21 +188,21 @@ class _GiftCardsTabState extends ConsumerState<GiftCardsTab> {
                         children: [
                           SizedBox(
                             width: narrow ? double.infinity : 280,
-                            child: SearchField(hint: 'Код или клиент', onChanged: (v) => setState(() => _search = v)),
+                            child: SearchField(hint: l.mktGiftSearchHint, onChanged: (v) => setState(() => _search = v)),
                           ),
                           Tooltip(
-                            message: issueBlocked ?? 'Продажа сертификата (аванс, не выручка)',
+                            message: issueBlocked ?? l.mktGiftSaleTooltip,
                             child: FilledButton.icon(
                               key: const Key('gift-issue'),
                               onPressed: issueBlocked == null ? _issue : null,
                               icon: const Icon(Icons.add_card),
-                              label: const Text('Выпустить'),
+                              label: Text(l.mktIssue),
                             ),
                           ),
                           OutlinedButton.icon(
                             onPressed: () => showGiftBalanceDialog(context),
                             icon: const Icon(Icons.qr_code_scanner),
-                            label: const Text('Проверить баланс'),
+                            label: Text(l.mktCheckBalance),
                           ),
                         ],
                       ),
@@ -200,14 +214,14 @@ class _GiftCardsTabState extends ConsumerState<GiftCardsTab> {
                         padding: const EdgeInsets.symmetric(horizontal: Gap.l, vertical: Gap.s),
                         children: [
                           ChoiceChip(
-                            label: Text('Все ${all.length}'),
+                            label: Text(l.mktChipAll('${all.length}')),
                             selected: _filter == null,
                             onSelected: (_) => setState(() => _filter = null),
                           ),
                           for (final s in GiftStatus.values) ...[
                             const SizedBox(width: Gap.xs),
                             ChoiceChip(
-                              label: Text('${s.label} ${all.where((g) => giftStatusOf(g, now) == s).length}'),
+                              label: Text('${s.labelIn(l)} ${all.where((g) => giftStatusOf(g, now) == s).length}'),
                               selected: _filter == s,
                               onSelected: (_) => setState(() => _filter = s),
                             ),
@@ -219,24 +233,22 @@ class _GiftCardsTabState extends ConsumerState<GiftCardsTab> {
                       child: all.isEmpty
                           ? EmptyState(
                               icon: Icons.card_giftcard,
-                              title: 'Сертификатов пока нет',
+                              title: l.mktGiftsEmptyTitle,
                               // a blocked call to action says why right here
                               // (a tooltip needs hover / long-press)
-                              message:
-                                  issueBlocked ??
-                                  'Продавайте подарочные сертификаты — их можно принять в оплату на кассе.',
+                              message: issueBlocked ?? l.mktGiftsEmptyMessage,
                               action: Tooltip(
-                                message: issueBlocked ?? 'Продажа сертификата (аванс, не выручка)',
+                                message: issueBlocked ?? l.mktGiftSaleTooltip,
                                 child: FilledButton.icon(
                                   key: const Key('gift-issue-empty'),
                                   onPressed: issueBlocked == null ? _issue : null,
                                   icon: const Icon(Icons.add_card),
-                                  label: const Text('Выпустить сертификат'),
+                                  label: Text(l.mktIssueGift),
                                 ),
                               ),
                             )
                           : list.isEmpty
-                          ? const EmptyState(icon: Icons.search_off, title: 'Ничего не найдено')
+                          ? EmptyState(icon: Icons.search_off, title: l.commonNothingFound)
                           : ListView.separated(
                               padding: const EdgeInsets.fromLTRB(Gap.l, 0, Gap.l, Gap.l),
                               itemCount: list.length,
@@ -247,7 +259,7 @@ class _GiftCardsTabState extends ConsumerState<GiftCardsTab> {
                                 return _GiftRow(
                                   card: g,
                                   status: st,
-                                  customerName: g.customerId == null ? null : names[g.customerId] ?? 'клиент',
+                                  customerName: g.customerId == null ? null : names[g.customerId] ?? l.mktCustomerLower,
                                   onTap: () => showGiftCardDetail(context, g.id),
                                   onAction: (v) {
                                     switch (v) {
@@ -257,7 +269,7 @@ class _GiftCardsTabState extends ConsumerState<GiftCardsTab> {
                                         _print(g);
                                       case 'copy':
                                         Clipboard.setData(ClipboardData(text: g.code));
-                                        showSuccess(context, 'Код скопирован');
+                                        showSuccess(context, l.mktCodeCopied);
                                       case 'block':
                                         _toggleBlock(g, true);
                                       case 'unblock':
@@ -298,6 +310,7 @@ class _GiftRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final g = card;
     final muted = status != GiftStatus.active;
     final meta = t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant);
@@ -341,11 +354,11 @@ class _GiftRow extends StatelessWidget {
                     const SizedBox(height: Gap.xs),
                     Row(
                       children: [
-                        StatusChip(status.label, color: giftStatusColor(status)),
+                        StatusChip(status.labelIn(l), color: giftStatusColor(status)),
                         const SizedBox(width: Gap.s),
                         Expanded(
                           child: Text(
-                            g.balance != g.initialAmount ? 'из ${Money.format(g.initialAmount)}' : 'номинал',
+                            g.balance != g.initialAmount ? l.mktOfAmount(Money.format(g.initialAmount)) : l.mktFaceValueLower,
                             style: meta,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -357,8 +370,8 @@ class _GiftRow extends StatelessWidget {
                     const SizedBox(height: Gap.xs),
                     Text(
                       [
-                        'выпущен ${formatDate(g.createdAt)}',
-                        g.expiresAt == null ? 'бессрочный' : 'до ${formatDate(g.expiresAt!)}',
+                        l.mktIssuedOn(formatDate(g.createdAt)),
+                        g.expiresAt == null ? l.mktNoExpiryLower : l.mktUntil(formatDate(g.expiresAt!)),
                         ?customerName,
                       ].join(' · '),
                       style: meta,
@@ -369,18 +382,18 @@ class _GiftRow extends StatelessWidget {
                 ),
               ),
               PopupMenuButton<String>(
-                tooltip: 'Действия',
+                tooltip: l.commonActions,
                 onSelected: onAction,
                 itemBuilder: (_) => [
-                  const PopupMenuItem(value: 'details', child: Text('Документ продажи')),
-                  const PopupMenuItem(value: 'print', child: Text('Бланк сертификата')),
-                  const PopupMenuItem(value: 'copy', child: Text('Копировать код')),
+                  PopupMenuItem(value: 'details', child: Text(l.mktSaleDocument)),
+                  PopupMenuItem(value: 'print', child: Text(l.mktGiftBlank)),
+                  PopupMenuItem(value: 'copy', child: Text(l.mktCopyCode)),
                   if (g.status == 'blocked')
-                    const PopupMenuItem(value: 'unblock', child: Text('Разблокировать'))
+                    PopupMenuItem(value: 'unblock', child: Text(l.mktUnblock))
                   else
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: 'block',
-                      child: Text('Заблокировать', style: TextStyle(color: AppColors.danger)),
+                      child: Text(l.mktBlock, style: const TextStyle(color: AppColors.danger)),
                     ),
                 ],
               ),
@@ -395,7 +408,7 @@ class _GiftRow extends StatelessWidget {
 // ------------------------------------------------------------------ balance
 
 Future<void> showGiftBalanceDialog(BuildContext context) =>
-    showFormDialog<void>(context, title: 'Баланс сертификата', width: 460, child: const _BalanceCheck());
+    showFormDialog<void>(context, title: context.l10n.mktGiftBalanceTitle, width: 460, child: const _BalanceCheck());
 
 class _BalanceCheck extends ConsumerStatefulWidget {
   const _BalanceCheck();
@@ -427,6 +440,7 @@ class _BalanceCheckState extends ConsumerState<_BalanceCheck> {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final g = _card;
     final st = g == null ? null : giftStatusOf(g, DateTime.now());
     return Padding(
@@ -440,17 +454,17 @@ class _BalanceCheckState extends ConsumerState<_BalanceCheck> {
             autofocus: true,
             textCapitalization: TextCapitalization.characters,
             decoration: InputDecoration(
-              labelText: 'Код (введите или отсканируйте)',
+              labelText: l.mktCodeEnterOrScan,
               prefixIcon: const Icon(Icons.qr_code_scanner),
-              suffixIcon: IconButton(icon: const Icon(Icons.search), tooltip: 'Найти', onPressed: _find),
+              suffixIcon: IconButton(icon: const Icon(Icons.search), tooltip: l.mktFind, onPressed: _find),
             ),
             onSubmitted: (_) => _find(),
           ),
           const SizedBox(height: Gap.l),
           if (_searched && g == null)
-            const Text(
-              'Сертификат не найден',
-              style: TextStyle(color: AppColors.danger, fontWeight: FontWeight.w600),
+            Text(
+              l.errGiftNotFound,
+              style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.w600),
             ),
           if (g != null && st != null)
             Card(
@@ -467,7 +481,7 @@ class _BalanceCheckState extends ConsumerState<_BalanceCheck> {
                             style: const TextStyle(fontFamily: 'RobotoMono', fontWeight: FontWeight.w700),
                           ),
                         ),
-                        StatusChip(st.label, color: giftStatusColor(st)),
+                        StatusChip(st.labelIn(l), color: giftStatusColor(st)),
                       ],
                     ),
                     const SizedBox(height: Gap.s),
@@ -475,9 +489,9 @@ class _BalanceCheckState extends ConsumerState<_BalanceCheck> {
                       Money.format(g.balance),
                       style: t.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700),
                     ),
-                    Text('Номинал ${Money.format(g.initialAmount)}', style: t.textTheme.bodySmall),
+                    Text(l.mktFaceValueAmount(Money.format(g.initialAmount)), style: t.textTheme.bodySmall),
                     Text(
-                      g.expiresAt == null ? 'Бессрочный' : 'Действует до ${formatDate(g.expiresAt!)}',
+                      g.expiresAt == null ? l.mktNoExpiry : l.mktValidUntil(formatDate(g.expiresAt!)),
                       style: t.textTheme.bodySmall,
                     ),
                   ],
@@ -496,6 +510,9 @@ Future<pw.Document> buildGiftCardPdf(GiftCard g, {required String store}) async 
   final theme = await PdfFonts.theme();
   final mono = await PdfFonts.monoBold();
   final doc = pw.Document(theme: theme);
+  // a customer document: printed in the receipt language of the store
+  final l = L.receipt;
+  String p(String s) => L.printable(s);
   doc.addPage(
     pw.Page(
       pageFormat: PdfPageFormat.a6.landscape,
@@ -512,9 +529,9 @@ Future<pw.Document> buildGiftCardPdf(GiftCard g, {required String store}) async 
             pw.Row(
               children: [
                 pw.Expanded(
-                  child: pw.Text(store, style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
+                  child: pw.Text(p(store), style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
                 ),
-                pw.Text('ПОДАРОЧНЫЙ СЕРТИФИКАТ', style: const pw.TextStyle(fontSize: 9, color: PdfColors.indigo700)),
+                pw.Text(p(l.mktPdfGiftTitle), style: const pw.TextStyle(fontSize: 9, color: PdfColors.indigo700)),
               ],
             ),
             pw.Spacer(),
@@ -523,7 +540,7 @@ Future<pw.Document> buildGiftCardPdf(GiftCard g, {required String store}) async 
               style: pw.TextStyle(fontSize: 30, fontWeight: pw.FontWeight.bold, color: PdfColors.indigo800),
             ),
             pw.Text(
-              g.expiresAt == null ? 'Бессрочный' : 'Действителен до ${formatDate(g.expiresAt!)}',
+              p(g.expiresAt == null ? l.mktNoExpiry : l.mktPdfValidUntil(formatDate(g.expiresAt!))),
               style: const pw.TextStyle(fontSize: 9),
             ),
             pw.Spacer(),
@@ -532,7 +549,7 @@ Future<pw.Document> buildGiftCardPdf(GiftCard g, {required String store}) async 
               children: [
                 pw.Expanded(
                   child: pw.Text(
-                    'Предъявите сертификат на кассе.\nОбмену на деньги не подлежит.',
+                    p(l.mktPdfGiftNote),
                     style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey700),
                   ),
                 ),
@@ -561,5 +578,5 @@ Future<pw.Document> buildGiftCardPdf(GiftCard g, {required String store}) async 
 
 Future<void> printGiftCard(GiftCard g, {required String store}) async {
   final doc = await buildGiftCardPdf(g, store: store);
-  await Printing.layoutPdf(name: 'Сертификат ${g.code}', onLayout: (_) => doc.save());
+  await Printing.layoutPdf(name: L.current.corePrintJobGift(g.code), onLayout: (_) => doc.save());
 }

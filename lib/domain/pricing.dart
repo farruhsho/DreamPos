@@ -10,6 +10,8 @@
 //  4. Prices are VAT-inclusive; VAT is extracted per line.
 import 'dart:math';
 
+import '../l10n/l10n.dart';
+
 class PricingLine {
   PricingLine({
     required this.key,
@@ -141,7 +143,7 @@ class PricingEngine {
       }
 
       if (customerDiscountPercent > 0) {
-        consider(_pct(l.gross, customerDiscountPercent), 'Скидка клиента');
+        consider(_pct(l.gross, customerDiscountPercent), L.current.domCustomerDiscount);
       }
       for (final p in promotions) {
         switch (p.type) {

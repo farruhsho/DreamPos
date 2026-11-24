@@ -8,6 +8,7 @@ import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
 import '../../core/db/database.dart';
 import '../../domain/errors.dart';
+import '../../l10n/l10n.dart';
 import 'report_data.dart';
 import 'shift_providers.dart';
 
@@ -29,10 +30,11 @@ class PrintReportButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final db = ref.watch(databaseProvider);
+    final l = context.l10n;
     final profit = ref.watch(sessionProvider)?.can(Perm.viewCost) ?? false;
     Future<void> go(bool a4) => runGuarded(context, () async {
       final p = zReportPrinter;
-      if (p == null) throw BusinessException('Печать недоступна');
+      if (p == null) throw BusinessException(l.shiftPrintUnavailable);
       await p(db, shiftId, a4: a4, showProfit: profit);
     });
     return MenuAnchor(
@@ -40,19 +42,19 @@ class PrintReportButton extends ConsumerWidget {
         MenuItemButton(
           leadingIcon: const Icon(Icons.receipt_outlined),
           onPressed: () => go(false),
-          child: const Text('Чековая лента 80 мм'),
+          child: Text(l.shiftRoll80),
         ),
         MenuItemButton(
           leadingIcon: const Icon(Icons.description_outlined),
           onPressed: () => go(true),
-          child: const Text('Лист A4'),
+          child: Text(l.shiftSheetA4),
         ),
       ],
       builder: (context, c, _) {
         void toggle() => c.isOpen ? c.close() : c.open();
         return filled
-            ? FilledButton.icon(onPressed: toggle, icon: const Icon(Icons.print), label: const Text('Печать'))
-            : OutlinedButton.icon(onPressed: toggle, icon: const Icon(Icons.print), label: const Text('Печать'));
+            ? FilledButton.icon(onPressed: toggle, icon: const Icon(Icons.print), label: Text(l.commonPrint))
+            : OutlinedButton.icon(onPressed: toggle, icon: const Icon(Icons.print), label: Text(l.commonPrint));
       },
     );
   }
@@ -66,11 +68,12 @@ class ReportSectionsView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final loc = context.l10n;
     final diff = data.figures.difference;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (final sec in data.sections()) ...[
+        for (final sec in data.sections(loc)) ...[
           Padding(
             padding: const EdgeInsets.only(top: Gap.m, bottom: Gap.xs),
             child: Text(sec.title, style: t.textTheme.titleSmall?.copyWith(color: t.colorScheme.primary)),
@@ -99,9 +102,9 @@ class ReportSectionsView extends StatelessWidget {
                       style: t.textTheme.bodyMedium?.copyWith(
                         fontFeatures: const [FontFeature.tabularFigures()],
                         fontWeight: l.bold ? FontWeight.w700 : null,
-                        color: (l.label == 'Недостача' && diff != null)
+                        color: (l.label == loc.shiftShortage && diff != null)
                             ? AppColors.danger
-                            : l.label == 'Излишек'
+                            : l.label == loc.shiftSurplus
                             ? AppColors.warning
                             : null,
                       ),
@@ -146,7 +149,10 @@ class ZReportPanel extends ConsumerWidget {
             Row(
               children: [
                 Expanded(
-                  child: Text('${d.title} · смена №${f.shift.number}', style: Theme.of(context).textTheme.titleMedium),
+                  child: Text(
+                    context.l10n.shiftReportHeader(d.titleIn(context.l10n), '${f.shift.number}'),
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                 ),
                 PrintReportButton(shiftId: shiftId),
               ],
@@ -163,7 +169,7 @@ class ZReportPanel extends ConsumerWidget {
 Future<void> showZReportDialog(BuildContext context, String shiftId, {String? title}) {
   return showFormDialog<void>(
     context,
-    title: title ?? 'Отчёт по смене',
+    title: title ?? context.l10n.shiftReportTitle,
     width: 560,
     child: Padding(
       padding: const EdgeInsets.fromLTRB(Gap.xl, 0, Gap.xl, Gap.l),

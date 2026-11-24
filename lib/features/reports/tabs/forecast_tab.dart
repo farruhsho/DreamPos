@@ -7,6 +7,7 @@ import '../../../core/permissions.dart';
 import '../../../core/providers.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets/widgets.dart';
+import '../../../l10n/l10n.dart';
 import '../data/analytics.dart';
 import '../data/report_table.dart';
 import '../report_providers.dart';
@@ -28,6 +29,7 @@ class _ForecastTabState extends ConsumerState<ForecastTab> {
 
   @override
   Widget build(BuildContext context) {
+    final l = context.l10n;
     final session = ref.watch(sessionProvider);
     final withCost = session?.can(Perm.viewCost) ?? false;
     final canBuy = session?.can(Perm.purchasing) ?? false;
@@ -46,25 +48,25 @@ class _ForecastTabState extends ConsumerState<ForecastTab> {
         final shown = _onlyAction ? all.where((f) => f.atRisk || f.reorderQty > 0).toList() : all;
 
         final table = RTable(
-          title: 'Прогноз спроса и заказ на $_horizon дн.',
-          subtitle: 'на ${formatDateTime(DateTime.now())}',
+          title: l.repForecastTitle('$_horizon'),
+          subtitle: l.repAsOf(formatDateTime(DateTime.now())),
           columns: [
-            const RCol('Товар'),
-            const RCol('Остаток', numeric: true),
-            const RCol('Продаж в день', numeric: true, tooltip: 'Среднее за 28 дней (для новых — за дни с момента создания, не меньше 7)'),
-            const RCol('Тренд 7 дн.', numeric: true, tooltip: 'Темп продаж последних 7 дней относительно среднего'),
-            const RCol('Хватит на', numeric: true),
-            const RCol('Закончится'),
-            const RCol('Заказать', numeric: true),
-            if (withCost) const RCol('Сумма заказа', numeric: true),
-            const RCol('Статус'),
+            RCol(l.commonProduct),
+            RCol(l.commonStock, numeric: true),
+            RCol(l.repColSalesPerDay, numeric: true, tooltip: l.repColSalesPerDayTooltip),
+            RCol(l.repColTrend7, numeric: true, tooltip: l.repColTrend7Tooltip),
+            RCol(l.repColCover, numeric: true),
+            RCol(l.repColRunsOut),
+            RCol(l.repColToOrder, numeric: true),
+            if (withCost) RCol(l.repColOrderSum, numeric: true),
+            RCol(l.commonStatus),
           ],
           rows: [
             for (final f in shown)
               [
                 RCell(f.row.name),
-                RCell.qty(f.row.stock, f.row.unit),
-                RCell(f.hasDemand ? '${_num(f.avgDaily, f.avgDaily < 1 ? 2 : 1)} ${Qty.unitLabel(f.row.unit)}' : '—',
+                RCell.qty(f.row.stock, f.row.unit, l),
+                RCell(f.hasDemand ? '${_num(f.avgDaily, f.avgDaily < 1 ? 2 : 1)} ${Qty.unitLabel(f.row.unit, l)}' : '—',
                     sort: f.avgDaily, csv: _num(f.avgDaily, 3)),
                 RCell(
                   f.hasDemand ? '${f.trendPct >= 0 ? '+' : '−'}${_num(f.trendPct.abs(), 0)}%' : '—',
@@ -75,19 +77,19 @@ class _ForecastTabState extends ConsumerState<ForecastTab> {
                           ? AppColors.success.toARGB32()
                           : AppColors.danger.toARGB32(),
                 ),
-                RCell(f.daysOfCover == null ? '∞' : '${_num(f.daysOfCover!, f.daysOfCover! < 10 ? 1 : 0)} дн.',
+                RCell(f.daysOfCover == null ? '∞' : l.repDaysShort(_num(f.daysOfCover!, f.daysOfCover! < 10 ? 1 : 0)),
                     sort: f.daysOfCover ?? 1e9, csv: f.daysOfCover == null ? '' : _num(f.daysOfCover!)),
-                RCell(f.stockoutDate == null ? '—' : f.outOfStock ? 'уже нет' : formatDate(f.stockoutDate!),
+                RCell(f.stockoutDate == null ? '—' : f.outOfStock ? l.repAlreadyOut : formatDate(f.stockoutDate!),
                     sort: f.stockoutDate?.millisecondsSinceEpoch ?? 1 << 52),
-                RCell.qty(f.reorderQty, f.row.unit),
+                RCell.qty(f.reorderQty, f.row.unit, l),
                 if (withCost) RCell.money(f.reorderCost),
                 f.outOfStock && f.hasDemand
-                    ? RCell('Нет в наличии', sort: 0, chipColor: AppColors.danger.toARGB32())
+                    ? RCell(l.repOutOfStock, sort: 0, chipColor: AppColors.danger.toARGB32())
                     : f.atRisk
-                        ? RCell('Риск', sort: 1, chipColor: AppColors.warning.toARGB32())
+                        ? RCell(l.repRisk, sort: 1, chipColor: AppColors.warning.toARGB32())
                         : f.hasDemand
-                            ? RCell('Норма', sort: 2, chipColor: AppColors.success.toARGB32())
-                            : RCell('Нет продаж', sort: 3, chipColor: t.colorScheme.outline.toARGB32()),
+                            ? RCell(l.repNormal, sort: 2, chipColor: AppColors.success.toARGB32())
+                            : RCell(l.repNoSalesShort, sort: 3, chipColor: t.colorScheme.outline.toARGB32()),
               ],
           ],
         );
@@ -95,25 +97,25 @@ class _ForecastTabState extends ConsumerState<ForecastTab> {
         return ListView(padding: const EdgeInsets.all(Gap.l), children: [
           ResponsiveGrid(minTile: 160, maxColumns: 4, children: [
             KpiTile(
-              label: 'Закончатся за 7 дней',
+              label: l.repRunOutIn7,
               value: '${risk.length - out}',
               icon: Icons.warning_amber_rounded,
               color: AppColors.warning,
             ),
             KpiTile(
-              label: 'Нет в наличии, но покупают',
+              label: l.repOutButWanted,
               value: '$out',
               icon: Icons.remove_shopping_cart_outlined,
               color: AppColors.danger,
             ),
             KpiTile(
-              label: 'Позиций к заказу',
+              label: l.repItemsToOrder,
               value: '${toOrder.length}',
               icon: Icons.add_shopping_cart,
             ),
             if (withCost)
               KpiTile(
-                label: 'Сумма заказа (по себестоимости)',
+                label: l.repOrderSumAtCost,
                 value: Money.format(orderCost),
                 icon: Icons.payments_outlined,
                 color: AppColors.info,
@@ -130,16 +132,12 @@ class _ForecastTabState extends ConsumerState<ForecastTab> {
               shape: const Border(),
               collapsedShape: const Border(),
               leading: Icon(Icons.lightbulb_outline, color: t.colorScheme.primary),
-              title: Text('Как считается прогноз', style: t.textTheme.titleSmall),
+              title: Text(l.repForecastHow, style: t.textTheme.titleSmall),
               childrenPadding: const EdgeInsets.fromLTRB(Gap.l, 0, Gap.l, Gap.l),
               expandedAlignment: Alignment.centerLeft,
               children: [
                 Text(
-                  '• Продаж в день = продано за последние 28 дней (за вычетом возвратов) ÷ 28. '
-                  'Для новых товаров — за дни с момента добавления, но не меньше 7.\n'
-                  '• Хватит на = остаток ÷ продаж в день.\n'
-                  '• Заказать = продаж в день × $_horizon дн. + минимальный остаток − текущий остаток.\n'
-                  '• «Риск» — товар закончится в ближайшие $forecastRiskDays дней.',
+                  l.repForecastHelp('$_horizon', '$forecastRiskDays'),
                   style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant),
                 ),
               ],
@@ -151,22 +149,22 @@ class _ForecastTabState extends ConsumerState<ForecastTab> {
             initialSort: 4,
             initialAscending: true,
             emptyText: _onlyAction
-                ? 'Нечего заказывать — запасов хватает на $_horizon дн.'
-                : 'Нет товаров с учётом остатков',
+                ? l.repNothingToOrder('$_horizon')
+                : l.repNoTrackedProducts,
             header: Padding(
               padding: const EdgeInsets.only(bottom: Gap.m),
               child: Wrap(spacing: Gap.m, runSpacing: Gap.s, crossAxisAlignment: WrapCrossAlignment.center, children: [
                 SegmentedButton<int>(
-                  segments: const [
-                    ButtonSegment(value: 7, label: Text('7 дн.')),
-                    ButtonSegment(value: 14, label: Text('14 дн.')),
-                    ButtonSegment(value: 30, label: Text('30 дн.')),
+                  segments: [
+                    ButtonSegment(value: 7, label: Text(l.repDaysShort('7'))),
+                    ButtonSegment(value: 14, label: Text(l.repDaysShort('14'))),
+                    ButtonSegment(value: 30, label: Text(l.repDaysShort('30'))),
                   ],
                   selected: {_horizon},
                   onSelectionChanged: (s) => setState(() => _horizon = s.first),
                 ),
                 FilterChip(
-                  label: const Text('Только требующие заказа'),
+                  label: Text(l.repOnlyToOrder),
                   selected: _onlyAction,
                   onSelected: (v) => setState(() => _onlyAction = v),
                 ),
@@ -174,7 +172,7 @@ class _ForecastTabState extends ConsumerState<ForecastTab> {
                   FilledButton.tonalIcon(
                     onPressed: () => context.go('/purchasing'),
                     icon: const Icon(Icons.local_shipping_outlined),
-                    label: const Text('Перейти к закупкам'),
+                    label: Text(l.repGoToPurchasing),
                   ),
               ]),
             ),

@@ -11,6 +11,7 @@ import '../../core/widgets/widgets.dart';
 import 'inventory_logic.dart';
 import 'receipt_document.dart';
 import 'receipt_documents_view.dart';
+import '../../l10n/l10n.dart';
 
 class _Line {
   _Line(this.product)
@@ -52,6 +53,7 @@ class _ReceiptTabState extends State<ReceiptTab> {
   @override
   Widget build(BuildContext context) {
     final compact = context.isCompact;
+    final l = context.l10n;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -61,16 +63,16 @@ class _ReceiptTabState extends State<ReceiptTab> {
             alignment: compact ? Alignment.center : Alignment.centerLeft,
             child: SegmentedButton<_ReceiptView>(
               showSelectedIcon: false,
-              segments: const [
+              segments: [
                 ButtonSegment(
                   value: _ReceiptView.form,
-                  icon: Icon(Icons.add_box_outlined),
-                  label: Text('Новый приход'),
+                  icon: const Icon(Icons.add_box_outlined),
+                  label: Text(l.invNewReceipt),
                 ),
                 ButtonSegment(
                   value: _ReceiptView.documents,
-                  icon: Icon(Icons.receipt_long_outlined),
-                  label: Text('Документы'),
+                  icon: const Icon(Icons.receipt_long_outlined),
+                  label: Text(l.invDocuments),
                 ),
               ],
               selected: {_view},
@@ -137,7 +139,7 @@ class _ReceiptFormState extends ConsumerState<_ReceiptForm> {
     final p = await findByCode(ref.read(databaseProvider), code);
     if (!mounted) return;
     if (p == null) {
-      showError(context, 'Товар со штрихкодом/артикулом «${code.trim()}» не найден');
+      showError(context, context.l10n.invScanNotFound(code.trim()));
     } else {
       _add(p);
     }
@@ -146,7 +148,7 @@ class _ReceiptFormState extends ConsumerState<_ReceiptForm> {
   }
 
   Future<void> _pick() async {
-    final p = await pickProduct(context, title: 'Добавить в приход');
+    final p = await pickProduct(context, title: context.l10n.invAddToReceipt);
     if (p != null) _add(p);
   }
 
@@ -157,11 +159,12 @@ class _ReceiptFormState extends ConsumerState<_ReceiptForm> {
 
   Future<void> _clear() async {
     if (_lines.isEmpty) return;
+    final l = context.l10n;
     final ok = await confirm(
       context,
-      title: 'Очистить документ?',
-      message: 'Все позиции будут удалены из документа.',
-      ok: 'Очистить',
+      title: l.invClearDocTitle,
+      message: l.invClearDocMessage,
+      ok: l.commonClear,
       destructive: true,
     );
     if (!ok) return;
@@ -180,23 +183,25 @@ class _ReceiptFormState extends ConsumerState<_ReceiptForm> {
 
   Future<void> _post(List<Supplier> suppliers) async {
     if (_busy) return;
+    final l = context.l10n;
     if (_lines.isEmpty) {
-      showError(context, 'Добавьте хотя бы одну позицию');
+      showError(context, l.invAddAtLeastOneLine);
       return;
     }
     if (!_formKey.currentState!.validate()) {
-      showError(context, 'Проверьте выделенные поля');
+      showError(context, l.invCheckFields);
       return;
     }
     final sup = suppliers.where((s) => s.id == _supplierId).firstOrNull;
     final total = _total;
     final ok = await confirm(
       context,
-      title: 'Провести приход?',
-      message:
-          'Позиций: ${_lines.length}\nСумма: ${Money.format(total)}'
-          '${sup != null ? '\n\nДолг перед «${sup.name}» увеличится на ${Money.format(total)}' : ''}',
-      ok: 'Провести',
+      title: l.invPostReceiptTitle,
+      message: [
+        l.invPostReceiptMessage('${_lines.length}', Money.format(total)),
+        if (sup != null) l.invPostReceiptDebt(sup.name, Money.format(total)),
+      ].join('\n\n'),
+      ok: l.invPost,
     );
     if (!ok || !mounted) return;
     setState(() => _busy = true);
@@ -222,7 +227,7 @@ class _ReceiptFormState extends ConsumerState<_ReceiptForm> {
     );
     if (!mounted) return;
     if (done && posted != null) {
-      showReceiptPosted(context, posted!, details: '${lines.length} поз. на ${Money.format(posted!.total)}');
+      showReceiptPosted(context, posted!, details: l.invLinesFor('${lines.length}', Money.format(posted!.total)));
     }
     setState(() {
       _busy = false;
@@ -239,6 +244,7 @@ class _ReceiptFormState extends ConsumerState<_ReceiptForm> {
 
   /// Phones: total on its own line, then two equal full-width buttons.
   Widget _compactFooter(ThemeData t, List<Supplier> suppliers) {
+    final l = context.l10n;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -246,11 +252,11 @@ class _ReceiptFormState extends ConsumerState<_ReceiptForm> {
           children: [
             Expanded(
               child: Text(
-                'Итого: ${Money.format(_total)}',
+                l.invTotalLine(Money.format(_total)),
                 style: t.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
               ),
             ),
-            Text('позиций ${_lines.length}', style: t.textTheme.bodyMedium),
+            Text(l.invPositionsLower('${_lines.length}'), style: t.textTheme.bodyMedium),
           ],
         ),
         const SizedBox(height: Gap.s),
@@ -258,7 +264,7 @@ class _ReceiptFormState extends ConsumerState<_ReceiptForm> {
           children: [
             Expanded(
               flex: 2,
-              child: OutlinedButton(onPressed: _lines.isEmpty || _busy ? null : _clear, child: const Text('Очистить')),
+              child: OutlinedButton(onPressed: _lines.isEmpty || _busy ? null : _clear, child: Text(l.commonClear)),
             ),
             const SizedBox(width: Gap.s),
             Expanded(
@@ -268,7 +274,7 @@ class _ReceiptFormState extends ConsumerState<_ReceiptForm> {
                 icon: _busy
                     ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                     : const Icon(Icons.check),
-                label: const Text('Провести приход'),
+                label: Text(l.invPostReceipt),
               ),
             ),
           ],
@@ -280,6 +286,7 @@ class _ReceiptFormState extends ConsumerState<_ReceiptForm> {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final session = ref.watch(sessionProvider);
     final canPrices = session?.can(Perm.editPrices) ?? false;
     final suppliers = ref.watch(invSuppliersProvider).value ?? const <Supplier>[];
@@ -290,13 +297,13 @@ class _ReceiptFormState extends ConsumerState<_ReceiptForm> {
           key: ValueKey('sup$_supplierId${suppliers.length}'),
           initialValue: suppliers.any((s) => s.id == _supplierId) ? _supplierId : null,
           isExpanded: true,
-          decoration: const InputDecoration(
-            labelText: 'Поставщик',
-            helperText: 'Если указан, сумма прихода добавится к долгу поставщику',
+          decoration: InputDecoration(
+            labelText: l.commonSupplier,
+            helperText: l.invSupplierHelper,
             helperMaxLines: 2,
           ),
           items: [
-            const DropdownMenuItem(value: null, child: Text('Без поставщика')),
+            DropdownMenuItem(value: null, child: Text(l.invNoSupplier)),
             for (final s in suppliers)
               DropdownMenuItem(
                 value: s.id,
@@ -310,20 +317,20 @@ class _ReceiptFormState extends ConsumerState<_ReceiptForm> {
           controller: _invoice,
           maxLength: 60,
           decoration: InputDecoration(
-            labelText: narrow ? '№ накладной' : '№ накладной поставщика',
+            labelText: narrow ? l.invInvoiceNoShort : l.invInvoiceNoLong,
             counterText: '',
           ),
         );
         final note = TextField(
           controller: _note,
-          decoration: const InputDecoration(labelText: 'Комментарий'),
+          decoration: InputDecoration(labelText: l.commonComment),
         );
         final scan = TextField(
           controller: _scan,
           focusNode: _scanFocus,
           autofocus: true,
           decoration: InputDecoration(
-            labelText: narrow ? 'Штрихкод или артикул' : 'Сканируйте штрихкод или введите артикул',
+            labelText: narrow ? l.invScanShort : l.invScanLong,
             prefixIcon: const Icon(Icons.qr_code_scanner),
           ),
           onSubmitted: _onScan,
@@ -331,13 +338,13 @@ class _ReceiptFormState extends ConsumerState<_ReceiptForm> {
         final pick = FilledButton.tonalIcon(
           onPressed: _pick,
           icon: const Icon(Icons.add),
-          label: const Text('Добавить товар'),
+          label: Text(l.invAddProduct),
         );
         if (narrow) {
           // Scan field and the add button share a row (icon-only on phones) so
           // the document lines start higher on the screen.
           final compactPick = IconButton.filledTonal(
-            tooltip: 'Добавить товар',
+            tooltip: l.invAddProduct,
             onPressed: _pick,
             icon: const Icon(Icons.add),
             style: IconButton.styleFrom(minimumSize: const Size(52, 52)),
@@ -402,12 +409,10 @@ class _ReceiptFormState extends ConsumerState<_ReceiptForm> {
                 header,
                 const SizedBox(height: Gap.l),
                 if (_lines.isEmpty)
-                  const EmptyState(
+                  EmptyState(
                     icon: Icons.move_to_inbox_outlined,
-                    title: 'Документ пуст',
-                    message:
-                        'Отсканируйте товар или нажмите «Добавить товар». '
-                        'Для приёмки по заказу поставщику используйте раздел «Закупки».',
+                    title: l.invEmptyDoc,
+                    message: l.invEmptyDocMessage,
                   )
                 else
                   for (var i = 0; i < _lines.length; i++)
@@ -434,7 +439,7 @@ class _ReceiptFormState extends ConsumerState<_ReceiptForm> {
                     runSpacing: Gap.s,
                     children: [
                       Text(
-                        'Итого: ${Money.format(_total)}  ·  позиций ${_lines.length}',
+                        '${l.invTotalLine(Money.format(_total))}  ·  ${l.invPositionsLower('${_lines.length}')}',
                         style: t.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
                       ),
                       Wrap(
@@ -442,7 +447,7 @@ class _ReceiptFormState extends ConsumerState<_ReceiptForm> {
                         children: [
                           OutlinedButton(
                             onPressed: _lines.isEmpty || _busy ? null : _clear,
-                            child: const Text('Очистить'),
+                            child: Text(l.commonClear),
                           ),
                           FilledButton.icon(
                             onPressed: _lines.isEmpty || _busy ? null : () => _post(suppliers),
@@ -453,7 +458,7 @@ class _ReceiptFormState extends ConsumerState<_ReceiptForm> {
                                     child: CircularProgressIndicator(strokeWidth: 2),
                                   )
                                 : const Icon(Icons.check),
-                            label: const Text('Провести приход'),
+                            label: Text(l.invPostReceipt),
                           ),
                         ],
                       ),
@@ -484,24 +489,25 @@ class _LineRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final p = line.product;
     final qty = TextFormField(
       controller: line.qty,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      decoration: InputDecoration(labelText: 'Кол-во', suffixText: Qty.unitLabel(p.unit)),
+      decoration: InputDecoration(labelText: l.invQtyShort, suffixText: Qty.unitLabel(p.unit, l)),
       onChanged: (_) => onChanged(),
       validator: (v) => validateQty(QtyField.parse(v ?? ''), p.unit),
     );
     final cost = TextFormField(
       controller: line.cost,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      decoration: InputDecoration(labelText: 'Цена закупки', suffixText: Money.currency.symbol),
+      decoration: InputDecoration(labelText: l.invPurchasePrice, suffixText: Money.currency.symbol),
       onChanged: (_) => onChanged(),
       validator: (v) {
-        if ((v ?? '').trim().isEmpty) return 'Укажите цену закупки';
+        if ((v ?? '').trim().isEmpty) return l.invSpecifyPurchasePrice;
         final m = Money.parse(v!);
-        if (m == null) return 'Неверная сумма';
-        if (m < 0) return 'Не может быть отрицательной';
+        if (m == null) return l.commonInvalidAmount;
+        if (m < 0) return l.commonCannotBeNegative;
         return null;
       },
     );
@@ -510,29 +516,31 @@ class _LineRow extends StatelessWidget {
       enabled: canPrices,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       decoration: InputDecoration(
-        labelText: 'Новая цена',
+        labelText: l.invNewPrice,
         hintText: Money.toInput(p.price),
         suffixText: Money.currency.symbol,
-        helperText: canPrices ? null : 'Нет права менять цены',
+        helperText: canPrices ? null : l.invNoPricePermission,
       ),
       onChanged: (_) => onChanged(),
       validator: (v) {
         if ((v ?? '').trim().isEmpty) return null;
         final m = Money.parse(v!);
-        if (m == null || m <= 0) return 'Неверная цена';
+        if (m == null || m <= 0) return l.invInvalidPrice;
         return null;
       },
     );
     final margin = line.c != null && line.c! > 0 ? ((line.newPrice ?? p.price) - line.c!) * 100 / line.c! : null;
     final total = Text(Money.format(line.total), style: const TextStyle(fontWeight: FontWeight.w700));
-    final remove = IconButton(onPressed: onRemove, icon: const Icon(Icons.delete_outline), tooltip: 'Удалить строку');
+    final remove = IconButton(onPressed: onRemove, icon: const Icon(Icons.delete_outline), tooltip: l.invDeleteLine);
     final title = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('$index. ${p.name}', maxLines: 2, overflow: TextOverflow.ellipsis, style: t.textTheme.bodyLarge),
         Text(
-          'Остаток ${Qty.format(p.stockQty, p.unit)} · розн. ${Money.format(p.price)}'
-          '${margin != null ? ' · наценка ${margin.toStringAsFixed(0)}%' : ''}',
+          [
+            l.invLineInfo(Qty.format(p.stockQty, p.unit), Money.format(p.price)),
+            if (margin != null) l.invMarkupPart(margin.toStringAsFixed(0)),
+          ].join(' · '),
           style: t.textTheme.bodySmall?.copyWith(
             color: margin != null && margin < 0 ? AppColors.danger : t.colorScheme.onSurfaceVariant,
           ),

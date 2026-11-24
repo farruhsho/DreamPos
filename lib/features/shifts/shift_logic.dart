@@ -5,6 +5,7 @@ import 'package:drift/drift.dart';
 import '../../core/db/database.dart';
 import '../../core/money.dart';
 import '../../domain/services/shift_service.dart';
+import '../../l10n/l10n.dart';
 
 export '../../core/widgets/widgets.dart' show pluralRu;
 
@@ -67,14 +68,22 @@ CashDiff classifyDiff(int counted, int expected) => counted == expected
     ? CashDiff.shortage
     : CashDiff.surplus;
 
-/// Validates the close-shift form. Returns a Russian error or null.
-String? validateClose({required int? counted, required int expected, required String note, int collection = 0}) {
-  if (counted == null) return 'Введите сумму наличных в кассе';
-  if (counted < 0) return 'Сумма не может быть отрицательной';
-  if (collection < 0) return 'Сумма инкассации не может быть отрицательной';
-  if (collection > counted) return 'Инкассация не может превышать пересчитанную сумму';
+/// Validates the close-shift form. Returns a localized error ([l], default
+/// the UI language) or null.
+String? validateClose({
+  required int? counted,
+  required int expected,
+  required String note,
+  int collection = 0,
+  AppLocalizations? l,
+}) {
+  final t = l ?? L.current;
+  if (counted == null) return t.shiftEnterCountedCash;
+  if (counted < 0) return t.shiftAmountNegative;
+  if (collection < 0) return t.shiftCollectionNegative;
+  if (collection > counted) return t.shiftCollectionTooBig;
   if (counted != expected && note.trim().isEmpty) {
-    return 'Укажите причину расхождения';
+    return t.shiftEnterDiffReason;
   }
   return null;
 }
@@ -99,7 +108,8 @@ Future<ShiftReport> closeShiftWithCollection(
         kind: 'collection',
         amount: collection,
         userId: userId,
-        reason: 'Инкассация при закрытии смены',
+        // Stored in the DB as the movement reason: not translated.
+        reason: 'Инкассация при закрытии смены', // l10n-ignore
       );
     }
     return svc.close(shiftId: shiftId, userId: userId, countedCash: counted - collection, note: note);
@@ -110,17 +120,40 @@ Future<ShiftReport> closeShiftWithCollection(
 
 const cashKinds = ['pay_in', 'pay_out', 'expense', 'collection'];
 
-String cashKindLabel(String k) => switch (k) {
-  'pay_in' => 'Внесение',
-  'pay_out' => 'Выплата',
-  'expense' => 'Расход',
-  'collection' => 'Инкассация',
-  _ => k,
-};
+String cashKindLabel(String k, [AppLocalizations? l]) {
+  final t = l ?? L.current;
+  return switch (k) {
+    'pay_in' => t.shiftKindPayIn,
+    'pay_out' => t.shiftKindPayOut,
+    'expense' => t.shiftKindExpense,
+    'collection' => t.shiftKindCollection,
+    _ => k,
+  };
+}
 
 bool cashKindIsIn(String k) => k == 'pay_in';
 
-const expenseCategories = ['Аренда', 'Зарплата', 'Хозтовары', 'Транспорт', 'Коммунальные', 'Прочее'];
+/// Expense categories as stored in `cash_movements.expense_category` (and as
+/// the default reason). These are DB values, not UI text: show them with
+/// [expenseCategoryLabel]. The last one is the catch-all.
+const expenseCategories = ['Аренда', 'Зарплата', 'Хозтовары', 'Транспорт', 'Коммунальные', 'Прочее']; // l10n-ignore
+
+/// Catch-all expense category (DB value).
+String get otherExpenseCategory => expenseCategories.last;
+
+/// Localized label of a stored expense category; unknown values are shown as is.
+String expenseCategoryLabel(String stored, [AppLocalizations? l]) {
+  final t = l ?? L.current;
+  return switch (expenseCategories.indexOf(stored)) {
+    0 => t.shiftExpRent,
+    1 => t.shiftExpSalary,
+    2 => t.shiftExpSupplies,
+    3 => t.shiftExpTransport,
+    4 => t.shiftExpUtilities,
+    5 => t.shiftExpOther,
+    _ => stored,
+  };
+}
 
 // ------------------------------------------------------------ extended report
 
@@ -173,7 +206,7 @@ class ShiftFigures {
     for (final m in moves) {
       byKind[m.kind] = (byKind[m.kind] ?? 0) + m.amount;
       if (m.kind == 'expense') {
-        final c = m.expenseCategory ?? 'Прочее';
+        final c = m.expenseCategory ?? otherExpenseCategory;
         byCat[c] = (byCat[c] ?? 0) + m.amount;
       }
     }

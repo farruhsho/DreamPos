@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets/widgets.dart';
+import '../../../l10n/l10n.dart';
 import '../settings_logic.dart';
 import '../settings_providers.dart';
 import '../settings_widgets.dart';
@@ -18,9 +19,10 @@ class AboutSection extends ConsumerWidget {
     final installed = ref.watch(installedAtProvider);
     final diag = ref.watch(diagnosticsProvider);
     final settings = ref.watch(settingsProvider).value ?? const {};
+    final l = context.l10n;
 
     return SectionView(
-      title: 'О программе',
+      title: l.settingsSecAbout,
       children: [
         Card(
           child: Padding(
@@ -41,9 +43,9 @@ class AboutSection extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('DreamPOS', style: t.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
-                      Text('Версия $appVersion', style: t.textTheme.bodyMedium),
+                      Text(l.settingsVersion(appVersion), style: t.textTheme.bodyMedium),
                       Text(
-                        'Касса и учёт для розничных магазинов. Работает без интернета.',
+                        l.settingsAboutTagline,
                         style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant),
                       ),
                     ],
@@ -54,7 +56,7 @@ class AboutSection extends ConsumerWidget {
           ),
         ),
         SectionCard(
-          title: 'Лицензия',
+          title: l.settingsLicense,
           child: AsyncView(
             value: installed,
             onRetry: () => ref.invalidate(installedAtProvider),
@@ -66,9 +68,9 @@ class AboutSection extends ConsumerWidget {
                 children: [
                   Row(
                     children: [
-                      const Expanded(child: Text('Тариф: «Магазин» (1 точка)')),
+                      Expanded(child: Text(l.settingsPlan)),
                       StatusChip(
-                        expired ? 'Пробный период истёк' : 'Пробный период',
+                        expired ? l.settingsTrialExpired : l.settingsTrial,
                         color: expired ? AppColors.danger : AppColors.info,
                       ),
                     ],
@@ -82,8 +84,8 @@ class AboutSection extends ConsumerWidget {
                   const SizedBox(height: Gap.s),
                   Text(
                     expired
-                        ? 'Пробный период закончился. Свяжитесь с поддержкой для продления — данные сохранены.'
-                        : 'Осталось $left ${_daysWord(left)} из $trialPeriodDays · установлено ${formatDate(at.toLocal())}',
+                        ? l.settingsTrialEnded
+                        : l.settingsTrialLeft(left, '$trialPeriodDays', formatDate(at.toLocal())),
                   ),
                 ],
               );
@@ -91,14 +93,11 @@ class AboutSection extends ConsumerWidget {
           ),
         ),
         SectionCard(
-          title: 'Связаться с поддержкой',
+          title: l.settingsSupport,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
-                'При обращении в поддержку приложите сведения ниже — они помогут быстрее '
-                'разобраться. Личные данные клиентов в них не входят.',
-              ),
+              Text(l.settingsSupportHint),
               const SizedBox(height: Gap.m),
               AsyncView(
                 value: diag,
@@ -130,14 +129,14 @@ class AboutSection extends ConsumerWidget {
                         runSpacing: Gap.s,
                         children: [
                           FilledButton.tonalIcon(
-                            onPressed: () => copyToClipboard(context, text, message: 'Сведения скопированы'),
+                            onPressed: () => copyToClipboard(context, text, message: l.settingsInfoCopied),
                             icon: const Icon(Icons.copy),
-                            label: const Text('Копировать сведения'),
+                            label: Text(l.settingsCopyInfo),
                           ),
                           TextButton.icon(
                             onPressed: () => ref.invalidate(diagnosticsProvider),
                             icon: const Icon(Icons.refresh),
-                            label: const Text('Обновить'),
+                            label: Text(l.settingsRefresh),
                           ),
                         ],
                       ),
@@ -151,11 +150,4 @@ class AboutSection extends ConsumerWidget {
       ],
     );
   }
-}
-
-String _daysWord(int n) {
-  final m10 = n % 10, m100 = n % 100;
-  if (m10 == 1 && m100 != 11) return 'день';
-  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return 'дня';
-  return 'дней';
 }

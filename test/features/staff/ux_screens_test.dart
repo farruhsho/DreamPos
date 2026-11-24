@@ -1,4 +1,5 @@
 import 'package:dreampos/core/db/database.dart';
+import 'package:dreampos/l10n/l10n.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -26,6 +27,7 @@ Future<void> inApp(UxHarness h, Future<void> Function() op) async {
 void main() {
   testWidgets('staff screens', (tester) async {
     final h = await UxHarness.start(tester);
+    final l = L.of(h.locale);
     // Direct inserts: drift transactions inside runAsync dead-lock against
     // the app's fake-async stream queries.
     await h.go('/staff');
@@ -73,30 +75,30 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('add_user')));
       await h.settle();
       errs.addAll(await h.shot('staff_user_new'));
-      await tester.tap(find.text('Отмена').last);
+      await tester.tap(find.text(l.commonCancel).last);
       await h.settle();
 
       await tester.tap(find.text('Кассир Нигора').hitTestable().first);
       await h.settle();
       errs.addAll(await h.shot('staff_user_edit'));
-      await tester.tap(find.text('Отмена').last);
+      await tester.tap(find.text(l.commonCancel).last);
       await h.settle();
 
-      await tab('Рабочее время');
+      await tab(l.staffTabTime);
       errs.addAll(await h.shot('staff_time'));
       await tester.tap(find.byKey(const ValueKey('add_session')));
       await h.settle();
       errs.addAll(await h.shot('staff_time_add'));
-      await tester.tap(find.text('Отмена').last);
+      await tester.tap(find.text(l.commonCancel).last);
       await h.settle();
 
-      await tab('Мотивация');
+      await tab(l.staffTabMotivation);
       errs.addAll(await h.shot('staff_motivation'));
 
-      await tab('Роли и права');
+      await tab(l.staffTabRoles);
       errs.addAll(await h.shot('staff_roles'));
 
-      await tab('Журнал действий');
+      await tab(l.staffTabAudit);
       errs.addAll(await h.shot('staff_audit'));
 
       await h.go('/');

@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:drift/drift.dart';
 
+import '../../l10n/l10n.dart';
 import '../../core/db/database.dart';
 import '../../core/money.dart';
 import '../errors.dart';
@@ -40,12 +41,12 @@ class SupplierLedgerService {
   }) {
     return db.transaction(() async {
       final s = await (db.select(db.suppliers)..where((t) => t.id.equals(supplierId))).getSingleOrNull();
-      if (s == null) throw BusinessException('Поставщик не найден');
+      if (s == null) throw BusinessException(L.current.errSupplierNotFound);
       // A deleted supplier must keep balance 0 (deleteSupplier's invariant):
       // nothing can settle a balance hidden on it. Only the migration
       // `opening` back-fill may touch it.
       if (s.deletedAt != null && kind != SupplierLedgerKind.opening) {
-        throw BusinessException('Поставщик «${s.name}» удалён — операция невозможна');
+        throw BusinessException(L.current.errSupplierDeleted(s.name));
       }
       final after = s.balance + amount;
       final id = newId();
@@ -82,18 +83,18 @@ class SupplierLedgerService {
     String? note,
     bool allowOverpay = false,
   }) async {
-    if (amount <= 0) throw BusinessException('Сумма оплаты должна быть больше нуля');
-    if (!supplierPaymentMethods.contains(method)) throw BusinessException('Неизвестный способ оплаты');
+    if (amount <= 0) throw BusinessException(L.current.errPaymentMustBePositive);
+    if (!supplierPaymentMethods.contains(method)) throw BusinessException(L.current.errUnknownPaymentMethod);
     if (method == 'cash' && shiftId == null) {
-      throw BusinessException('Для оплаты наличными из кассы откройте смену', code: 'shift');
+      throw BusinessException(L.current.errOpenShiftForCashPayout, code: 'shift');
     }
     final id = newId();
     await db.transaction(() async {
       final s = await (db.select(db.suppliers)..where((t) => t.id.equals(supplierId))).getSingleOrNull();
-      if (s == null || s.deletedAt != null) throw BusinessException('Поставщик не найден');
+      if (s == null || s.deletedAt != null) throw BusinessException(L.current.errSupplierNotFound);
       if (amount > s.balance && !allowOverpay) {
         throw BusinessException(
-          'Сумма больше долга поставщику (${Money.format(math.max(0, s.balance))}). Подтвердите переплату.',
+          L.current.errOverpaySupplier(Money.format(math.max(0, s.balance))),
           code: 'overpay',
         );
       }
@@ -101,13 +102,13 @@ class SupplierLedgerService {
       if (orderId != null) {
         order = await (db.select(db.purchaseOrders)..where((t) => t.id.equals(orderId))).getSingleOrNull();
         if (order == null || order.supplierId != supplierId) {
-          throw BusinessException('Заказ не относится к этому поставщику');
+          throw BusinessException(L.current.errOrderOtherSupplier);
         }
-        if (order.status == 'cancelled') throw BusinessException('Заказ №${order.number} отменён');
+        if (order.status == 'cancelled') throw BusinessException(L.current.errOrderCancelled('${order.number}'));
       }
       if (shiftId != null && method == 'cash') {
         final sh = await (db.select(db.shifts)..where((t) => t.id.equals(shiftId))).getSingleOrNull();
-        if (sh == null || sh.status != 'open') throw BusinessException('Смена закрыта — откройте смену');
+        if (sh == null || sh.status != 'open') throw BusinessException(L.current.errShiftClosedOpenShift);
       }
       final now = DateTime.now();
       final cleanNote = _clean(note);
@@ -152,17 +153,17 @@ class SupplierLedgerService {
   /// cancelled while its shift is still open.
   Future<void> cancelPayment(String paymentId, {required String reason, String? userId}) async {
     final why = reason.trim();
-    if (why.isEmpty) throw BusinessException('Укажите причину отмены оплаты');
+    if (why.isEmpty) throw BusinessException(L.current.errCancelReasonRequired);
     await db.transaction(() async {
       final p = await (db.select(db.supplierPayments)..where((t) => t.id.equals(paymentId))).getSingleOrNull();
-      if (p == null || p.deletedAt != null) throw BusinessException('Оплата не найдена');
-      if (p.cancelledAt != null) throw BusinessException('Оплата уже отменена');
+      if (p == null || p.deletedAt != null) throw BusinessException(L.current.errPaymentNotFound);
+      if (p.cancelledAt != null) throw BusinessException(L.current.errPaymentAlreadyCancelled);
       if (p.method == 'cash') {
         final sh = p.shiftId == null
             ? null
             : await (db.select(db.shifts)..where((t) => t.id.equals(p.shiftId!))).getSingleOrNull();
         if (sh == null || sh.status != 'open') {
-          throw BusinessException('Смена оплаты закрыта — отмена невозможна');
+          throw BusinessException(L.current.errPaymentShiftClosed);
         }
       }
       final now = DateTime.now();
@@ -201,12 +202,12 @@ class SupplierLedgerService {
   /// Manual balance correction (owner/admin; UI gates it with
   /// `Perm.manageSettings`). Returns the new balance.
   Future<int> adjust(String supplierId, int amount, {required String reason, String? userId}) async {
-    if (amount == 0) throw BusinessException('Сумма корректировки не может быть нулевой');
+    if (amount == 0) throw BusinessException(L.current.errAdjustmentZero);
     final why = reason.trim();
-    if (why.isEmpty) throw BusinessException('Укажите причину корректировки');
+    if (why.isEmpty) throw BusinessException(L.current.errAdjustmentReasonRequired);
     return db.transaction(() async {
       final s = await (db.select(db.suppliers)..where((t) => t.id.equals(supplierId))).getSingleOrNull();
-      if (s == null || s.deletedAt != null) throw BusinessException('Поставщик не найден');
+      if (s == null || s.deletedAt != null) throw BusinessException(L.current.errSupplierNotFound);
       final after = await post(
         supplierId: supplierId,
         kind: SupplierLedgerKind.adjustment,

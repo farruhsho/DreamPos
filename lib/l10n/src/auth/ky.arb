@@ -1,0 +1,23 @@
+{
+  "authEnterPin": "PIN-кодду киргизиңиз",
+  "authDemoMode": "Демо-режим",
+  "setupDefaultReceiptFooter": "Сатып алганыңыз үчүн рахмат!",
+  "setupWelcome": "DreamPOS’ко кош келиңиз",
+  "setupIntro": "Жөндөө бир мүнөткө жетпейт. Баарын кийин «Жөндөөлөрдөн» өзгөртсө болот.",
+  "setupStart": "Ишти баштоо",
+  "setupStoreName": "Дүкөндүн аталышы *",
+  "setupEnterStoreName": "Аталышын киргизиңиз",
+  "setupTaxId": "ИНН",
+  "setupCurrency": "Эсеп валютасы",
+  "setupCurrencyExample": "Мисал: {amount}",
+  "setupCurrencyWarning": "Биринчи сатуудан кийин валютаны өзгөртүүгө болбойт — базадагы бардык суммалар ага көз каранды.",
+  "setupOwnerName": "Атыңыз (ээси) *",
+  "setupPin": "PIN-код (4–8 сан) *",
+  "setupPinRepeat": "PIN-ди кайталаңыз *",
+  "setupPinMismatch": "PIN дал келбейт",
+  "setupDemo": "Демо-маалымат менен толтуруу",
+  "setupDemoHint": "Система менен таанышуу үчүн товарлар, кардарлар жана акциялар. Чыныгы дүкөн үчүн күйгүзбөңүз.",
+  "setupStepStore": "Дүкөн",
+  "setupStepCurrency": "Валюта",
+  "setupStepOwner": "Ээси"
+}

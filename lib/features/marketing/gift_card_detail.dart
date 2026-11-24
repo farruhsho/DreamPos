@@ -11,21 +11,24 @@ import '../../core/printing/gift_receipt.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
+import '../../l10n/l10n.dart';
 import 'gift_cards_tab.dart' show giftStatusColor, printGiftCard;
 import 'gift_sales_logic.dart';
 import 'marketing_repo.dart';
 
 Future<void> showGiftCardDetail(BuildContext context, String giftCardId) => showFormDialog<void>(
   context,
-  title: 'Сертификат',
+  title: context.l10n.commonGiftCard,
   width: 600,
   child: GiftCardDetail(giftCardId: giftCardId),
 );
 
 Color giftSaleStatusColor(String status) => status == GiftSaleStatus.voided ? AppColors.danger : AppColors.success;
 
-String giftPaymentsText(List<GiftCardSalePayment> pays) =>
-    pays.map((p) => '${giftPaymentMethods[p.method] ?? p.method} ${Money.format(p.amount)}').join(' + ');
+String giftPaymentsText(List<GiftCardSalePayment> pays, [AppLocalizations? l]) {
+  final methods = giftPaymentMethodsIn(l ?? L.current);
+  return pays.map((p) => '${methods[p.method] ?? p.method} ${Money.format(p.amount)}').join(' + ');
+}
 
 class GiftCardDetail extends ConsumerStatefulWidget {
   const GiftCardDetail({super.key, required this.giftCardId});
@@ -57,16 +60,18 @@ class _GiftCardDetailState extends ConsumerState<GiftCardDetail> {
 
   Future<void> _void(GiftSaleRow row) => _guard(() async {
     final sale = row.sale;
-    final reason = await promptText(context, title: 'Аннулировать продажу №${sale.number}', label: 'Причина *');
+    final l = context.l10n;
+    final reason = await promptText(
+      context,
+      title: l.mktVoidSaleTitle('${sale.number}'),
+      label: l.mktReasonRequired,
+    );
     if (reason == null || !mounted) return;
     final ok = await confirm(
       context,
-      title: 'Аннулировать продажу №${sale.number}?',
-      message:
-          'Сертификат ${row.code} будет заблокирован. Верните покупателю '
-          '${Money.format(sale.amount)}: ${giftPaymentsText(row.payments)}. '
-          'Возврат попадёт в текущую смену.',
-      ok: 'Аннулировать',
+      title: l.mktVoidSaleQuestion('${sale.number}'),
+      message: l.mktVoidSaleMessage(row.code, Money.format(sale.amount), giftPaymentsText(row.payments, l)),
+      ok: l.mktVoid,
       destructive: true,
     );
     if (!ok || !mounted) return;
@@ -76,7 +81,7 @@ class _GiftCardDetailState extends ConsumerState<GiftCardDetail> {
       () => ref
           .read(giftCardServiceProvider)
           .voidSale(sale.id, reason: reason, userId: ref.read(sessionProvider)!.user.id, shiftId: shift?.id),
-      success: 'Продажа №${sale.number} аннулирована',
+      success: l.mktSaleVoided('${sale.number}'),
     );
   });
 
@@ -87,7 +92,8 @@ class _GiftCardDetailState extends ConsumerState<GiftCardDetail> {
       value: cardAsync,
       onRetry: () => ref.invalidate(giftCardByIdProvider(widget.giftCardId)),
       data: (g) {
-        if (g == null) return const EmptyState(icon: Icons.search_off, title: 'Сертификат не найден');
+        final l = context.l10n;
+        if (g == null) return EmptyState(icon: Icons.search_off, title: l.errGiftNotFound);
         return SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(Gap.xl, Gap.s, Gap.xl, Gap.l),
           child: Column(
@@ -102,20 +108,20 @@ class _GiftCardDetailState extends ConsumerState<GiftCardDetail> {
                   OutlinedButton.icon(
                     onPressed: _busy ? null : () => _printBlank(g),
                     icon: const Icon(Icons.card_giftcard),
-                    label: const Text('Бланк'),
+                    label: Text(l.mktBlank),
                   ),
                   OutlinedButton.icon(
                     onPressed: () {
                       Clipboard.setData(ClipboardData(text: g.code));
-                      showSuccess(context, 'Код скопирован');
+                      showSuccess(context, l.mktCodeCopied);
                     },
                     icon: const Icon(Icons.copy),
-                    label: const Text('Копировать код'),
+                    label: Text(l.mktCopyCode),
                   ),
                 ],
               ),
               const SizedBox(height: Gap.l),
-              Text('Документ продажи', style: Theme.of(context).textTheme.titleMedium),
+              Text(l.mktSaleDocument, style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: Gap.s),
               _saleSection(g),
             ],
@@ -133,7 +139,7 @@ class _GiftCardDetailState extends ConsumerState<GiftCardDetail> {
       data: (row) {
         if (row == null) {
           return Text(
-            'Сертификат выпущен до появления документов продажи — документа нет, аннулирование недоступно.',
+            context.l10n.mktNoSaleDocument,
             style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
           );
         }
@@ -150,6 +156,7 @@ class _CardHeader extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final g = card;
     final st = giftStatusOf(g, DateTime.now());
     final names = ref.watch(customerNamesProvider).value ?? const <String, String>{};
@@ -166,16 +173,16 @@ class _CardHeader extends ConsumerWidget {
                 style: t.textTheme.titleLarge?.copyWith(fontFamily: AppFonts.mono, fontWeight: FontWeight.w700),
               ),
             ),
-            StatusChip(st.label, color: giftStatusColor(st)),
+            StatusChip(st.labelIn(l), color: giftStatusColor(st)),
           ],
         ),
         const SizedBox(height: Gap.s),
         Text(Money.format(g.balance), style: t.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700)),
         Text(
           [
-            'номинал ${Money.format(g.initialAmount)}',
-            g.expiresAt == null ? 'без срока' : 'до ${formatDate(g.expiresAt!)}',
-            if (g.customerId != null) names[g.customerId] ?? 'клиент',
+            l.mktFaceValueLowerAmount(Money.format(g.initialAmount)),
+            g.expiresAt == null ? l.coreGiftNoExpiry : l.mktUntil(formatDate(g.expiresAt!)),
+            if (g.customerId != null) names[g.customerId] ?? l.mktCustomerLower,
           ].join(' · '),
           style: meta,
         ),
@@ -194,22 +201,25 @@ class _SaleDocument extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final s = row.sale;
     final voided = s.status == GiftSaleStatus.voided;
     final meta = t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant);
 
     // Why «Аннулировать продажу» is disabled (tooltip), null when allowed.
     String? blocked;
+    var checking = false;
     if (!voided) {
       final session = ref.watch(sessionProvider);
       final shift = ref.watch(currentShiftProvider).value;
       final reason = ref.watch(giftSaleVoidBlockReasonProvider(s.id));
       if (session == null || !session.can(Perm.voidSale)) {
-        blocked = 'Нет права аннулировать продажи';
+        blocked = l.mktNoVoidRight;
       } else if (shift == null) {
-        blocked = 'Откройте смену, чтобы аннулировать продажу';
+        blocked = l.mktOpenShiftToVoid;
       } else if (reason.isLoading) {
-        blocked = 'Проверяем…';
+        blocked = l.mktChecking;
+        checking = true;
       } else if (reason.hasError) {
         blocked = errorText(reason.error!);
       } else {
@@ -239,28 +249,28 @@ class _SaleDocument extends ConsumerWidget {
               children: [
                 Expanded(
                   child: Text(
-                    'Продажа №${s.number}',
+                    l.mktSaleNumber('${s.number}'),
                     style: t.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
                   ),
                 ),
-                StatusChip(giftSaleStatusLabels[s.status] ?? s.status, color: giftSaleStatusColor(s.status)),
+                StatusChip(giftSaleStatusLabel(s.status, l), color: giftSaleStatusColor(s.status)),
               ],
             ),
             const SizedBox(height: Gap.s),
-            line('Дата', formatDateTime(s.createdAt)),
-            line('Кассир', row.cashierName ?? '—'),
-            line('Сумма', Money.format(s.amount)),
+            line(l.commonDate, formatDateTime(s.createdAt)),
+            line(l.commonCashier, row.cashierName ?? '—'),
+            line(l.commonAmount, Money.format(s.amount)),
             for (final p in row.payments)
               line(
-                giftPaymentMethods[p.method] ?? p.method,
+                giftPaymentMethodsIn(l)[p.method] ?? p.method,
                 [Money.format(p.amount), if (p.reference != null) '№ ${p.reference}'].join(' · '),
               ),
-            if (s.changeDue > 0) line('Сдача', Money.format(s.changeDue)),
-            if (s.note != null && s.note!.isNotEmpty) line('Комментарий', s.note!),
+            if (s.changeDue > 0) line(l.commonChange, Money.format(s.changeDue)),
+            if (s.note != null && s.note!.isNotEmpty) line(l.commonComment, s.note!),
             if (voided) ...[
               const SizedBox(height: Gap.s),
               Text(
-                'Аннулирована ${s.voidedAt == null ? '' : formatDateTime(s.voidedAt!)}'
+                '${l.mktVoidedAt(s.voidedAt == null ? '' : formatDateTime(s.voidedAt!))}'
                 '${s.voidReason == null ? '' : ' · ${s.voidReason}'}',
                 style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.w600),
               ),
@@ -274,22 +284,22 @@ class _SaleDocument extends ConsumerWidget {
                   key: const Key('gift-sale-reprint'),
                   onPressed: busy ? null : onPrint,
                   icon: const Icon(Icons.print_outlined),
-                  label: const Text('Печать'),
+                  label: Text(l.commonPrint),
                 ),
                 if (!voided)
                   Tooltip(
-                    message: blocked ?? 'Сертификат будет заблокирован, деньги возвращаются покупателю',
+                    message: blocked ?? l.mktVoidTooltip,
                     child: FilledButton.icon(
                       key: const Key('gift-sale-void'),
                       style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
                       onPressed: busy || blocked != null ? null : onVoid,
                       icon: const Icon(Icons.block),
-                      label: const Text('Аннулировать продажу'),
+                      label: Text(l.mktVoidSale),
                     ),
                   ),
               ],
             ),
-            if (!voided && blocked != null && blocked != 'Проверяем…')
+            if (!voided && blocked != null && !checking)
               Padding(
                 padding: const EdgeInsets.only(top: Gap.xs),
                 child: Text(blocked, style: meta),

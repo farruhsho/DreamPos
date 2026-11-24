@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/permissions.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
+import '../../l10n/l10n.dart';
 import 'staff_logic.dart';
 import 'user_form_dialog.dart';
 
@@ -13,10 +14,11 @@ class RolesTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final l = context.l10n;
     return ListView(
       children: [
         Text(
-          'Права ролей заданы системой. Чтобы изменить доступ сотрудника, смените его роль.',
+          l.staffRolesHint,
           style: t.textTheme.bodyMedium?.copyWith(color: t.colorScheme.onSurfaceVariant),
         ),
         const SizedBox(height: Gap.m),
@@ -35,14 +37,14 @@ class RolesTab extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(permLabel(p), style: t.textTheme.bodyMedium),
+                        Text(permLabel(p, l), style: t.textTheme.bodyMedium),
                         const SizedBox(height: Gap.xs),
                         Wrap(
                           spacing: Gap.xs,
                           runSpacing: Gap.xs,
                           children: [
                             for (final r in Role.values)
-                              if (r.can(p)) StatusChip(r.label, color: roleColor(r)),
+                              if (r.can(p)) StatusChip(r.labelIn(l), color: roleColor(r)),
                           ],
                         ),
                       ],
@@ -67,14 +69,14 @@ class RolesTab extends StatelessWidget {
                   dataRowMaxHeight: 40,
                   columnSpacing: Gap.xl,
                   columns: [
-                    const DataColumn(label: Text('Право')),
-                    for (final r in Role.values) DataColumn(label: StatusChip(r.label, color: roleColor(r))),
+                    DataColumn(label: Text(l.staffPermColumn)),
+                    for (final r in Role.values) DataColumn(label: StatusChip(r.labelIn(l), color: roleColor(r))),
                   ],
                   rows: [
                     for (final p in Perm.values)
                       DataRow(
                         cells: [
-                          DataCell(Text(permLabel(p))),
+                          DataCell(Text(permLabel(p, l))),
                           for (final r in Role.values)
                             DataCell(
                               Center(

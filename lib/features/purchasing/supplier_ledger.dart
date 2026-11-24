@@ -15,6 +15,7 @@ import '../inventory/inventory_logic.dart' show goodsReceiptNumbersProvider;
 import '../reports/widgets/report_table_view.dart' show showSavedDialog;
 import 'purchasing_logic.dart';
 import 'statement_pdf.dart';
+import '../../l10n/l10n.dart';
 
 /// Payment ids with a cancellation in flight (double-tap protection across
 /// the ledger and the payments list).
@@ -30,19 +31,22 @@ Future<bool> cancelSupplierPaymentFlow(BuildContext context, WidgetRef ref, Supp
     return false;
   }
   _cancelling.add(p.id);
+  final l = context.l10n;
   try {
     final r = await showDialog<bool>(
       context: context,
       builder: (_) => ReasonActionDialog(
-        title: 'Отменить оплату ${Money.format(p.amount)}?',
+        title: l.purCancelPaymentTitle(Money.format(p.amount)),
         message:
-            'Оплата от ${formatDateTime(p.createdAt)} (${paymentMethodLabels[p.method] ?? p.method}) '
-            'останется в истории с отметкой «Отменена», долг поставщику увеличится на эту сумму.'
-            '${p.method == 'cash' ? '\nНаличную оплату можно отменить только пока открыта её смена.' : ''}',
-        label: 'Причина отмены *',
-        ok: 'Отменить оплату',
+            l.purCancelPaymentMessage(
+              formatDateTime(p.createdAt),
+              paymentMethodLabelsOf(l)[p.method] ?? p.method,
+            ) +
+            (p.method == 'cash' ? '\n${l.purCancelCashHint}' : ''),
+        label: l.purCancelReasonLabel,
+        ok: l.purCancelPayment,
         destructive: true,
-        success: 'Оплата ${Money.format(p.amount)} отменена',
+        success: l.purPaymentCancelled(Money.format(p.amount)),
         action: (reason) => ref
             .read(purchasingRepoProvider)
             .cancelSupplierPayment(p.id, reason: reason, userId: ref.read(sessionProvider)?.user.id),
@@ -131,7 +135,7 @@ class _ReasonActionDialogState extends State<ReasonActionDialog> {
                   autofocus: true,
                   maxLength: 200,
                   decoration: InputDecoration(labelText: widget.label),
-                  validator: (v) => (v ?? '').trim().isEmpty ? 'Укажите причину' : null,
+                  validator: (v) => (v ?? '').trim().isEmpty ? context.l10n.purEnterReason : null,
                   onFieldSubmitted: (_) => _submit(),
                 ),
                 if (_error != null)
@@ -148,7 +152,7 @@ class _ReasonActionDialogState extends State<ReasonActionDialog> {
         ),
       ),
       actions: [
-        TextButton(onPressed: _busy ? null : () => Navigator.pop(context, false), child: const Text('Назад')),
+        TextButton(onPressed: _busy ? null : () => Navigator.pop(context, false), child: Text(context.l10n.commonBack)),
         FilledButton(
           style: widget.destructive ? FilledButton.styleFrom(backgroundColor: AppColors.danger) : null,
           onPressed: _busy ? null : _submit,
@@ -165,7 +169,12 @@ class _ReasonActionDialogState extends State<ReasonActionDialog> {
 
 /// Manual balance correction (owner/admin). Returns true when posted.
 Future<bool> showSupplierAdjustDialog(BuildContext context, Supplier s) async {
-  final r = await showFormDialog<bool>(context, title: 'Корректировка баланса', width: 480, child: _AdjustForm(s));
+  final r = await showFormDialog<bool>(
+    context,
+    title: context.l10n.purAdjustTitle,
+    width: 480,
+    child: _AdjustForm(s),
+  );
   return r ?? false;
 }
 
@@ -203,7 +212,7 @@ class _AdjustFormState extends ConsumerState<_AdjustForm> {
             userId: ref.read(sessionProvider)?.user.id,
           );
       if (!mounted) return;
-      showSuccess(context, 'Корректировка ${delta > 0 ? '+' : '−'}${Money.format(delta.abs())} проведена');
+      showSuccess(context, context.l10n.purAdjustDone('${delta > 0 ? '+' : '−'}${Money.format(delta.abs())}'));
       Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
@@ -215,9 +224,10 @@ class _AdjustFormState extends ConsumerState<_AdjustForm> {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final live = ref.watch(purSupplierProvider(widget.s.id)).value ?? widget.s;
     final after = live.balance + _sign * (_amount ?? 0);
-    String bal(int b) => b >= 0 ? 'наш долг ${Money.format(b)}' : 'аванс ${Money.format(-b)}';
+    String bal(int b) => b >= 0 ? l.purOurDebtLowerValue(Money.format(b)) : l.purAdvanceLowerValue(Money.format(-b));
     return Form(
       key: _key,
       child: SingleChildScrollView(
@@ -226,20 +236,20 @@ class _AdjustFormState extends ConsumerState<_AdjustForm> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(live.name, style: t.textTheme.titleMedium),
-            Text('Сейчас: ${bal(live.balance)}', style: t.textTheme.bodyMedium),
+            Text(l.purNowValue(bal(live.balance)), style: t.textTheme.bodyMedium),
             const SizedBox(height: Gap.l),
             SegmentedButton<int>(
               showSelectedIcon: false,
-              segments: const [
-                ButtonSegment(value: 1, icon: Icon(Icons.add), label: Text('Увеличить долг')),
-                ButtonSegment(value: -1, icon: Icon(Icons.remove), label: Text('Уменьшить долг')),
+              segments: [
+                ButtonSegment(value: 1, icon: const Icon(Icons.add), label: Text(l.purIncreaseDebt)),
+                ButtonSegment(value: -1, icon: const Icon(Icons.remove), label: Text(l.purDecreaseDebt)),
               ],
               selected: {_sign},
               onSelectionChanged: (v) => setState(() => _sign = v.first),
             ),
             const SizedBox(height: Gap.m),
             MoneyField(
-              label: 'Сумма *',
+              label: l.purAmountRequired,
               required: true,
               allowZero: false,
               autofocus: true,
@@ -249,20 +259,20 @@ class _AdjustFormState extends ConsumerState<_AdjustForm> {
             TextFormField(
               controller: _reason,
               maxLength: 200,
-              decoration: const InputDecoration(labelText: 'Причина *', hintText: 'Например: по акту сверки от …'),
-              validator: (v) => (v ?? '').trim().isEmpty ? 'Укажите причину корректировки' : null,
+              decoration: InputDecoration(labelText: l.purReasonRequired, hintText: l.purAdjustReasonHint),
+              validator: (v) => (v ?? '').trim().isEmpty ? l.purEnterAdjustReason : null,
               onFieldSubmitted: (_) => _submit(),
             ),
             const SizedBox(height: Gap.s),
             Text(
-              'После корректировки: ${bal(after)}',
+              l.purAfterAdjust(bal(after)),
               style: TextStyle(fontWeight: FontWeight.w600, color: after > 0 ? AppColors.danger : AppColors.success),
             ),
             const SizedBox(height: Gap.l),
             FilledButton.icon(
               onPressed: _busy ? null : _submit,
               icon: const Icon(Icons.tune),
-              label: const Text('Провести корректировку'),
+              label: Text(l.purPostAdjust),
             ),
           ],
         ),
@@ -293,7 +303,7 @@ class _SupplierLedgerViewState extends ConsumerState<SupplierLedgerView> {
       firstDate: DateTime(now.year - 5),
       lastDate: now,
       initialDateRange: _range,
-      helpText: 'Период взаиморасчётов',
+      helpText: context.l10n.purLedgerPeriodHelp,
     );
     if (r != null && mounted) {
       setState(() {
@@ -320,7 +330,7 @@ class _SupplierLedgerViewState extends ConsumerState<SupplierLedgerView> {
           await runGuarded(
             context,
             () => Clipboard.setData(ClipboardData(text: d.toCsv())),
-            success: 'Акт сверки скопирован — вставьте в Excel',
+            success: context.l10n.purActCopied,
           );
       }
     } finally {
@@ -331,6 +341,7 @@ class _SupplierLedgerViewState extends ConsumerState<SupplierLedgerView> {
   @override
   Widget build(BuildContext context) {
     final id = widget.supplierId;
+    final l = context.l10n;
     final supplier = ref.watch(purSupplierProvider(id)).value;
     final numbers = ref.watch(goodsReceiptNumbersProvider).value ?? const <String, int>{};
     final payments = <String, SupplierPayment>{
@@ -370,7 +381,7 @@ class _SupplierLedgerViewState extends ConsumerState<SupplierLedgerView> {
                 OutlinedButton.icon(
                   onPressed: () => showSupplierAdjustDialog(context, supplier),
                   icon: const Icon(Icons.tune),
-                  label: const Text('Корректировка'),
+                  label: Text(l.purLedgerAdjustment),
                 ),
               MenuAnchor(
                 builder: (context, ctl, _) => OutlinedButton.icon(
@@ -378,14 +389,14 @@ class _SupplierLedgerViewState extends ConsumerState<SupplierLedgerView> {
                   icon: _exporting
                       ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                       : const Icon(Icons.fact_check_outlined),
-                  label: const Text('Акт сверки'),
+                  label: Text(l.purActShort),
                 ),
                 menuChildren: [
-                  for (final (action, icon, text) in const [
-                    ('print', Icons.print_outlined, 'Печать / PDF'),
-                    ('share', Icons.share_outlined, 'Отправить PDF'),
-                    ('csv', Icons.table_view_outlined, 'Сохранить CSV (Excel)'),
-                    ('copy', Icons.copy, 'Копировать CSV'),
+                  for (final (action, icon, text) in [
+                    ('print', Icons.print_outlined, l.purActPrint),
+                    ('share', Icons.share_outlined, l.purActShare),
+                    ('csv', Icons.table_view_outlined, l.purActSaveCsv),
+                    ('copy', Icons.copy, l.purActCopyCsv),
                   ])
                     MenuItemButton(
                       leadingIcon: Icon(icon),
@@ -406,10 +417,8 @@ class _SupplierLedgerViewState extends ConsumerState<SupplierLedgerView> {
               ...header,
               EmptyState(
                 icon: Icons.account_balance_outlined,
-                title: entries.isEmpty ? 'Взаиморасчётов ещё не было' : 'Операций за период нет',
-                message: entries.isEmpty
-                    ? 'Здесь появятся приходы, оплаты и корректировки с текущим балансом'
-                    : 'Выберите другой период',
+                title: entries.isEmpty ? l.purLedgerEmpty : l.purLedgerEmptyPeriod,
+                message: entries.isEmpty ? l.purLedgerEmptyMessage : l.purChooseAnotherPeriod,
               ),
             ],
           );
@@ -427,10 +436,10 @@ class _SupplierLedgerViewState extends ConsumerState<SupplierLedgerView> {
                 if (wide && i == header.length) return const _ColumnTitles();
                 final k = i - lead;
                 if (k == 0) {
-                  return _BalanceRow(label: 'Сальдо на начало периода', balance: st.opening, wide: wide);
+                  return _BalanceRow(label: l.purOpeningBalance, balance: st.opening, wide: wide);
                 }
                 if (k == st.rows.length + 1) {
-                  return _BalanceRow(label: 'Сальдо на конец периода', balance: st.closing, wide: wide);
+                  return _BalanceRow(label: l.purClosingBalance, balance: st.closing, wide: wide);
                 }
                 final e = st.rows[k - 1];
                 final pay = e.kind == SupplierLedgerKind.payment && e.refId != null ? payments[e.refId] : null;
@@ -466,7 +475,7 @@ class _PeriodBar extends StatelessWidget {
           label: Text(
             p == LedgerPeriod.custom && period == LedgerPeriod.custom && range != null
                 ? '${formatDate(range!.start)} – ${formatDate(range!.end)}'
-                : p.label,
+                : p.labelIn(context.l10n),
           ),
           selected: period == p,
           onSelected: (_) => onSelect(p),
@@ -490,6 +499,7 @@ class _Totals extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final l = context.l10n;
     Widget cell(String label, String value, {Color? color}) => Card(
       margin: EdgeInsets.zero,
       child: Padding(
@@ -516,10 +526,10 @@ class _Totals extends StatelessWidget {
       ),
     );
     final cells = [
-      cell('Сальдо на начало', _signed(st.opening)),
-      cell('Приход (+)', Money.format(st.increase), color: st.increase > 0 ? AppColors.danger : null),
-      cell('Расход (−)', Money.format(st.decrease), color: st.decrease > 0 ? AppColors.success : null),
-      cell('Сальдо на конец', _signed(st.closing), color: st.closing > 0 ? AppColors.danger : AppColors.success),
+      cell(l.purOpeningShort, _signed(l, st.opening)),
+      cell(l.purIncrease, Money.format(st.increase), color: st.increase > 0 ? AppColors.danger : null),
+      cell(l.purDecrease, Money.format(st.decrease), color: st.decrease > 0 ? AppColors.success : null),
+      cell(l.purClosingShort, _signed(l, st.closing), color: st.closing > 0 ? AppColors.danger : AppColors.success),
     ];
     return LayoutBuilder(
       builder: (context, c) {
@@ -536,7 +546,7 @@ class _Totals extends StatelessWidget {
 }
 
 /// Balance with a hint of direction: «аванс» for negative balances.
-String _signed(int b) => b < 0 ? '${Money.format(-b)} аванс' : Money.format(b);
+String _signed(AppLocalizations l, int b) => b < 0 ? l.purAdvanceSuffix(Money.format(-b)) : Money.format(b);
 
 const _wDate = 120.0;
 const _wMoney = 120.0;
@@ -548,6 +558,7 @@ class _ColumnTitles extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final s = t.textTheme.labelMedium?.copyWith(color: t.colorScheme.onSurfaceVariant, fontWeight: FontWeight.w600);
     Widget r(String x, double w) => SizedBox(
       width: w,
@@ -559,12 +570,12 @@ class _ColumnTitles extends StatelessWidget {
         children: [
           SizedBox(
             width: _wDate,
-            child: Text('Дата', style: s),
+            child: Text(l.commonDate, style: s),
           ),
-          Expanded(child: Text('Операция', style: s)),
-          r('Приход (+)', _wMoney),
-          r('Расход (−)', _wMoney),
-          r('Баланс', _wBalance),
+          Expanded(child: Text(l.purOperation, style: s)),
+          r(l.purIncrease, _wMoney),
+          r(l.purDecrease, _wMoney),
+          r(l.commonBalance, _wBalance),
           const SizedBox(width: _wAction),
         ],
       ),
@@ -589,7 +600,7 @@ class _BalanceRow extends StatelessWidget {
         children: [
           if (wide) const SizedBox(width: _wDate),
           Expanded(child: Text(label, style: style)),
-          Text(_signed(balance), style: style, textAlign: TextAlign.right),
+          Text(_signed(context.l10n, balance), style: style, textAlign: TextAlign.right),
           if (wide) const SizedBox(width: _wAction),
         ],
       ),
@@ -614,6 +625,7 @@ class _LedgerRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final muted = t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant);
     final inc = e.amount > 0 ? Money.format(e.amount) : '';
     final dec = e.amount < 0 ? Money.format(-e.amount) : '';
@@ -627,7 +639,7 @@ class _LedgerRow extends StatelessWidget {
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         Text(operation, style: t.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
-        if (cancelled) const StatusChip('Отменена', color: AppColors.danger),
+        if (cancelled) StatusChip(l.purCancelledFem, color: AppColors.danger),
       ],
     );
     final action = onCancel == null
@@ -635,7 +647,7 @@ class _LedgerRow extends StatelessWidget {
         : SizedBox(
             width: _wAction,
             child: IconButton(
-              tooltip: 'Отменить оплату',
+              tooltip: l.purCancelPayment,
               visualDensity: VisualDensity.compact,
               onPressed: onCancel,
               icon: const Icon(Icons.undo, color: AppColors.danger),
@@ -668,7 +680,7 @@ class _LedgerRow extends StatelessWidget {
           ),
           money(inc, _wMoney, c: upColor),
           money(dec, _wMoney, c: downColor),
-          money(_signed(e.balanceAfter), _wBalance, bold: true),
+          money(_signed(l, e.balanceAfter), _wBalance, bold: true),
           action,
         ],
       );
@@ -702,7 +714,7 @@ class _LedgerRow extends StatelessWidget {
                   color: e.amount > 0 ? upColor : downColor,
                 ),
               ),
-              Text('баланс ${_signed(e.balanceAfter)}', style: muted),
+              Text(l.purBalanceLower(_signed(l, e.balanceAfter)), style: muted),
             ],
           ),
           if (onCancel != null) action,

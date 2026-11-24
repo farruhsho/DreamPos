@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/db/database.dart';
 import '../../core/money.dart';
 import '../../domain/services/sale_service.dart';
+import '../../l10n/l10n.dart';
 
 /// Largest quantity a single line may hold (protects against typos like
 /// scanning a barcode into the qty field).
@@ -338,14 +339,15 @@ class CartState {
 // ------------------------------------------------------------------ rules
 
 /// Validates a quantity for a unit. Returns an error message or null.
-String? validateQty(double? qty, String unit) {
-  if (qty == null || qty.isNaN || qty.isInfinite) return 'Введите число';
-  if (qty <= 0) return 'Количество должно быть больше нуля';
-  if (qty > maxLineQty) return 'Слишком большое количество';
+String? validateQty(double? qty, String unit, [AppLocalizations? l]) {
+  final t = l ?? L.current;
+  if (qty == null || qty.isNaN || qty.isInfinite) return t.commonEnterNumber;
+  if (qty <= 0) return t.errQtyMustBePositive;
+  if (qty > maxLineQty) return t.errQtyTooLarge;
   if (!Qty.isFractional(unit) && qty != qty.roundToDouble()) {
-    return 'Для «${Qty.unitLabel(unit)}» только целое количество';
+    return t.posQtyIntegerOnly(Qty.unitLabel(unit, t));
   }
-  if (Qty.round(qty) <= 0) return 'Слишком маленькое количество';
+  if (Qty.round(qty) <= 0) return t.posQtyTooSmall;
   return null;
 }
 
@@ -380,7 +382,8 @@ class ScanInput {
   String toString() => 'ScanInput($code x $qty)';
 }
 
-final _multiplierRe = RegExp(r'^(\d+(?:[.,]\d+)?)\s*[*xXхХ×]\s*(\S+)$');
+// Cyrillic х/Х: a cashier may type the multiplier on a Russian layout (not UI text).
+final _multiplierRe = RegExp(r'^(\d+(?:[.,]\d+)?)\s*[*xXхХ×]\s*(\S+)$'); // l10n-ignore
 
 /// Parses "4780000000011", "3*4780000000011" or "0,5*2000001".
 /// Returns null for empty input or an invalid multiplier ("0*123").
@@ -418,7 +421,7 @@ class CartController extends Notifier<CartState> {
     if (idx >= 0) {
       final l = state.lines[idx];
       final newQty = Qty.round(l.qty + qty);
-      if (newQty > maxLineQty) return 'Слишком большое количество';
+      if (newQty > maxLineQty) return L.current.errQtyTooLarge;
       final lines = [...state.lines]..[idx] = l.copyWith(qty: newQty);
       state = state.copyWith(lines: lines, selectedKey: l.key);
       return null;
@@ -446,7 +449,7 @@ class CartController extends Notifier<CartState> {
   /// Sets the exact quantity. Returns an error message when invalid.
   String? setQty(String key, double qty) {
     final l = state.line(key);
-    if (l == null) return 'Позиция не найдена';
+    if (l == null) return L.current.posLineNotFound;
     final err = validateQty(qty, l.unit);
     if (err != null) return err;
     _replace(key, (l) => l.copyWith(qty: Qty.round(qty)));
@@ -494,8 +497,8 @@ class CartController extends Notifier<CartState> {
   }
 
   String? setPrice(String key, int price) {
-    if (price < 0) return 'Цена не может быть отрицательной';
-    if (state.line(key) == null) return 'Позиция не найдена';
+    if (price < 0) return L.current.errPriceNegative;
+    if (state.line(key) == null) return L.current.posLineNotFound;
     _replace(key, (l) => l.copyWith(unitPrice: price));
     return null;
   }
@@ -505,18 +508,18 @@ class CartController extends Notifier<CartState> {
   String? setLineDiscount(String key,
       {int amount = 0, double percent = 0, String? approvedBy}) {
     final l = state.line(key);
-    if (l == null) return 'Позиция не найдена';
-    if (amount < 0 || percent < 0) return 'Скидка не может быть отрицательной';
-    if (percent > 100) return 'Скидка не может превышать 100%';
-    if (amount > l.gross) return 'Скидка больше суммы позиции';
+    if (l == null) return L.current.posLineNotFound;
+    if (amount < 0 || percent < 0) return L.current.posDiscountNegative;
+    if (percent > 100) return L.current.posDiscountOver100;
+    if (amount > l.gross) return L.current.posDiscountOverLine;
     state = state.withLineDiscount(key, amount: amount, percent: percent, approvedBy: approvedBy);
     return null;
   }
 
   String? setOrderDiscount({int amount = 0, double percent = 0, String? approvedBy}) {
-    if (amount < 0 || percent < 0) return 'Скидка не может быть отрицательной';
-    if (percent > 100) return 'Скидка не может превышать 100%';
-    if (amount > state.grossTotal) return 'Скидка больше суммы чека';
+    if (amount < 0 || percent < 0) return L.current.posDiscountNegative;
+    if (percent > 100) return L.current.posDiscountOver100;
+    if (amount > state.grossTotal) return L.current.posDiscountOverCart;
     state = state.withOrderDiscount(amount: amount, percent: percent, approvedBy: approvedBy);
     return null;
   }

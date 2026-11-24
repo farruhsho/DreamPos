@@ -1,3 +1,4 @@
+import 'package:dreampos/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -7,6 +8,8 @@ void main() {
   for (final size in uxSizes.keys) {
     testWidgets('customers screens $size', skip: !screenshotsEnabled, (tester) async {
       final h = await UxHarness.start(tester, size: size);
+      // finders follow the screenshot language (SCREENSHOTS_LOCALE)
+      final l = L.of(h.locale);
       Future<void> pop(Finder inside) async {
         Navigator.of(tester.element(inside.last)).pop();
         await h.settle();
@@ -23,13 +26,13 @@ void main() {
           find.text(full).evaluate().isNotEmpty ? find.text(full) : find.text(short);
       if (size == 'phone') {
         await tester.dragUntilVisible(
-            tab('Долги и бонусы', 'Операции'), find.byType(ListView).last, const Offset(0, -200));
+            tab(l.custTabLedger, l.custTabLedgerShort), find.byType(ListView).last, const Offset(0, -200));
         await h.settle();
       }
-      await tester.tap(tab('Долги и бонусы', 'Операции').first);
+      await tester.tap(tab(l.custTabLedger, l.custTabLedgerShort).first);
       await h.settle();
       await h.shot('customers_detail_ledger');
-      await tester.tap(tab('Любимые товары', 'Любимое').first);
+      await tester.tap(tab(l.custTabFav, l.custTabFavShort).first);
       await h.settle();
       await h.shot('customers_detail_favorites');
 
@@ -37,28 +40,28 @@ void main() {
         await tester.drag(find.byType(ListView).last, const Offset(0, 2000));
         await h.settle();
       }
-      final pay = find.text('Принять оплату долга');
+      final pay = find.text(l.custAcceptDebtPayment);
       await tester.ensureVisible(pay.first);
       await tester.tap(pay.first);
       await h.settle();
       await h.shot('customers_pay_debt');
-      await pop(find.text('Принять оплату долга'));
+      await pop(find.text(l.custAcceptDebtPayment));
 
-      final edit = find.text('Изменить');
+      final edit = find.text(l.commonEdit);
       await tester.ensureVisible(edit.first);
       await tester.tap(edit.first);
       await h.settle();
       await h.shot('customers_editor_edit');
-      await pop(find.text('Редактирование клиента'));
+      await pop(find.text(l.custEditTitle));
 
       if (size == 'phone') {
-        await pop(find.text('Карточка клиента'));
+        await pop(find.text(l.custCardTitle));
       }
-      final add = find.byTooltip('Новый клиент (Ctrl+N)');
-      await tester.tap(add.evaluate().isNotEmpty ? add.first : find.text('Новый клиент').first);
+      final add = find.byTooltip(l.custNewTooltip);
+      await tester.tap(add.evaluate().isNotEmpty ? add.first : find.text(l.custNew).first);
       await h.settle();
       await h.shot('customers_editor_new');
-      await pop(find.text('Новый клиент').last);
+      await pop(find.text(l.custNew).last);
 
       await tester.enterText(find.byType(TextField).first, 'zzzzzz');
       await h.settle();

@@ -10,6 +10,7 @@ import '../../core/money.dart';
 import '../../core/providers.dart';
 import '../../domain/errors.dart';
 import '../../domain/services/stock_service.dart';
+import '../../l10n/l10n.dart';
 import 'product_logic.dart';
 
 /// Editable product fields (one form state -> one write).
@@ -354,33 +355,33 @@ class ProductsRepo {
   /// of an existing product. Returns the product id.
   Future<String> saveProduct(ProductDraft d,
       {Product? existing, String? userId, bool canEditPrices = true}) async {
+    final l = L.current;
     final name = d.name.trim();
-    if (name.isEmpty) throw BusinessException('Введите название товара');
-    if (name.length > 200) throw BusinessException('Название длиннее 200 символов');
-    if (d.price < 0) throw BusinessException('Цена не может быть отрицательной');
-    if (d.costPrice < 0) throw BusinessException('Себестоимость не может быть отрицательной');
-    if ((d.wholesalePrice ?? 0) < 0) throw BusinessException('Оптовая цена не может быть отрицательной');
-    if (d.vatPercent < 0 || d.vatPercent > 100) throw BusinessException('НДС должен быть от 0 до 100%');
-    if (d.minStock < 0) throw BusinessException('Минимальный остаток не может быть отрицательным');
-    if (d.initialStock < 0) throw BusinessException('Начальный остаток не может быть отрицательным');
+    if (name.isEmpty) throw BusinessException(l.prodErrEnterName);
+    if (name.length > 200) throw BusinessException(l.prodNameTooLong);
+    if (d.price < 0) throw BusinessException(l.prodErrPriceNegative);
+    if (d.costPrice < 0) throw BusinessException(l.prodErrCostNegative);
+    if ((d.wholesalePrice ?? 0) < 0) throw BusinessException(l.prodErrWholesaleNegative);
+    if (d.vatPercent < 0 || d.vatPercent > 100) throw BusinessException(l.prodErrVatRange);
+    if (d.minStock < 0) throw BusinessException(l.prodErrMinStockNegative);
+    if (d.initialStock < 0) throw BusinessException(l.prodErrInitStockNegative);
     final barcode = _blankToNull(d.barcode);
     if (barcode != null) {
       final owner = await barcodeOwner(barcode, excludeId: existing?.id);
       if (owner != null) {
-        throw BusinessException('Штрихкод $barcode уже используется товаром «${owner.name}»',
-            code: 'barcode');
+        throw BusinessException(l.prodErrBarcodeUsedBy(barcode, owner.name), code: 'barcode');
       }
     }
     if (existing == null && d.trackStock && !Qty.isFractional(d.unit) &&
         d.initialStock != d.initialStock.roundToDouble()) {
-      throw BusinessException('Начальный остаток для «${Qty.unitLabel(d.unit)}» должен быть целым');
+      throw BusinessException(l.prodErrInitStockInteger(Qty.unitLabel(d.unit, l)));
     }
     if (existing != null && !canEditPrices) {
       if (d.price != existing.price ||
           d.costPrice != existing.costPrice ||
           d.wholesalePrice != existing.wholesalePrice ||
           d.vatPercent != existing.vatPercent) {
-        throw BusinessException('Нет права менять цены', code: 'perm');
+        throw BusinessException(l.prodNoPricePerm, code: 'perm');
       }
     }
     final now = DateTime.now();
@@ -388,7 +389,7 @@ class ProductsRepo {
       // Re-check inside the transaction: another register may have saved the
       // same barcode a moment ago.
       if (barcode != null && await barcodeOwner(barcode, excludeId: existing?.id) != null) {
-        throw BusinessException('Штрихкод $barcode уже используется другим товаром', code: 'barcode');
+        throw BusinessException(l.prodErrBarcodeUsedOther(barcode), code: 'barcode');
       }
       if (existing == null) {
         final id = newId();
@@ -419,7 +420,7 @@ class ProductsRepo {
             userId: userId,
             entity: 'product',
             entityId: id,
-            details: '$name; цена ${Money.format(d.price)}');
+            details: '$name; цена ${Money.format(d.price)}'); // l10n-ignore
         if (d.trackStock && d.initialStock > 0) {
           await stock.receive(
             productId: id,
@@ -427,7 +428,7 @@ class ProductsRepo {
             unitCost: d.costPrice,
             refType: 'manual',
             userId: userId,
-            reason: 'Начальный остаток',
+            reason: 'Начальный остаток', // l10n-ignore
           );
         }
         return id;
@@ -436,9 +437,11 @@ class ProductsRepo {
       // Current row (may differ from the snapshot if someone else saved).
       final cur = await (db.select(db.products)..where((p) => p.id.equals(existing.id)))
           .getSingle();
-      if (cur.deletedAt != null) throw BusinessException('Товар уже удалён');
+      if (cur.deletedAt != null) throw BusinessException(l.prodErrAlreadyDeleted);
       var c = const ProductsCompanion();
       final changes = <String>[];
+      // Labels below go to the audit log (stored in the DB), so they stay
+      // Russian (spec «Not translated»).
       // A field is written when the user changed it relative to the snapshot
       // and it differs from the current value.
       void diff<T>(String label, T base, T current, T newV, ProductsCompanion Function(ProductsCompanion) set) {
@@ -449,41 +452,41 @@ class ProductsRepo {
       }
 
       final e = existing;
-      diff('название', e.name, cur.name, name, (c) => c.copyWith(name: Value(name)));
-      diff('категория', e.categoryId, cur.categoryId, d.categoryId,
+      diff('название', e.name, cur.name, name, (c) => c.copyWith(name: Value(name))); // l10n-ignore
+      diff('категория', e.categoryId, cur.categoryId, d.categoryId, // l10n-ignore
           (c) => c.copyWith(categoryId: Value(d.categoryId)));
       final unitChanged = e.unit != d.unit && cur.unit != d.unit;
       if (unitChanged && cur.trackStock && !Qty.isFractional(d.unit) &&
           cur.stockQty != cur.stockQty.roundToDouble()) {
-        throw BusinessException('Остаток ${Qty.format(cur.stockQty, cur.unit)} дробный — '
-            'сначала исправьте его в разделе «Склад», затем меняйте единицу на «${Qty.unitLabel(d.unit)}»');
+        throw BusinessException(
+            l.prodErrFractionalStock(Qty.format(cur.stockQty, cur.unit, l), Qty.unitLabel(d.unit, l)));
       }
-      diff('ед.', e.unit, cur.unit, d.unit, (c) => c.copyWith(unit: Value(d.unit)));
+      diff('ед.', e.unit, cur.unit, d.unit, (c) => c.copyWith(unit: Value(d.unit))); // l10n-ignore
       final desc = _blankToNull(d.description);
-      diff('описание', e.description, cur.description, desc, (c) => c.copyWith(description: Value(desc)));
-      diff('активность', e.isActive, cur.isActive, d.isActive, (c) => c.copyWith(isActive: Value(d.isActive)));
-      diff('избранное', e.isFavorite, cur.isFavorite, d.isFavorite,
+      diff('описание', e.description, cur.description, desc, (c) => c.copyWith(description: Value(desc))); // l10n-ignore
+      diff('активность', e.isActive, cur.isActive, d.isActive, (c) => c.copyWith(isActive: Value(d.isActive))); // l10n-ignore
+      diff('избранное', e.isFavorite, cur.isFavorite, d.isFavorite, // l10n-ignore
           (c) => c.copyWith(isFavorite: Value(d.isFavorite)));
       final priceChanged = e.price != d.price && cur.price != d.price;
-      diff('цена', e.price, cur.price, d.price, (c) => c.copyWith(price: Value(d.price)));
+      diff('цена', e.price, cur.price, d.price, (c) => c.copyWith(price: Value(d.price))); // l10n-ignore
       final costChanged = e.costPrice != d.costPrice && cur.costPrice != d.costPrice;
-      diff('себестоимость', e.costPrice, cur.costPrice, d.costPrice,
+      diff('себестоимость', e.costPrice, cur.costPrice, d.costPrice, // l10n-ignore
           (c) => c.copyWith(costPrice: Value(d.costPrice)));
-      diff('опт', e.wholesalePrice, cur.wholesalePrice, d.wholesalePrice,
+      diff('опт', e.wholesalePrice, cur.wholesalePrice, d.wholesalePrice, // l10n-ignore
           (c) => c.copyWith(wholesalePrice: Value(d.wholesalePrice)));
-      diff('НДС', e.vatPercent, cur.vatPercent, d.vatPercent, (c) => c.copyWith(vatPercent: Value(d.vatPercent)));
-      diff('штрихкод', e.barcode, cur.barcode, barcode, (c) => c.copyWith(barcode: Value(barcode)));
+      diff('НДС', e.vatPercent, cur.vatPercent, d.vatPercent, (c) => c.copyWith(vatPercent: Value(d.vatPercent))); // l10n-ignore
+      diff('штрихкод', e.barcode, cur.barcode, barcode, (c) => c.copyWith(barcode: Value(barcode))); // l10n-ignore
       final sku = _blankToNull(d.sku);
-      diff('артикул', e.sku, cur.sku, sku, (c) => c.copyWith(sku: Value(sku)));
-      diff('учёт остатка', e.trackStock, cur.trackStock, d.trackStock,
+      diff('артикул', e.sku, cur.sku, sku, (c) => c.copyWith(sku: Value(sku))); // l10n-ignore
+      diff('учёт остатка', e.trackStock, cur.trackStock, d.trackStock, // l10n-ignore
           (c) => c.copyWith(trackStock: Value(d.trackStock)));
-      diff('минус', e.allowNegativeStock, cur.allowNegativeStock, d.allowNegativeStock,
+      diff('минус', e.allowNegativeStock, cur.allowNegativeStock, d.allowNegativeStock, // l10n-ignore
           (c) => c.copyWith(allowNegativeStock: Value(d.allowNegativeStock)));
       final minStock = Qty.round(d.minStock);
-      diff('мин. остаток', e.minStock, cur.minStock, minStock, (c) => c.copyWith(minStock: Value(minStock)));
-      diff('гарантия', e.warrantyMonths, cur.warrantyMonths, d.warrantyMonths,
+      diff('мин. остаток', e.minStock, cur.minStock, minStock, (c) => c.copyWith(minStock: Value(minStock))); // l10n-ignore
+      diff('гарантия', e.warrantyMonths, cur.warrantyMonths, d.warrantyMonths, // l10n-ignore
           (c) => c.copyWith(warrantyMonths: Value(d.warrantyMonths)));
-      diff('поставщик', e.supplierId, cur.supplierId, d.supplierId,
+      diff('поставщик', e.supplierId, cur.supplierId, d.supplierId, // l10n-ignore
           (c) => c.copyWith(supplierId: Value(d.supplierId)));
       if (changes.isEmpty) return cur.id;
 
@@ -525,7 +528,7 @@ class ProductsRepo {
           userId: userId,
           entity: 'product',
           entityId: list.length == 1 ? list.first : null,
-          details: list.length == 1 ? null : '${list.length} товаров');
+          details: list.length == 1 ? null : '${list.length} товаров'); // l10n-ignore
     });
   }
 
@@ -540,7 +543,7 @@ class ProductsRepo {
     await db.transaction(() async {
       // Checked inside the transaction so a sale made meanwhile blocks it.
       if (await hasHistory(id)) {
-        throw BusinessException('По товару есть операции (продажи, движения). Его можно только архивировать.',
+        throw BusinessException(L.current.prodErrHasHistory,
             code: 'has_history');
       }
       final p = await (db.select(db.products)..where((t) => t.id.equals(id))).getSingle();
@@ -563,7 +566,7 @@ class ProductsRepo {
         await db.markDirty('products', id);
       }
       await db.audit('product.bulk_category',
-          userId: userId, entity: 'category', entityId: categoryId, details: '${list.length} товаров');
+          userId: userId, entity: 'category', entityId: categoryId, details: '${list.length} товаров'); // l10n-ignore
     });
   }
 
@@ -575,7 +578,7 @@ class ProductsRepo {
       final now = DateTime.now();
       for (final p in products) {
         final np = newPrices[p.id]!;
-        if (np < 0) throw BusinessException('Цена не может быть отрицательной: ${p.name}');
+        if (np < 0) throw BusinessException(L.current.prodErrPriceNegativeFor(p.name));
         if (np == p.price) continue;
         await (db.update(db.products)..where((t) => t.id.equals(p.id)))
             .write(ProductsCompanion(price: Value(np), updatedAt: Value(now)));
@@ -588,7 +591,7 @@ class ProductsRepo {
         changed++;
       }
       await db.audit('product.bulk_price',
-          userId: userId, details: '${note ?? ''}; изменено $changed из ${newPrices.length}');
+          userId: userId, details: '${note ?? ''}; изменено $changed из ${newPrices.length}'); // l10n-ignore
     });
     return changed;
   }
@@ -597,11 +600,11 @@ class ProductsRepo {
 
   Future<String> saveCategory({String? id, required String name, required int color}) async {
     final n = name.trim();
-    if (n.isEmpty) throw BusinessException('Введите название категории');
-    if (n.length > 120) throw BusinessException('Название длиннее 120 символов');
+    if (n.isEmpty) throw BusinessException(L.current.prodErrEnterCategoryName);
+    if (n.length > 120) throw BusinessException(L.current.prodErrCategoryNameTooLong);
     final all = await (db.select(db.categories)..where((c) => c.deletedAt.isNull())).get();
     final dup = all.firstWhereOrNull((c) => c.id != id && c.name.toLowerCase() == n.toLowerCase());
-    if (dup != null) throw BusinessException('Категория «${dup.name}» уже существует');
+    if (dup != null) throw BusinessException(L.current.prodErrCategoryExists(dup.name));
     final now = DateTime.now();
     if (id == null) {
       final newIdV = newId();
@@ -647,10 +650,10 @@ class ProductsRepo {
       {String? moveTo, bool moveToNone = false, String? userId}) async {
     final count = await categoryProductCount(id);
     if (count > 0 && moveTo == null && !moveToNone) {
-      throw BusinessException('В категории $count товаров — выберите, куда их перенести',
+      throw BusinessException(L.current.prodErrCategoryInUse('$count'),
           code: 'category_in_use');
     }
-    if (moveTo == id) throw BusinessException('Выберите другую категорию');
+    if (moveTo == id) throw BusinessException(L.current.prodErrPickOtherCategory);
     await db.transaction(() async {
       final now = DateTime.now();
       // Move all referencing rows (deleted ones too) so nothing points to a
@@ -671,7 +674,7 @@ class ProductsRepo {
           .write(CategoriesCompanion(deletedAt: Value(now), updatedAt: Value(now)));
       await db.markDirty('categories', id, op: 'delete');
       await db.audit('category.delete',
-          userId: userId, entity: 'category', entityId: id, details: 'перенесено товаров: ${ids.length}');
+          userId: userId, entity: 'category', entityId: id, details: 'перенесено товаров: ${ids.length}'); // l10n-ignore
     });
   }
 
@@ -691,10 +694,10 @@ class ProductsRepo {
       } else if (updateExisting) {
         out.add(PlannedImport(r, ImportAction.update,
             existing: existing,
-            note: r.stock != null ? 'Остаток не меняется — используйте «Склад»' : null));
+            note: r.stock != null ? L.current.prodImpNoteStockUnchanged : null));
       } else {
         out.add(PlannedImport(r, ImportAction.skip,
-            existing: existing, note: 'Штрихкод уже у товара «${existing.name}»'));
+            existing: existing, note: L.current.prodImpNoteBarcodeTaken(existing.name)));
       }
     }
     return out;
@@ -758,7 +761,7 @@ class ProductsRepo {
       }
       await db.audit('product.import',
           userId: userId,
-          details: 'создано ${res.created}, обновлено ${res.updated}, пропущено ${res.skipped}');
+          details: 'создано ${res.created}, обновлено ${res.updated}, пропущено ${res.skipped}'); // l10n-ignore
     });
     return res;
   }
@@ -778,7 +781,8 @@ class ProductsRepo {
           p.categoryId == null ? '' : (catName[p.categoryId] ?? ''),
           moneyCsv(p.price),
           if (includeCost) moneyCsv(p.costPrice),
-          Qty.unitLabel(p.unit),
+          // Language-independent so the file re-imports under any UI language.
+          Qty.unitLabel(p.unit, L.of('ru')),
           qtyCsv(p.stockQty),
         ],
     ];

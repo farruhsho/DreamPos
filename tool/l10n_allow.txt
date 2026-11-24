@@ -1,0 +1,31 @@
+# Legitimate Cyrillic string literals in lib/ (see tool/l10n_check.dart).
+# Format:  <file>                 - the whole file
+#          <folder>/              - everything under the folder
+#          <file> | <text>        - literals in <file> whose source contains <text>
+# A single line can also be marked with a trailing `// l10n-ignore` comment.
+# Keep every entry justified: user-visible UI text belongs in lib/l10n/src/.
+
+# Demo seed content (product/customer names; optional to localize, spec «Not translated»).
+lib/core/db/demo_seed.dart
+
+# Currency symbols are not translated.
+lib/core/money.dart | 'сум'
+lib/core/money.dart | 'сом
+lib/core/money.dart | 'тг'
+
+# Text stored in the DB (ledger notes, stock movement reasons, audit details)
+# stays as written; it is user data afterwards (spec «Not translated»).
+lib/core/db/database.dart | Начальный остаток
+lib/domain/services/receipt_service.dart | Приход №
+lib/domain/services/receipt_service.dart | Поставщик: ${sup.name}
+lib/domain/services/receipt_service.dart | Заказ поставщику №
+lib/domain/services/receipt_service.dart | приход №$number
+lib/domain/services/receipt_service.dart | позиций ${lines.length}
+lib/domain/services/receipt_service.dart | '; поставщик ${sup.name}'
+lib/domain/services/receipt_service.dart | '; заказ №${order.number}'
+lib/domain/services/receipt_service.dart | Сторно прихода №
+lib/domain/services/receipt_service.dart | сторно прихода №
+lib/domain/services/receipt_service.dart | сумма ${r.total}; $why
+lib/domain/services/sale_service.dart | Аннулирование чека №
+lib/domain/services/stock_service.dart | Инвентаризация №${count.number}
+lib/domain/services/supplier_service.dart | баланс

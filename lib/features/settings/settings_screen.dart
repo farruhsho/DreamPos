@@ -5,6 +5,7 @@ import '../../core/permissions.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
+import '../../l10n/l10n.dart';
 import 'sections/about_section.dart';
 import 'sections/appearance_section.dart';
 import 'sections/backup_section.dart';
@@ -18,20 +19,45 @@ import 'settings_providers.dart';
 import 'settings_widgets.dart';
 
 enum SettingsSection {
-  store('Магазин', 'Название, реквизиты, чек', Icons.storefront_outlined),
-  currency('Валюта и налоги', 'Валюта учёта, НДС', Icons.currency_exchange),
-  sales('Продажи', 'Смены, возвраты, оплата', Icons.shopping_cart_outlined),
-  loyalty('Лояльность', 'Бонусная программа', Icons.loyalty_outlined),
-  devices('Кассы и устройства', 'Кассы, принтер, сканер', Icons.devices_outlined),
-  appearance('Внешний вид', 'Светлая и тёмная тема', Icons.palette_outlined),
-  backup('Резервное копирование', 'Копии и восстановление', Icons.backup_outlined),
-  data('Данные', 'Демо-режим, экспорт', Icons.dataset_outlined),
-  about('О программе', 'Версия, лицензия, помощь', Icons.info_outline);
+  store(Icons.storefront_outlined),
+  currency(Icons.currency_exchange),
+  sales(Icons.shopping_cart_outlined),
+  loyalty(Icons.loyalty_outlined),
+  devices(Icons.devices_outlined),
+  appearance(Icons.palette_outlined),
+  backup(Icons.backup_outlined),
+  data(Icons.dataset_outlined),
+  about(Icons.info_outline);
 
-  const SettingsSection(this.label, this.hint, this.icon);
-  final String label;
-  final String hint;
+  const SettingsSection(this.icon);
   final IconData icon;
+
+  String labelIn(AppLocalizations l) => switch (this) {
+    store => l.settingsSecStore,
+    currency => l.settingsSecCurrency,
+    sales => l.settingsSecSales,
+    loyalty => l.settingsSecLoyalty,
+    devices => l.settingsSecDevices,
+    appearance => l.settingsSecAppearance,
+    backup => l.settingsSecBackup,
+    data => l.settingsSecData,
+    about => l.settingsSecAbout,
+  };
+
+  String hintIn(AppLocalizations l) => switch (this) {
+    store => l.settingsSecStoreHint,
+    currency => l.settingsSecCurrencyHint,
+    sales => l.settingsSecSalesHint,
+    loyalty => l.settingsSecLoyaltyHint,
+    devices => l.settingsSecDevicesHint,
+    appearance => l.settingsSecAppearanceHint,
+    backup => l.settingsSecBackupHint,
+    data => l.settingsSecDataHint,
+    about => l.settingsSecAboutHint,
+  };
+
+  String get label => labelIn(L.current);
+  String get hint => hintIn(L.current);
 
   Widget build() => switch (this) {
     store => const StoreSection(),
@@ -93,12 +119,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget build(BuildContext context) {
     final session = ref.watch(sessionProvider);
     if (session == null || !session.can(Perm.manageSettings)) {
-      return const PageScaffold(
-        title: 'Настройки',
+      return PageScaffold(
+        title: context.l10n.settingsTitle,
         body: EmptyState(
           icon: Icons.lock_outline,
-          title: 'Нет доступа',
-          message: 'Настройки может менять только владелец или администратор.',
+          title: context.l10n.settingsNoAccess,
+          message: context.l10n.settingsNoAccessMessage,
         ),
       );
     }
@@ -107,7 +133,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       builder: (context, c) {
         final wide = context.isWide;
         return PageScaffold(
-          title: 'Настройки',
+          title: context.l10n.settingsTitle,
           padding: EdgeInsets.zero,
           body: AsyncView(
             value: settings,
@@ -140,8 +166,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       selectedTileColor: t.colorScheme.primaryContainer.withValues(alpha: 0.6),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       leading: Icon(s.icon),
-                      title: Text(s.label),
-                      subtitle: Text(s.hint, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      title: Text(s.labelIn(context.l10n)),
+                      subtitle: Text(s.hintIn(context.l10n), maxLines: 1, overflow: TextOverflow.ellipsis),
                       onTap: () => _select(s),
                     ),
                   ),
@@ -167,8 +193,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ListTile(
           key: ValueKey('nav-${s.name}'),
           leading: Icon(s.icon),
-          title: Text(s.label),
-          subtitle: Text(s.hint),
+          title: Text(s.labelIn(context.l10n)),
+          subtitle: Text(s.hintIn(context.l10n)),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => _open(s),
         ),
@@ -193,6 +219,6 @@ class _SectionPage extends StatelessWidget {
       dirty.value = false;
       if (context.mounted) Navigator.of(context).pop();
     },
-    child: PageScaffold(title: section.label, padding: EdgeInsets.zero, body: section.build()),
+    child: PageScaffold(title: section.labelIn(context.l10n), padding: EdgeInsets.zero, body: section.build()),
   );
 }

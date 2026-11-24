@@ -7,6 +7,7 @@ import '../../core/money.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
+import '../../l10n/l10n.dart';
 import '../customers/customer_logic.dart';
 import '../customers/customer_repo.dart';
 
@@ -19,16 +20,18 @@ const mailingSegments = [
   CustomerSegment.vip,
 ];
 
-String defaultTemplate(CustomerSegment s) => switch (s) {
-  CustomerSegment.birthdays => 'Здравствуйте, {name}! {store} поздравляет вас с днём рождения! Ждём вас за подарком.',
-  CustomerSegment.sleeping =>
-    'Здравствуйте, {name}! Давно не виделись — в {store} много новинок. Ваши бонусы: {bonus}. Ждём вас!',
-  CustomerSegment.debtors ||
-  CustomerSegment.overdue => 'Здравствуйте, {name}! Напоминаем, что ваш долг в {store} составляет {debt}. Спасибо!',
-  CustomerSegment.vip =>
-    'Здравствуйте, {name}! Вы — наш VIP-клиент. Для вас в {store} особые предложения. Ваши бонусы: {bonus}.',
-  CustomerSegment.all => 'Здравствуйте, {name}! ',
-};
+/// Stock message for a segment. The `{name}`-style tokens are substituted by
+/// [fillTemplate]; they are passed into the ARB messages verbatim.
+String defaultTemplate(CustomerSegment s, [AppLocalizations? l]) {
+  final t = l ?? L.current;
+  return switch (s) {
+    CustomerSegment.birthdays => t.mktTplBirthday('{name}', '{store}'),
+    CustomerSegment.sleeping => t.mktTplSleeping('{name}', '{store}', '{bonus}'),
+    CustomerSegment.debtors || CustomerSegment.overdue => t.mktTplDebt('{name}', '{store}', '{debt}'),
+    CustomerSegment.vip => t.mktTplVip('{name}', '{store}', '{bonus}'),
+    CustomerSegment.all => t.mktTplAll('{name}'),
+  };
+}
 
 /// Builds customer lists for manual campaigns (no SMS gateway — D-014):
 /// copy phones or personalised messages to the clipboard.
@@ -67,9 +70,10 @@ class _MailingTabState extends ConsumerState<MailingTab> {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final async = ref.watch(customersListProvider);
     final overdue = ref.watch(overdueDebtsProvider).value ?? const <String, int>{};
-    final store = ref.watch(settingProvider('store_name')) ?? 'наш магазин';
+    final store = ref.watch(settingProvider('store_name')) ?? l.mktOurStore;
     final now = DateTime.now();
 
     return AsyncView<List<Customer>>(
@@ -94,7 +98,7 @@ class _MailingTabState extends ConsumerState<MailingTab> {
         final controls = Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Сегмент', style: t.textTheme.labelLarge),
+            Text(l.mktSegment, style: t.textTheme.labelLarge),
             const SizedBox(height: Gap.s),
             Wrap(
               spacing: Gap.xs,
@@ -118,12 +122,12 @@ class _MailingTabState extends ConsumerState<MailingTab> {
               controller: _template,
               minLines: 3,
               maxLines: 6,
-              decoration: const InputDecoration(labelText: 'Текст сообщения', alignLabelWithHint: true),
+              decoration: InputDecoration(labelText: l.mktMessageText, alignLabelWithHint: true),
               onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: Gap.xs),
             Text(
-              'Подстановки: {name} — имя, {fullname}, {store}, {debt}, {bonus}, {discount}',
+              l.mktTemplateVars('{name}', '{fullname}', '{store}', '{debt}', '{bonus}', '{discount}'),
               style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant),
             ),
             const SizedBox(height: Gap.l),
@@ -137,10 +141,10 @@ class _MailingTabState extends ConsumerState<MailingTab> {
                         ? null
                         : () => _copy(
                             withPhone.map((c) => c.phone!).join('\n'),
-                            'Скопировано телефонов: ${withPhone.length}',
+                            l.mktPhonesCopied('${withPhone.length}'),
                           ),
                     icon: const Icon(Icons.phone),
-                    label: Text('Копировать телефоны (${withPhone.length})'),
+                    label: Text(l.mktCopyPhones('${withPhone.length}')),
                   ),
                   OutlinedButton.icon(
                     onPressed: withPhone.isEmpty
@@ -149,10 +153,10 @@ class _MailingTabState extends ConsumerState<MailingTab> {
                             withPhone
                                 .map((c) => '${c.name} — ${c.phone}\n${fillTemplate(_template.text, c, store: store)}')
                                 .join('\n\n'),
-                            'Скопировано сообщений: ${withPhone.length}',
+                            l.mktMessagesCopied('${withPhone.length}'),
                           ),
                     icon: const Icon(Icons.copy_all),
-                    label: const Text('Копировать сообщения'),
+                    label: Text(l.mktCopyMessages),
                   ),
                 ];
                 if (bx.maxWidth >= 480) return Wrap(spacing: Gap.s, runSpacing: Gap.s, children: buttons);
@@ -174,8 +178,7 @@ class _MailingTabState extends ConsumerState<MailingTab> {
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
-                'SMS-шлюз не подключён: скопируйте список и отправьте сообщения через мессенджер или телефон. '
-                '${noPhone > 0 ? 'Без телефона: $noPhone клиент(ов) — они не попадут в список.' : ''}',
+                '${l.mktSmsNote} ${noPhone > 0 ? l.mktNoPhoneNote('$noPhone') : ''}',
                 style: t.textTheme.bodySmall,
               ),
             ),
@@ -192,18 +195,20 @@ class _MailingTabState extends ConsumerState<MailingTab> {
             title: Text(c.name),
             subtitle: Text(
               [
-                c.phone ?? 'нет телефона',
-                if (_segment == CustomerSegment.birthdays && bday != null) bday == 0 ? 'сегодня' : 'через $bday дн.',
-                if (_segment == CustomerSegment.sleeping && c.lastVisitAt != null) 'был ${formatDate(c.lastVisitAt!)}',
-                if (c.debtBalance > 0) 'долг ${Money.format(c.debtBalance)}',
-                if (_segment == CustomerSegment.vip) 'покупки ${Money.format(c.totalSpent)}',
+                c.phone ?? l.mktNoPhone,
+                if (_segment == CustomerSegment.birthdays && bday != null)
+                  bday == 0 ? l.mktToday : l.mktInDays('$bday'),
+                if (_segment == CustomerSegment.sleeping && c.lastVisitAt != null)
+                  l.mktLastVisit(formatDate(c.lastVisitAt!)),
+                if (c.debtBalance > 0) l.coreDebtShort(Money.format(c.debtBalance)),
+                if (_segment == CustomerSegment.vip) l.mktPurchases(Money.format(c.totalSpent)),
               ].join(' · '),
             ),
-            secondary: (overdue[c.id] ?? 0) > 0 ? const StatusChip('просрочен', color: AppColors.danger) : null,
+            secondary: (overdue[c.id] ?? 0) > 0 ? StatusChip(l.mktOverdue, color: AppColors.danger) : null,
           );
         }
 
-        final empty = EmptyState(icon: Icons.groups_outlined, title: 'В сегменте никого нет', message: _segment.hint);
+        final empty = EmptyState(icon: Icons.groups_outlined, title: l.mktSegmentEmpty, message: _segment.hint);
         final header = Text('${_segment.label}: ${list.length}', style: t.textTheme.titleMedium);
 
         return LayoutBuilder(

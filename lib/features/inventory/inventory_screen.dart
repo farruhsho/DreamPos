@@ -10,38 +10,41 @@ import 'movements_tab.dart';
 import 'receipt_tab.dart';
 import 'stock_tab.dart';
 import 'writeoff_tab.dart';
+import '../../l10n/l10n.dart';
 
 /// Склад: остатки, приход, списание, инвентаризация, движения.
 class InventoryScreen extends ConsumerWidget {
   const InventoryScreen({super.key});
 
-  static const tabs = [
-    Tab(icon: Icon(Icons.inventory_2_outlined), text: 'Остатки'),
-    Tab(icon: Icon(Icons.move_to_inbox_outlined), text: 'Приход'),
-    Tab(icon: Icon(Icons.delete_sweep_outlined), text: 'Списание'),
-    Tab(icon: Icon(Icons.fact_check_outlined), text: 'Инвентаризация'),
-    Tab(icon: Icon(Icons.swap_vert), text: 'Движения'),
+  static List<Tab> tabs(AppLocalizations l) => [
+    Tab(icon: const Icon(Icons.inventory_2_outlined), text: l.invStockTab),
+    Tab(icon: const Icon(Icons.move_to_inbox_outlined), text: l.invReceipt),
+    Tab(icon: const Icon(Icons.delete_sweep_outlined), text: l.invWriteoff),
+    Tab(icon: const Icon(Icons.fact_check_outlined), text: l.invCount),
+    Tab(icon: const Icon(Icons.swap_vert), text: l.invMovements),
   ];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = context.l10n;
     final session = ref.watch(sessionProvider);
     if (session == null || !session.can(Perm.stockOps)) {
-      return const PageScaffold(
-        title: 'Склад',
+      return PageScaffold(
+        title: l.navInventory,
         body: EmptyState(
           icon: Icons.lock_outline,
-          title: 'Нет доступа',
-          message: 'Складские операции доступны кладовщику, менеджеру и владельцу',
+          title: l.invNoAccess,
+          message: l.invNoAccessMessage,
         ),
       );
     }
+    final tabList = tabs(l);
     return DefaultTabController(
-      length: tabs.length,
+      length: tabList.length,
       child: PageScaffold(
-        title: 'Склад',
+        title: l.navInventory,
         padding: EdgeInsets.all(context.isCompact ? Gap.m : Gap.l),
-        bottom: const TabBar(isScrollable: true, tabAlignment: TabAlignment.start, tabs: tabs),
+        bottom: TabBar(isScrollable: true, tabAlignment: TabAlignment.start, tabs: tabList),
         body: const TabBarView(
           physics: NeverScrollableScrollPhysics(),
           children: [StockTab(), ReceiptTab(), WriteOffTab(), CountsTab(), MovementsTab()],

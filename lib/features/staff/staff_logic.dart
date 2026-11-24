@@ -8,6 +8,7 @@ import '../../core/permissions.dart';
 import '../../core/security/pin.dart';
 import '../../domain/errors.dart';
 import '../../domain/services/auth_service.dart';
+import '../../l10n/l10n.dart';
 
 export '../../core/widgets/widgets.dart' show pluralRu;
 
@@ -23,7 +24,7 @@ String? lastOwnerGuard(List<User> users, {required String userId, required Role 
   if (!wasOwner || staysOwner) return null;
   final others = users.where((u) => u.id != userId && u.role == Role.owner.name && u.isActive && u.deletedAt == null);
   if (others.isEmpty) {
-    return 'Это единственный активный владелец. Сначала назначьте другого владельца';
+    return L.current.staffErrLastOwner;
   }
   return null;
 }
@@ -55,21 +56,21 @@ class UserInput {
   final double commissionPercent;
 
   String? validate({required bool creating}) {
-    if (name.trim().isEmpty) return 'Введите имя';
-    if (name.trim().length > 120) return 'Имя слишком длинное';
-    if (creating && (pin == null || pin!.isEmpty)) return 'Задайте PIN';
+    if (name.trim().isEmpty) return L.current.commonEnterName;
+    if (name.trim().length > 120) return L.current.staffErrNameTooLong;
+    if (creating && (pin == null || pin!.isEmpty)) return L.current.staffErrSetPin;
     if (pin != null && pin!.isNotEmpty) {
       final e = PinHasher.validate(pin!);
       if (e != null) return e;
     }
     if (maxDiscountPercent < 0 || maxDiscountPercent > 100) {
-      return 'Макс. скидка — от 0 до 100%';
+      return L.current.staffErrMaxDiscountRange;
     }
-    if (commissionPercent < 0 || commissionPercent > 100) return 'Комиссия — от 0 до 100%';
-    if (salesPlan < 0) return 'План не может быть отрицательным';
+    if (commissionPercent < 0 || commissionPercent > 100) return L.current.staffErrCommissionRange;
+    if (salesPlan < 0) return L.current.staffErrPlanNegative;
     final p = phone?.trim() ?? '';
     if (p.isNotEmpty && !RegExp(r'^\+?[0-9\s\-()]{5,20}$').hasMatch(p)) {
-      return 'Неверный формат телефона';
+      return L.current.staffErrPhoneFormat;
     }
     return null;
   }
@@ -88,7 +89,7 @@ class StaffService {
     final err = i.validate(creating: true);
     if (err != null) throw BusinessException(err);
     if (!canAssignRole(Role.parse(actor.role), i.role)) {
-      throw BusinessException('Назначить роль «Владелец» может только владелец');
+      throw BusinessException(L.current.staffErrOwnerRoleOnlyOwner);
     }
     // One transaction: the user never exists without plan/commission/limits.
     return db.transaction(() async {
@@ -120,10 +121,10 @@ class StaffService {
     final before = await _get(userId);
     final beforeRole = Role.parse(before.role);
     if (!canEditUserWithRole(actorRole, beforeRole)) {
-      throw BusinessException('Изменять данные владельца может только владелец');
+      throw BusinessException(L.current.staffErrOwnerEditOnlyOwner);
     }
     if (i.role != beforeRole && !canAssignRole(actorRole, i.role)) {
-      throw BusinessException('Назначить роль «Владелец» может только владелец');
+      throw BusinessException(L.current.staffErrOwnerRoleOnlyOwner);
     }
     final guard = lastOwnerGuard(await _allUsers(), userId: userId, newRole: i.role, newActive: before.isActive);
     if (guard != null) throw BusinessException(guard);
@@ -146,13 +147,13 @@ class StaffService {
       );
       await db.markDirty('users', userId);
       final changes = <String>[
-        if (before.name != i.name.trim()) 'имя: ${before.name} → ${i.name.trim()}',
-        if ((before.phone ?? '') != (_clean(i.phone) ?? '')) 'телефон',
+        if (before.name != i.name.trim()) 'имя: ${before.name} → ${i.name.trim()}', // l10n-ignore
+        if ((before.phone ?? '') != (_clean(i.phone) ?? '')) 'телефон', // l10n-ignore
         if (before.maxDiscountPercent != i.maxDiscountPercent)
-          'скидка: ${before.maxDiscountPercent}% → ${i.maxDiscountPercent}%',
-        if (before.salesPlan != i.salesPlan) 'план: ${Money.format(before.salesPlan)} → ${Money.format(i.salesPlan)}',
+          'скидка: ${before.maxDiscountPercent}% → ${i.maxDiscountPercent}%', // l10n-ignore
+        if (before.salesPlan != i.salesPlan) 'план: ${Money.format(before.salesPlan)} → ${Money.format(i.salesPlan)}', // l10n-ignore
         if (before.commissionPercent != i.commissionPercent)
-          'комиссия: ${before.commissionPercent}% → ${i.commissionPercent}%',
+          'комиссия: ${before.commissionPercent}% → ${i.commissionPercent}%', // l10n-ignore
       ];
       if (beforeRole != i.role) {
         await db.audit(
@@ -160,7 +161,7 @@ class StaffService {
           userId: actor.id,
           entity: 'user',
           entityId: userId,
-          details: '${beforeRole.label} → ${i.role.label}',
+          details: '${beforeRole.labelIn(L.of('ru'))} → ${i.role.labelIn(L.of('ru'))}',
         );
       }
       if (changes.isNotEmpty) {
@@ -175,10 +176,10 @@ class StaffService {
     final user = await _get(userId);
     if (user.isActive == active) return;
     if (!active && userId == actor.id) {
-      throw BusinessException('Нельзя деактивировать собственную учётную запись');
+      throw BusinessException(L.current.staffErrCannotDeactivateSelf);
     }
     if (!canEditUserWithRole(Role.parse(actor.role), Role.parse(user.role))) {
-      throw BusinessException('Изменять данные владельца может только владелец');
+      throw BusinessException(L.current.staffErrOwnerEditOnlyOwner);
     }
     final all = await _allUsers();
     if (!active) {
@@ -189,7 +190,7 @@ class StaffService {
       // was inactive; salted hashes cannot be compared, so a new PIN is
       // required (uniqueness is enforced by AuthService.changePin).
       if (newPin == null || newPin.isEmpty) {
-        throw BusinessException('Для активации задайте сотруднику новый PIN');
+        throw BusinessException(L.current.staffErrActivateNeedsPin);
       }
     }
     final now = DateTime.now();
@@ -243,10 +244,12 @@ Duration overlap(WorkSession s, DateTime from, DateTime to, {DateTime? now}) {
   return b.isAfter(a) ? b.difference(a) : Duration.zero;
 }
 
-String formatDuration(Duration d) {
+/// "1 ч 05 мин" in [loc] (default: the UI language).
+String formatDuration(Duration d, [AppLocalizations? loc]) {
+  final l = loc ?? L.current;
   final h = d.inHours, m = d.inMinutes % 60;
-  if (h == 0) return '$m мин';
-  return '$h ч ${m.toString().padLeft(2, '0')} мин';
+  if (h == 0) return l.staffDurationMin('$m');
+  return l.staffDurationHm('$h', m.toString().padLeft(2, '0'));
 }
 
 class TimeClock {
@@ -264,7 +267,7 @@ class TimeClock {
     return db.transaction(() async {
       final open = await openSession(userId);
       if (open != null) {
-        throw BusinessException('Приход уже отмечен в ${_hm(open.startedAt)}');
+        throw BusinessException(L.current.staffErrAlreadyClockedIn(_hm(open.startedAt)));
       }
       final id = newId();
       final t = at ?? DateTime.now();
@@ -278,10 +281,10 @@ class TimeClock {
   Future<WorkSession> clockOut(String userId, {DateTime? at}) async {
     return db.transaction(() async {
       final open = await openSession(userId);
-      if (open == null) throw BusinessException('Сначала отметьте приход');
+      if (open == null) throw BusinessException(L.current.staffErrClockInFirst);
       final t = at ?? DateTime.now();
       if (!t.isAfter(open.startedAt)) {
-        throw BusinessException('Время ухода должно быть позже времени прихода');
+        throw BusinessException(L.current.staffErrEndBeforeStart);
       }
       await (db.update(db.workSessions)..where((w) => w.id.equals(open.id))).write(
         WorkSessionsCompanion(endedAt: Value(t), updatedAt: Value(DateTime.now())),
@@ -292,7 +295,7 @@ class TimeClock {
         userId: userId,
         entity: 'work_session',
         entityId: open.id,
-        details: formatDuration(t.difference(open.startedAt)),
+        details: formatDuration(t.difference(open.startedAt), L.of('ru')),
       );
       return (db.select(db.workSessions)..where((w) => w.id.equals(open.id))).getSingle();
     });
@@ -309,14 +312,14 @@ class TimeClock {
     DateTime? now,
   }) async {
     final n = now ?? DateTime.now();
-    if (start.isAfter(n)) throw BusinessException('Время прихода не может быть в будущем');
+    if (start.isAfter(n)) throw BusinessException(L.current.staffErrStartInFuture);
     if (end != null) {
       if (!end.isAfter(start)) {
-        throw BusinessException('Время ухода должно быть позже времени прихода');
+        throw BusinessException(L.current.staffErrEndBeforeStart);
       }
-      if (end.isAfter(n)) throw BusinessException('Время ухода не может быть в будущем');
+      if (end.isAfter(n)) throw BusinessException(L.current.staffErrEndInFuture);
       if (end.difference(start) > const Duration(hours: 24)) {
-        throw BusinessException('Смена не может длиться больше 24 часов');
+        throw BusinessException(L.current.staffErrTooLong);
       }
     }
     await db.transaction(() async {
@@ -328,12 +331,11 @@ class TimeClock {
         final myEnd = end ?? n;
         if (start.isBefore(oEnd) && myEnd.isAfter(o.startedAt)) {
           throw BusinessException(
-            'Пересекается с другой записью '
-            '(${_dt(o.startedAt)} — ${o.endedAt == null ? 'сейчас' : _dt(o.endedAt!)})',
+            L.current.staffErrOverlap(_dt(o.startedAt), o.endedAt == null ? L.current.staffNow : _dt(o.endedAt!)),
           );
         }
         if (end == null && o.endedAt == null) {
-          throw BusinessException('У сотрудника уже есть незавершённая запись');
+          throw BusinessException(L.current.staffErrOpenExists);
         }
       }
       final cleanNote = (note ?? '').trim().isEmpty ? null : note!.trim();
@@ -375,9 +377,9 @@ class TimeClock {
           entity: 'work_session',
           entityId: id,
           details:
-              'было ${_dt(before.startedAt)} — '
+              'было ${_dt(before.startedAt)} — ' // l10n-ignore
               '${before.endedAt == null ? '…' : _dt(before.endedAt!)}; '
-              'стало ${_dt(start)} — ${end == null ? '…' : _dt(end)}',
+              'стало ${_dt(start)} — ${end == null ? '…' : _dt(end)}', // l10n-ignore
         );
       }
     });
@@ -499,135 +501,142 @@ Future<List<MotivationRow>> computeMotivation(AppDatabase db, DateTime from, Dat
 
 // ------------------------------------------------------------ labels
 
-String permLabel(Perm p) => switch (p) {
-  Perm.sell => 'Продажа (касса)',
-  Perm.applyDiscount => 'Ручные скидки',
-  Perm.voidSale => 'Аннулирование чеков',
-  Perm.refund => 'Возвраты',
-  Perm.openCloseShift => 'Открытие/закрытие смены',
-  Perm.cashInOut => 'Внесения и выплаты',
-  Perm.viewProducts => 'Просмотр товаров',
-  Perm.editProducts => 'Редактирование товаров',
-  Perm.editPrices => 'Изменение цен',
-  Perm.viewCost => 'Себестоимость и прибыль',
-  Perm.stockOps => 'Складские операции',
-  Perm.purchasing => 'Закупки',
-  Perm.viewCustomers => 'Просмотр клиентов',
-  Perm.editCustomers => 'Редактирование клиентов',
-  Perm.manageDebts => 'Долги клиентов',
-  Perm.managePromotions => 'Акции и маркетинг',
-  Perm.viewReports => 'Отчёты',
-  Perm.viewAllShifts => 'Все смены',
-  Perm.manageStaff => 'Управление сотрудниками',
-  Perm.manageSettings => 'Настройки',
-  Perm.viewAudit => 'Журнал действий',
+String permLabel(Perm p, [AppLocalizations? loc]) {
+  final l = loc ?? L.current;
+  return switch (p) {
+    Perm.sell => l.staffPermSell,
+    Perm.applyDiscount => l.staffPermApplyDiscount,
+    Perm.voidSale => l.staffPermVoidSale,
+    Perm.refund => l.staffPermRefund,
+    Perm.openCloseShift => l.staffPermOpenCloseShift,
+    Perm.cashInOut => l.staffPermCashInOut,
+    Perm.viewProducts => l.staffPermViewProducts,
+    Perm.editProducts => l.staffPermEditProducts,
+    Perm.editPrices => l.staffPermEditPrices,
+    Perm.viewCost => l.staffPermViewCost,
+    Perm.stockOps => l.staffPermStockOps,
+    Perm.purchasing => l.staffPermPurchasing,
+    Perm.viewCustomers => l.staffPermViewCustomers,
+    Perm.editCustomers => l.staffPermEditCustomers,
+    Perm.manageDebts => l.staffPermManageDebts,
+    Perm.managePromotions => l.staffPermManagePromotions,
+    Perm.viewReports => l.staffPermViewReports,
+    Perm.viewAllShifts => l.staffPermViewAllShifts,
+    Perm.manageStaff => l.staffPermManageStaff,
+    Perm.manageSettings => l.staffPermManageSettings,
+    Perm.viewAudit => l.staffPermViewAudit,
+  };
+}
+
+Map<String, String> _auditLabels(AppLocalizations l) => {
+  'auth.login': l.staffAuditAuthLogin,
+  'auth.fail': l.staffAuditAuthFail,
+  'auth.logout': l.staffAuditAuthLogout,
+  'sale.discount': l.staffAuditSaleDiscount,
+  'sale.return': l.staffAuditSaleReturn,
+  'sale.void': l.staffAuditSaleVoid,
+  'sale.create': l.staffAuditSaleCreate,
+  'shift.open': l.staffAuditShiftOpen,
+  'shift.close': l.staffAuditShiftClose,
+  'cash.pay_in': l.staffAuditCashPayIn,
+  'cash.pay_out': l.staffAuditCashPayOut,
+  'cash.expense': l.staffAuditCashExpense,
+  'cash.collection': l.staffAuditCashCollection,
+  'stock.receive': l.staffAuditStockReceive,
+  'stock.writeoff': l.staffAuditStockWriteoff,
+  'stock.adjust': l.staffAuditStockAdjust,
+  'stock.set': l.staffAuditStockSet,
+  'user.create': l.staffAuditUserCreate,
+  'user.update': l.staffAuditUserUpdate,
+  'user.role': l.staffAuditUserRole,
+  'user.pin_change': l.staffAuditUserPinChange,
+  'user.activate': l.staffAuditUserActivate,
+  'user.deactivate': l.staffAuditUserDeactivate,
+  'product.price': l.staffAuditProductPrice,
+  'debt.payment': l.staffAuditDebtPayment,
+  'bonus.adjust': l.staffAuditBonusAdjust,
+  'inventory.complete': l.staffAuditInventoryComplete,
+  'discount.override': l.staffAuditDiscountOverride,
+  'discount.approve': l.staffAuditDiscountApprove,
+  'auth.approve_fail': l.staffAuditAuthApproveFail,
+  'backup.auto': l.staffAuditBackupAuto,
+  'time.clock_in': l.staffAuditTimeClockIn,
+  'time.clock_out': l.staffAuditTimeClockOut,
+  'time.add': l.staffAuditTimeAdd,
+  'time.edit': l.staffAuditTimeEdit,
+  'time.delete': l.staffAuditTimeDelete,
+  'stock.receipt': l.staffAuditStockReceipt,
+  'product.create': l.staffAuditProductCreate,
+  'product.update': l.staffAuditProductUpdate,
+  'product.delete': l.staffAuditProductDelete,
+  'product.cost': l.staffAuditProductCost,
+  'product.import': l.staffAuditProductImport,
+  'product.bulk_price': l.staffAuditProductBulkPrice,
+  'product.bulk_category': l.staffAuditProductBulkCategory,
+  'category.delete': l.staffAuditCategoryDelete,
+  'customer.create': l.staffAuditCustomerCreate,
+  'customer.delete': l.staffAuditCustomerDelete,
+  'customer.terms': l.staffAuditCustomerTerms,
+  'supplier.payment': l.staffAuditSupplierPayment,
+  'supplier.delete': l.staffAuditSupplierDelete,
+  'po.ordered': l.staffAuditPoOrdered,
+  'po.receive': l.staffAuditPoReceive,
+  'promotion.create': l.staffAuditPromotionCreate,
+  'promotion.update': l.staffAuditPromotionUpdate,
+  'promotion.delete': l.staffAuditPromotionDelete,
+  'gift_card.issue': l.staffAuditGiftCardIssue,
+  'warranty.create': l.staffAuditWarrantyCreate,
+  'warranty.status': l.staffAuditWarrantyStatus,
+  'inventory.create': l.staffAuditInventoryCreate,
+  'inventory.cancel': l.staffAuditInventoryCancel,
+  'pos.price_edit': l.staffAuditPosPriceEdit,
+  'pos.cart_clear': l.staffAuditPosCartClear,
+  'settings.change': l.staffAuditSettingsChange,
+  'register.delete': l.staffAuditRegisterDelete,
+  'register.bind_device': l.staffAuditRegisterBindDevice,
+  'data.export': l.staffAuditDataExport,
+  'backup.create': l.staffAuditBackupCreate,
+  'backup.delete': l.staffAuditBackupDelete,
+  'backup.restore_scheduled': l.staffAuditBackupRestoreScheduled,
+  'backup.restore_cancelled': l.staffAuditBackupRestoreCancelled,
+  'backup.restore_applied': l.staffAuditBackupRestoreApplied,
 };
 
-const _auditLabels = <String, String>{
-  'auth.login': 'Вход в систему',
-  'auth.fail': 'Неверный PIN',
-  'auth.logout': 'Выход из системы',
-  'sale.discount': 'Скидка в чеке',
-  'sale.return': 'Возврат',
-  'sale.void': 'Аннулирование чека',
-  'sale.create': 'Продажа',
-  'shift.open': 'Открытие смены',
-  'shift.close': 'Закрытие смены',
-  'cash.pay_in': 'Внесение в кассу',
-  'cash.pay_out': 'Выплата из кассы',
-  'cash.expense': 'Расход из кассы',
-  'cash.collection': 'Инкассация',
-  'stock.receive': 'Приход товара',
-  'stock.writeoff': 'Списание товара',
-  'stock.adjust': 'Корректировка остатка',
-  'stock.set': 'Установка остатка',
-  'user.create': 'Создан сотрудник',
-  'user.update': 'Изменены данные сотрудника',
-  'user.role': 'Изменена роль сотрудника',
-  'user.pin_change': 'Смена PIN',
-  'user.activate': 'Сотрудник активирован',
-  'user.deactivate': 'Сотрудник деактивирован',
-  'product.price': 'Изменение цены',
-  'debt.payment': 'Погашение долга',
-  'bonus.adjust': 'Корректировка бонусов',
-  'inventory.complete': 'Инвентаризация проведена',
-  'discount.override': 'Скидка сверх лимита',
-  'discount.approve': 'Скидка подтверждена менеджером',
-  'auth.approve_fail': 'Неверный PIN подтверждения',
-  'backup.auto': 'Автоматическая резервная копия',
-  'time.clock_in': 'Приход на работу',
-  'time.clock_out': 'Уход с работы',
-  'time.add': 'Добавлена запись рабочего времени',
-  'time.edit': 'Изменена запись рабочего времени',
-  'time.delete': 'Удалена запись рабочего времени',
-  'stock.receipt': 'Приход товара',
-  'product.create': 'Создан товар',
-  'product.update': 'Изменён товар',
-  'product.delete': 'Удалён товар',
-  'product.cost': 'Изменение себестоимости',
-  'product.import': 'Импорт товаров',
-  'product.bulk_price': 'Массовое изменение цен',
-  'product.bulk_category': 'Массовая смена категории',
-  'category.delete': 'Удалена категория',
-  'customer.create': 'Создан клиент',
-  'customer.delete': 'Удалён клиент',
-  'customer.terms': 'Изменены условия клиента',
-  'supplier.payment': 'Оплата поставщику',
-  'supplier.delete': 'Удалён поставщик',
-  'po.ordered': 'Заказ поставщику отправлен',
-  'po.receive': 'Приёмка заказа поставщика',
-  'promotion.create': 'Создана акция',
-  'promotion.update': 'Изменена акция',
-  'promotion.delete': 'Удалена акция',
-  'gift_card.issue': 'Выпущен подарочный сертификат',
-  'warranty.create': 'Гарантийное обращение',
-  'warranty.status': 'Статус гарантийного обращения',
-  'inventory.create': 'Начата инвентаризация',
-  'inventory.cancel': 'Инвентаризация отменена',
-  'pos.price_edit': 'Изменение цены в чеке',
-  'pos.cart_clear': 'Очистка чека',
-  'settings.change': 'Изменены настройки',
-  'register.delete': 'Удалена касса',
-  'register.bind_device': 'Привязка устройства к кассе',
-  'data.export': 'Экспорт данных',
-  'backup.create': 'Создана резервная копия',
-  'backup.delete': 'Удалена резервная копия',
-  'backup.restore_scheduled': 'Запланировано восстановление',
-  'backup.restore_cancelled': 'Восстановление отменено',
-  'backup.restore_applied': 'Данные восстановлены из копии',
+/// Action groups for the journal filter (prefix -> label).
+Map<String, String> auditGroupsOf(AppLocalizations l) => {
+  'auth.': l.staffGroupAuth,
+  'sale.': l.staffGroupSale,
+  'shift.': l.staffGroupShift,
+  'cash.': l.staffGroupCash,
+  'stock.': l.staffGroupStock,
+  'inventory.': l.staffGroupInventory,
+  'user.': l.staffGroupUser,
+  'time.': l.staffGroupTime,
+  'product.': l.staffGroupProduct,
+  'debt.': l.staffGroupDebt,
+  'bonus.': l.staffGroupBonus,
+  'discount.': l.staffGroupDiscount,
+  'pos.': l.staffGroupPos,
+  'customer.': l.staffGroupCustomer,
+  'supplier.': l.staffGroupSupplier,
+  'po.': l.staffGroupPo,
+  'promotion.': l.staffGroupPromotion,
+  'settings.': l.staffGroupSettings,
+  'backup.': l.staffGroupBackup,
 };
 
-const auditGroups = <String, String>{
-  'auth.': 'Вход',
-  'sale.': 'Продажи',
-  'shift.': 'Смены',
-  'cash.': 'Касса',
-  'stock.': 'Склад',
-  'inventory.': 'Инвентаризация',
-  'user.': 'Сотрудники',
-  'time.': 'Рабочее время',
-  'product.': 'Товары',
-  'debt.': 'Долги',
-  'bonus.': 'Бонусы',
-  'discount.': 'Скидки',
-  'pos.': 'Касса (чек)',
-  'customer.': 'Клиенты',
-  'supplier.': 'Поставщики',
-  'po.': 'Закупки',
-  'promotion.': 'Акции',
-  'settings.': 'Настройки',
-  'backup.': 'Резервные копии',
-};
+/// [auditGroupsOf] in the current UI language.
+Map<String, String> get auditGroups => auditGroupsOf(L.current);
 
-String auditLabel(String action) {
-  final l = _auditLabels[action];
-  if (l != null) return l;
-  for (final e in auditGroups.entries) {
+String auditLabel(String action, [AppLocalizations? loc]) {
+  final l = loc ?? L.current;
+  final label = _auditLabels(l)[action];
+  if (label != null) return label;
+  for (final e in auditGroupsOf(l).entries) {
     if (action.startsWith(e.key)) return '${e.value}: ${action.substring(e.key.length)}';
   }
   return action;
 }
-
 /// Sensitive actions highlighted in the journal.
 bool auditIsWarning(String action) => const {
   'auth.fail',
@@ -648,32 +657,36 @@ bool auditIsWarning(String action) => const {
 
 // ------------------------------------------------------------ audit details
 
-const _detailKeys = <String, String>{
-  'discount': 'скидка',
-  'total': 'сумма',
-  'opening': 'размен',
-  'expected': 'ожидалось',
-  'counted': 'пересчитано',
-  'manual': 'ручная скидка',
-  'promos': 'акции',
-  'method': 'способ',
+const _detailKeys = {'discount', 'total', 'opening', 'expected', 'counted', 'manual', 'method', 'promos'};
+
+Map<String, String> _detailLabels(AppLocalizations l) => {
+  'discount': l.staffDetailDiscount,
+  'total': l.staffDetailTotal,
+  'opening': l.staffDetailOpening,
+  'expected': l.staffDetailExpected,
+  'counted': l.staffDetailCounted,
+  'manual': l.staffDetailManual,
+  'method': l.staffDetailMethod,
 };
 
 const _moneyKeys = {'discount', 'total', 'opening', 'expected', 'counted'};
 
-const _methodLabels = <String, String>{
-  'cash': 'наличные',
-  'card': 'карта',
-  'debt': 'в долг',
-  'bonus': 'бонусы',
-  'transfer': 'перевод',
-  'gift_card': 'сертификат',
+Map<String, String> _methodLabels(AppLocalizations l) => {
+  'cash': l.staffMethodCash,
+  'card': l.staffMethodCard,
+  'debt': l.staffMethodDebt,
+  'bonus': l.staffMethodBonus,
+  'transfer': l.staffMethodTransfer,
+  'gift_card': l.staffMethodGiftCard,
 };
 
 /// Turns the raw machine details of an audit entry ("discount=2850;
 /// promos=…", "return #3 total=18000 method=cash; Брак") into readable
-/// Russian ("скидка 2 850 сум · акции: …"). Unknown text is kept as is.
-String auditDetailsText(String action, String? details) {
+/// text in the UI language ("скидка 2 850 сум · акции: …"). Unknown text is kept as is.
+String auditDetailsText(String action, String? details, [AppLocalizations? loc]) {
+  final l = loc ?? L.current;
+  final labels = _detailLabels(l);
+  final methods = _methodLabels(l);
   final raw = (details ?? '').trim();
   if (raw.isEmpty) return '';
   final amountFirst = action.startsWith('cash.') || action == 'debt.payment';
@@ -686,7 +699,7 @@ String auditDetailsText(String action, String? details) {
     for (var j = 0; j < tokens.length; j++) {
       final tok = tokens[j];
       final eq = tok.indexOf('=');
-      if (eq > 0 && _detailKeys.containsKey(tok.substring(0, eq))) {
+      if (eq > 0 && _detailKeys.contains(tok.substring(0, eq))) {
         final key = tok.substring(0, eq);
         // The value of "promos=" may contain spaces: take the rest.
         final value = key == 'promos'
@@ -694,19 +707,19 @@ String auditDetailsText(String action, String? details) {
             : tok.substring(eq + 1);
         final shown = switch (key) {
           _ when _moneyKeys.contains(key) && int.tryParse(value) != null => Money.format(int.parse(value)),
-          'method' => _methodLabels[value] ?? value,
+          'method' => methods[value] ?? value,
           _ => value,
         };
-        if (shown.isNotEmpty) words.add(key == 'promos' ? 'акции: $shown' : '${_detailKeys[key]} $shown');
+        if (shown.isNotEmpty) words.add(key == 'promos' ? l.staffDetailPromos(shown) : '${labels[key]} $shown');
         if (key == 'promos') break;
       } else if (tok == 'return' && j + 1 < tokens.length && tokens[j + 1].startsWith('#')) {
-        words.add('чек возврата №${tokens[++j].substring(1)}');
+        words.add(l.staffDetailReturnNo(tokens[++j].substring(1)));
       } else if (i == 0 && j == 0 && amountFirst && int.tryParse(tok) != null) {
         words.add(Money.format(int.parse(tok)));
-      } else if (action == 'debt.payment' && _methodLabels.containsKey(tok)) {
-        words.add(_methodLabels[tok]!);
+      } else if (action == 'debt.payment' && methods.containsKey(tok)) {
+        words.add(methods[tok]!);
       } else if (action == 'user.create' && i == 0 && j == 0 && Role.values.any((r) => r.name == tok)) {
-        words.add(Role.values.byName(tok).label);
+        words.add(Role.values.byName(tok).labelIn(l));
       } else {
         words.add(tok);
       }
@@ -715,4 +728,3 @@ String auditDetailsText(String action, String? details) {
   }
   return parts.join(' · ');
 }
-

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets/widgets.dart';
+import '../../../l10n/l10n.dart';
 import '../settings_logic.dart';
 import '../settings_widgets.dart';
 
@@ -15,12 +16,13 @@ class AppearanceSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final v = ref.watch(settingProvider(SettingKeys.themeMode));
     final mode = v == 'light' || v == 'dark' ? v! : 'system';
+    final l = context.l10n;
     return SectionView(
-      title: 'Внешний вид',
-      description: 'Тема оформления применяется сразу на всех экранах этой программы.',
+      title: l.settingsSecAppearance,
+      description: l.settingsAppearanceDesc,
       children: [
         SectionCard(
-          title: 'Тема',
+          title: l.settingsTheme,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -36,17 +38,17 @@ class AppearanceSection extends ConsumerWidget {
                         ButtonSegment(
                           value: 'system',
                           icon: icons ? const Icon(Icons.brightness_auto) : null,
-                          label: const Text('Авто'),
+                          label: Text(l.settingsThemeAuto),
                         ),
                         ButtonSegment(
                           value: 'light',
                           icon: icons ? const Icon(Icons.light_mode_outlined) : null,
-                          label: const Text('Светлая'),
+                          label: Text(l.settingsThemeLight),
                         ),
                         ButtonSegment(
                           value: 'dark',
                           icon: icons ? const Icon(Icons.dark_mode_outlined) : null,
-                          label: const Text('Тёмная'),
+                          label: Text(l.settingsThemeDark),
                         ),
                       ],
                       selected: {mode},
@@ -58,9 +60,7 @@ class AppearanceSection extends ConsumerWidget {
               ),
               const SizedBox(height: Gap.m),
               Text(
-                '«Авто» — как в настройках Windows/Android. '
-                'Тёмная тема снижает нагрузку на глаза в вечернюю смену и экономит заряд на телефонах '
-                'с OLED-экраном. Светлая лучше читается при ярком освещении торгового зала.',
+                l.settingsThemeHint,
                 style: Theme.of(
                   context,
                 ).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
@@ -68,6 +68,8 @@ class AppearanceSection extends ConsumerWidget {
             ],
           ),
         ),
+        // l10n foundation: UI language picker (device preference ui_locale)
+        SectionCard(title: l.coreUiLanguage, child: const UiLanguagePicker()),
       ],
     );
   }

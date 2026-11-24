@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets/widgets.dart';
+import '../../../l10n/l10n.dart';
 import '../settings_logic.dart';
 import '../settings_widgets.dart';
 
@@ -34,6 +35,7 @@ class _StoreSectionState extends ConsumerState<StoreSection> with SettingsFormMi
     final settings = ref.watch(settingsProvider).value ?? const {};
     final width = settings[SettingKeys.receiptWidthMm] == '58' ? '58' : '80';
     final preview = {...settings, for (final k in formKeys) k: ctl(k).text};
+    final l = context.l10n;
 
     final fields = Card(
       child: Padding(
@@ -46,10 +48,10 @@ class _StoreSectionState extends ConsumerState<StoreSection> with SettingsFormMi
               // Keyboard would pop up on phones/tablets on opening the section.
               autofocus: context.isWide,
               maxLength: 120,
-              decoration: const InputDecoration(
-                labelText: 'Название магазина *',
+              decoration: InputDecoration(
+                labelText: l.settingsStoreName,
                 helperMaxLines: 3,
-                helperText: 'Печатается в шапке чека и на экране входа',
+                helperText: l.settingsStoreNameHelper,
               ),
               validator: validateStoreName,
               textInputAction: TextInputAction.next,
@@ -59,14 +61,14 @@ class _StoreSectionState extends ConsumerState<StoreSection> with SettingsFormMi
             TextFormField(
               controller: ctl(SettingKeys.storeAddress),
               maxLength: 160,
-              decoration: const InputDecoration(labelText: 'Адрес', hintText: 'г. Ташкент, ул. Навои, 12'),
+              decoration: InputDecoration(labelText: l.commonAddress, hintText: l.settingsAddressHint),
               onFieldSubmitted: (_) => save(),
             ),
             const SizedBox(height: Gap.m),
             TextFormField(
               controller: ctl(SettingKeys.storePhone),
               keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(labelText: 'Телефон', hintText: '+998 90 123-45-67'),
+              decoration: InputDecoration(labelText: l.commonPhone, hintText: '+998 90 123-45-67'),
               validator: validatePhone,
               onFieldSubmitted: (_) => save(),
             ),
@@ -74,10 +76,10 @@ class _StoreSectionState extends ConsumerState<StoreSection> with SettingsFormMi
             TextFormField(
               controller: ctl(SettingKeys.storeTaxId),
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'ИНН / БИН',
+              decoration: InputDecoration(
+                labelText: l.settingsTaxId,
                 helperMaxLines: 3,
-                helperText: 'Только цифры, 9–14 знаков',
+                helperText: l.settingsTaxIdHelper,
               ),
               validator: validateTaxId,
               onFieldSubmitted: (_) => save(),
@@ -89,9 +91,9 @@ class _StoreSectionState extends ConsumerState<StoreSection> with SettingsFormMi
               maxLines: 6,
               maxLength: 300,
               keyboardType: TextInputType.multiline,
-              decoration: const InputDecoration(
-                labelText: 'Текст внизу чека',
-                hintText: 'Спасибо за покупку!\nОбмен и возврат в течение 14 дней',
+              decoration: InputDecoration(
+                labelText: l.settingsFooter,
+                hintText: l.settingsFooterHint,
                 alignLabelWithHint: true,
               ),
               validator: validateReceiptFooter,
@@ -102,21 +104,21 @@ class _StoreSectionState extends ConsumerState<StoreSection> with SettingsFormMi
     );
 
     final receiptOptions = TileCard(
-      title: 'Чек',
+      title: l.commonReceipt,
       children: [
         ListTile(
           leading: const Icon(Icons.straighten),
-          title: const Text('Ширина ленты'),
+          title: Text(l.settingsPaperWidth),
           subtitle: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Смотрите в инструкции принтера: 58 мм — компактные, 80 мм — стандартные'),
+              Text(l.settingsPaperWidthHint),
               const SizedBox(height: Gap.s),
               SegmentedButton<String>(
                 showSelectedIcon: false,
-                segments: const [
-                  ButtonSegment(value: '58', label: Text('58 мм')),
-                  ButtonSegment(value: '80', label: Text('80 мм')),
+                segments: [
+                  ButtonSegment(value: '58', label: Text(l.settingsMm('58'))),
+                  ButtonSegment(value: '80', label: Text(l.settingsMm('80'))),
                 ],
                 selected: {width},
                 onSelectionChanged: (v) =>
@@ -125,12 +127,14 @@ class _StoreSectionState extends ConsumerState<StoreSection> with SettingsFormMi
             ],
           ),
         ),
-        const SettingSwitch(
+        SettingSwitch(
           settingKey: SettingKeys.autoPrintReceipt,
           icon: Icons.print_outlined,
-          title: 'Печатать чек автоматически',
-          subtitle: 'Сразу после оплаты, без вопроса кассиру',
+          title: l.settingsAutoPrint,
+          subtitle: l.settingsAutoPrintHint,
         ),
+        // l10n foundation: receipt language picker (store setting receipt_locale)
+        const ReceiptLanguageTile(),
       ],
     );
 
@@ -140,8 +144,8 @@ class _StoreSectionState extends ConsumerState<StoreSection> with SettingsFormMi
     );
 
     return buildForm(
-      title: 'Магазин',
-      description: 'Реквизиты магазина и оформление чека. Изменения сразу видны в образце чека.',
+      title: l.settingsSecStore,
+      description: l.settingsStoreDesc,
       children: [
         LayoutBuilder(
           builder: (context, c) {
@@ -198,11 +202,11 @@ class _ReceiptPreview extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    'Образец чека',
+                    context.l10n.settingsReceiptSample,
                     style: t.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
                   ),
                 ),
-                Text('$widthMm мм', style: t.textTheme.bodySmall),
+                Text(context.l10n.settingsMm(widthMm), style: t.textTheme.bodySmall),
               ],
             ),
             const SizedBox(height: Gap.m),
@@ -218,12 +222,7 @@ class _ReceiptPreview extends StatelessWidget {
                   fit: BoxFit.scaleDown,
                   child: Text(
                     text.trimRight(),
-                    style: const TextStyle(
-                      fontFamily: AppFonts.mono,
-                      fontSize: 12,
-                      height: 1.3,
-                      color: Colors.black87,
-                    ),
+                    style: const TextStyle(fontFamily: AppFonts.mono, fontSize: 12, height: 1.3, color: Colors.black87),
                   ),
                 ),
               ),

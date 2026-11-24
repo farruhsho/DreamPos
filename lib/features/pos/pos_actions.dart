@@ -10,6 +10,7 @@ import '../../core/providers.dart';
 import '../../core/widgets/pickers.dart';
 import '../../core/widgets/widgets.dart';
 import '../../domain/services/sale_service.dart';
+import '../../l10n/l10n.dart';
 import '../marketing/gift_sale_dialog.dart' as gift;
 import 'cart_controller.dart';
 import 'parked_carts.dart';
@@ -24,10 +25,10 @@ bool posCanSell(WidgetRef ref) => ref.read(posCanSellProvider);
 /// Visible reason under the POS menu item «Продать сертификат» (D-023), or
 /// null when a sale is possible. Without a shift the item stays tappable:
 /// [PosActions.sellGiftCard] explains and offers to open one.
-String? giftSaleMenuHint({required bool canSell, required bool hasShift}) => !canSell
-    ? 'Нет права продавать'
+String? giftSaleMenuHint({required bool canSell, required bool hasShift, AppLocalizations? l}) => !canSell
+    ? (l ?? L.current).posNoSellPerm
     : !hasShift
-    ? 'Нужна открытая смена'
+    ? (l ?? L.current).posNeedOpenShift
     : null;
 
 /// Outcome of Enter in the scanner field.
@@ -52,6 +53,8 @@ class PosActions {
   Session? get _session => ref.read(sessionProvider);
   AppDatabase get _db => ref.read(databaseProvider);
 
+  AppLocalizations get _l => context.mounted ? context.l10n : L.current;
+
   void _done() => refocus?.call();
 
   void _err(Object e) {
@@ -66,7 +69,7 @@ class PosActions {
 
   Future<ScanOutcome> _add(Product p, {double? qty}) async {
     if (!p.isActive || p.deletedAt != null) {
-      _err('Товар «${p.name}» снят с продажи');
+      _err(_l.posProductInactive(p.name));
       return ScanOutcome.failed;
     }
     var q = qty;
@@ -92,7 +95,7 @@ class PosActions {
     if (raw.isEmpty) return ScanOutcome.cancelled;
     final input = parseScanInput(raw);
     if (input == null) {
-      _err('Неверный множитель. Пример: 3*4780000000011');
+      _err(_l.posBadMultiplier);
       return ScanOutcome.failed;
     }
     final byCode = await findByCode(_db, input.code);
@@ -107,11 +110,11 @@ class PosActions {
         return _add(found.first, qty: input.hasMultiplier ? input.qty : null);
       }
       if (found.length > 1) {
-        _err('Найдено несколько товаров — выберите нужный в списке');
+        _err(_l.posMultipleFound);
         return ScanOutcome.failed;
       }
     }
-    _err('Товар «${input.code}» не найден');
+    _err(_l.posProductNotFound(input.code));
     return ScanOutcome.notFound;
   }
 
@@ -129,7 +132,7 @@ class PosActions {
   Future<void> editPrice(CartLine line) async {
     final s = _session;
     if (s == null || !s.can(Perm.editPrices)) {
-      _err('Нет права изменять цены');
+      _err(_l.posNoPricePerm);
       return;
     }
     final price = await askPrice(context, line);
@@ -138,11 +141,12 @@ class PosActions {
       if (err != null) {
         _err(err);
       } else {
+        // Audit details are stored DB text: kept in Russian (spec «Not translated»).
         await _db.audit('pos.price_edit',
             userId: s.user.id,
             entity: 'product',
             entityId: line.productId,
-            details: '${line.name}: ${line.unitPrice} -> $price (прайс ${line.basePrice})');
+            details: '${line.name}: ${line.unitPrice} -> $price (прайс ${line.basePrice})'); // l10n-ignore
       }
     }
     _done();
@@ -154,7 +158,10 @@ class PosActions {
   /// share of the whole cart (as `SaleService.checkout` measures it) must fit
   /// the user's limit; otherwise a manager/owner PIN is asked.
   /// Returns (ok, approverId) — approverId is null when no approval needed.
-  Future<(bool, String?)> _authorize(CartState next, double requestPercent, String what) async {
+  /// [what] names the change in a given language: the UI language in the
+  /// PIN dialog, Russian in the audit log (stored DB text is not translated).
+  Future<(bool, String?)> _authorize(
+      CartState next, double requestPercent, String Function(AppLocalizations l) what) async {
     final s = _session;
     if (s == null) return (false, null);
     double cumulative;
@@ -178,14 +185,15 @@ class PosActions {
     }
     if (!context.mounted) return (false, null);
     final approver =
-        await askManagerApproval(context, cashier: s.user, percent: need, what: what);
+        await askManagerApproval(context, cashier: s.user, percent: need, what: what(_l));
     if (approver == null) return (false, null);
+    // Audit details are stored DB text: kept in Russian (spec «Not translated»).
     await _db.audit('discount.approve',
         userId: approver.id,
         entity: 'user',
         entityId: s.user.id,
-        details: '$what; ${need.toStringAsFixed(2)}%; кассир ${s.user.name}; '
-            'подтвердил ${approver.name}');
+        details: '${what(L.of('ru'))}; ${need.toStringAsFixed(2)}%; кассир ${s.user.name}; ' // l10n-ignore
+            'подтвердил ${approver.name}'); // l10n-ignore
     return (true, approver.id);
   }
 
@@ -194,7 +202,7 @@ class PosActions {
     if (s == null) return;
     final res = await askDiscount(
       context,
-      title: 'Скидка на позицию',
+      title: _l.posLineDiscount,
       base: line.gross,
       limitPercent: s.user.maxDiscountPercent,
       currentAmount: line.discountAmount,
@@ -203,7 +211,7 @@ class PosActions {
     if (res == null || !context.mounted) return _done();
     final pct = res.percent > 0 ? res.percent : discountPercentOf(res.amount, line.gross);
     final next = _state.withLineDiscount(line.key, amount: res.amount, percent: res.percent);
-    final (ok, approver) = await _authorize(next, pct, 'Скидка на «${line.name}»');
+    final (ok, approver) = await _authorize(next, pct, (l) => l.posLineDiscountFor(line.name));
     if (!ok) return _done();
     final err = _cart.setLineDiscount(line.key,
         amount: res.amount, percent: res.percent, approvedBy: approver);
@@ -219,7 +227,7 @@ class PosActions {
     final s = _session;
     if (s == null) return;
     final st = _state;
-    if (st.isEmpty) return _err('Чек пуст');
+    if (st.isEmpty) return _err(_l.posCartEmpty);
     // base: amount after line discounts (before order-level discounts)
     final quote = ref.read(cartQuoteProvider).value;
     final base = quote == null
@@ -228,7 +236,7 @@ class PosActions {
             0, (a, l) => a + l.line.gross - l.autoDiscount - l.manualDiscount);
     final res = await askDiscount(
       context,
-      title: 'Скидка на чек',
+      title: _l.posOrderDiscount,
       base: base,
       limitPercent: s.user.maxDiscountPercent,
       currentAmount: st.orderDiscountAmount,
@@ -237,7 +245,7 @@ class PosActions {
     if (res == null || !context.mounted) return _done();
     final pct = res.percent > 0 ? res.percent : discountPercentOf(res.amount, base);
     final next = _state.withOrderDiscount(amount: res.amount, percent: res.percent);
-    final (ok, approver) = await _authorize(next, pct, 'Скидка на чек');
+    final (ok, approver) = await _authorize(next, pct, (l) => l.posOrderDiscount);
     if (!ok) return _done();
     final err =
         _cart.setOrderDiscount(amount: res.amount, percent: res.percent, approvedBy: approver);
@@ -269,7 +277,7 @@ class PosActions {
 
   Future<void> enterPromo() async {
     final code = await promptText(context,
-        title: 'Промокод', label: 'Код', initial: _state.promoCode, required: false);
+        title: _l.posPromoCode, label: _l.posCode, initial: _state.promoCode, required: false);
     if (code != null) _cart.setPromoCode(code);
     _done();
   }
@@ -283,9 +291,9 @@ class PosActions {
   Future<void> clearCart() async {
     if (_state.isEmpty) return;
     final ok = await confirm(context,
-        title: 'Очистить чек?',
-        message: 'Все ${_state.lines.length} поз. будут удалены из чека.',
-        ok: 'Очистить',
+        title: _l.posClearCartQ,
+        message: _l.posClearCartMessage('${_state.lines.length}'),
+        ok: _l.commonClear,
         destructive: true);
     if (ok) {
       _cart.clear();
@@ -299,18 +307,18 @@ class PosActions {
 
   Future<void> park() async {
     if (_state.isEmpty) {
-      _err('Нечего откладывать — чек пуст');
+      _err(_l.posNothingToPark);
       return;
     }
     final note = await promptText(context,
-        title: 'Отложить чек', label: 'Комментарий (имя покупателя и т.п.)', required: false);
+        title: _l.posPark, label: _l.posParkNote, required: false);
     if (note == null) return _done();
     try {
       await ref
           .read(parkedCartsProvider.notifier)
           .park(_state, note: note, cashierName: _session?.user.name);
       _cart.clear();
-      if (context.mounted) showSuccess(context, 'Чек отложен (F9 — список отложенных)');
+      if (context.mounted) showSuccess(context, _l.posParkedDone);
     } catch (e) {
       _err(e);
     }
@@ -324,7 +332,7 @@ class PosActions {
       // never lose the current basket: park it in exchange
       await ref
           .read(parkedCartsProvider.notifier)
-          .park(_state, note: 'Автоматически отложен', cashierName: _session?.user.name);
+          .park(_state, note: _l.posAutoParked, cashierName: _session?.user.name);
     }
     var cart = p.cart;
     var repriced = 0;
@@ -341,8 +349,8 @@ class PosActions {
       showSuccess(
           context,
           repriced > 0
-              ? 'Чек восстановлен. Цены обновлены по прайсу: $repriced поз.'
-              : 'Чек восстановлен');
+              ? _l.posRestoredRepriced('$repriced')
+              : _l.posRestored);
     }
     _done();
   }
@@ -355,21 +363,21 @@ class PosActions {
     if (_paying) return;
     final s = _session;
     if (s == null || !s.can(Perm.sell)) {
-      _err('Нет права продавать');
+      _err(_l.posNoSellPerm);
       return _done();
     }
     if (ref.read(currentShiftProvider).value == null) {
       // A gift card sale always needs a shift, even with require_shift = '0'
       // (D-023): explain it and offer to open one right here.
       if (!s.can(Perm.openCloseShift)) {
-        _err('Откройте смену, чтобы продать сертификат');
+        _err(_l.posGiftNeedShift);
         return _done();
       }
       final open = await confirm(
         context,
-        title: 'Смена не открыта',
-        message: 'Откройте смену, чтобы продать сертификат.',
-        ok: 'Открыть смену',
+        title: _l.posShiftNotOpen,
+        message: _l.posGiftNeedShiftDot,
+        ok: _l.posOpenShift,
       );
       if (open && context.mounted) await openShift();
       return _done();
@@ -383,11 +391,11 @@ class PosActions {
   Future<void> openShift() async {
     final s = _session;
     if (s == null || !s.can(Perm.openCloseShift)) {
-      _err('Нет права открывать смену — обратитесь к менеджеру');
+      _err(_l.posNoShiftPerm);
       return;
     }
     final ok = await showOpenShiftDialog(context);
-    if (ok && context.mounted) showSuccess(context, 'Смена открыта. Можно продавать');
+    if (ok && context.mounted) showSuccess(context, _l.posShiftOpened);
     _done();
   }
 
@@ -406,15 +414,15 @@ class PosActions {
     var st = _state;
     if (s == null) return;
     if (st.isEmpty) {
-      _err('Чек пуст — добавьте товары');
+      _err(_l.posCartEmptyAdd);
       return;
     }
     if (!s.can(Perm.sell)) {
-      _err('Нет права продавать');
+      _err(_l.posNoSellPerm);
       return;
     }
     if (!posCanSell(ref)) {
-      _err('Смена не открыта. Откройте смену, чтобы продавать');
+      _err(_l.posShiftNotOpenSell);
       return;
     }
     final shift = ref.read(currentShiftProvider).value;
@@ -422,17 +430,16 @@ class PosActions {
       // fresh quote — exactly what checkout will charge
       final quote = await ref.read(saleServiceProvider).quote(st.toRequest(cashierId: s.user.id));
       if (st.promoCode != null && quote.promoCodeValid != true) {
-        _err('Промокод «${st.promoCode}» недействителен — удалите или исправьте его');
+        _err(_l.posPromoInvalid(st.promoCode!));
         return;
       }
       // The share of manual discounts may have grown after qty changes or
       // removed lines: re-check the cumulative limit now (manager PIN if
       // needed) instead of failing inside the payment dialog.
       if (st.hasManualDiscounts) {
-        final (ok, approver) = await _authorize(st, 0, 'Ручные скидки в чеке');
+        final (ok, approver) = await _authorize(st, 0, (l) => l.posManualDiscounts);
         if (!ok) {
-          _err('Ручные скидки превышают ваш лимит — нужно подтверждение менеджера '
-              'или уменьшите скидку');
+          _err(_l.posManualOverLimit);
           return;
         }
         if (approver != null && approver != st.approverId) {

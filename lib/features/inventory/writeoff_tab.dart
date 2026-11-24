@@ -11,6 +11,7 @@ import '../../core/widgets/pickers.dart';
 import '../../core/widgets/widgets.dart';
 import 'inventory_logic.dart';
 import 'stock_dialogs.dart';
+import '../../l10n/l10n.dart';
 
 final _recentWriteOffsProvider = StreamProvider<List<StockMovement>>((ref) {
   final db = ref.watch(databaseProvider);
@@ -28,11 +29,12 @@ class WriteOffTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = context.l10n;
     final form = SectionCard(
-      title: 'Новое списание',
-      child: WriteOffForm(pickProduct: () => pickProduct(context, title: 'Что списываем?')),
+      title: l.invNewWriteoff,
+      child: WriteOffForm(pickProduct: () => pickProduct(context, title: l.invWhatToWriteOff)),
     );
-    final recent = SectionCard(title: 'Списания за 30 дней', child: const _Recent());
+    final recent = SectionCard(title: l.invWriteoffs30, child: const _Recent());
     return LayoutBuilder(
       builder: (context, c) {
         if (c.maxWidth >= 1000) {
@@ -68,7 +70,7 @@ class _Recent extends ConsumerWidget {
       value: ref.watch(_recentWriteOffsProvider),
       data: (list) {
         if (list.isEmpty) {
-          return const Padding(padding: EdgeInsets.all(Gap.l), child: Text('Списаний за последние 30 дней не было'));
+          return Padding(padding: const EdgeInsets.all(Gap.l), child: Text(context.l10n.invNoWriteoffs30));
         }
         final total = list.fold<int>(0, (s, m) => s + lineValue(-m.qty, m.unitCost));
         return Column(
@@ -76,7 +78,7 @@ class _Recent extends ConsumerWidget {
           children: [
             if (canCost)
               Text(
-                'Всего по себестоимости: ${Money.format(total)}',
+                context.l10n.invTotalAtCost(Money.format(total)),
                 style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.danger),
               ),
             const SizedBox(height: Gap.s),

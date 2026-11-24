@@ -31,12 +31,19 @@ final byHourProvider = StreamProvider.autoDispose.family<List<HourCell>, ReportP
 final byProductProvider = StreamProvider.autoDispose.family<List<ProductRow>, ReportPeriod>(
     (ref, p) => watchByProduct(ref.watch(databaseProvider), p));
 
-final byCategoryProvider = StreamProvider.autoDispose.family<List<CategoryRow>, ReportPeriod>(
-    (ref, p) => watchByCategory(ref.watch(databaseProvider), p));
+// Providers whose rows carry localized fallbacks ("Без категории", …) also
+// watch the UI language so the texts follow a language switch.
+final byCategoryProvider = StreamProvider.autoDispose.family<List<CategoryRow>, ReportPeriod>((ref, p) {
+  ref.watch(uiLocaleProvider);
+  return watchByCategory(ref.watch(databaseProvider), p);
+});
 
 final byStaffProvider = StreamProvider.autoDispose
     .family<List<StaffRow>, (ReportPeriod, StaffGrouping)>(
-        (ref, a) => watchByStaff(ref.watch(databaseProvider), a.$1, a.$2));
+        (ref, a) {
+  ref.watch(uiLocaleProvider);
+  return watchByStaff(ref.watch(databaseProvider), a.$1, a.$2);
+});
 
 final paymentsProvider = StreamProvider.autoDispose.family<List<PaymentRow>, ReportPeriod>(
     (ref, p) => watchPayments(ref.watch(databaseProvider), p));
@@ -53,14 +60,18 @@ final giftSalesReportProvider = StreamProvider.autoDispose.family<GiftSalesByMet
 final debtsProvider = StreamProvider.autoDispose.family<DebtSummary, ReportPeriod>(
     (ref, p) => watchDebts(ref.watch(databaseProvider), p));
 
-final stockValueProvider = StreamProvider.autoDispose<List<StockValueRow>>(
-    (ref) => watchStockValue(ref.watch(databaseProvider)));
+final stockValueProvider = StreamProvider.autoDispose<List<StockValueRow>>((ref) {
+  ref.watch(uiLocaleProvider);
+  return watchStockValue(ref.watch(databaseProvider));
+});
 
 final deadStockProvider = StreamProvider.autoDispose<List<DeadStockRow>>(
     (ref) => deadStockQuery(ref.watch(databaseProvider)).watch());
 
-final writeOffsProvider = StreamProvider.autoDispose.family<List<WriteOffRow>, ReportPeriod>(
-    (ref, p) => watchWriteOffs(ref.watch(databaseProvider), p));
+final writeOffsProvider = StreamProvider.autoDispose.family<List<WriteOffRow>, ReportPeriod>((ref, p) {
+  ref.watch(uiLocaleProvider);
+  return watchWriteOffs(ref.watch(databaseProvider), p);
+});
 
 /// Live demand forecast; [horizon] = days to cover when reordering.
 final forecastProvider = StreamProvider.autoDispose.family<List<Forecast>, int>((ref, horizon) {

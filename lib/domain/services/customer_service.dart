@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 
+import '../../l10n/l10n.dart';
 import '../../core/db/database.dart';
 import '../errors.dart';
 
@@ -16,15 +17,15 @@ class CustomerService {
     String? shiftId,
     String? note,
   }) async {
-    if (amount <= 0) throw BusinessException('Сумма должна быть больше нуля');
+    if (amount <= 0) throw BusinessException(L.current.errAmountMustBePositive);
     await db.transaction(() async {
       final c = await (db.select(db.customers)..where((t) => t.id.equals(customerId))).getSingle();
-      if (c.debtBalance <= 0) throw BusinessException('У клиента нет долга');
+      if (c.debtBalance <= 0) throw BusinessException(L.current.errNoDebt);
       if (amount > c.debtBalance) {
-        throw BusinessException('Сумма больше долга клиента');
+        throw BusinessException(L.current.errAmountExceedsDebt);
       }
       if (method == 'cash') {
-        if (shiftId == null) throw BusinessException('Для приёма наличных откройте смену');
+        if (shiftId == null) throw BusinessException(L.current.errOpenShiftForCash);
       }
       final after = c.debtBalance - amount;
       final ledgerId = newId();
@@ -59,7 +60,7 @@ class CustomerService {
     await db.transaction(() async {
       final c = await (db.select(db.customers)..where((t) => t.id.equals(customerId))).getSingle();
       final after = c.bonusBalance + delta;
-      if (after < 0) throw BusinessException('Баланс бонусов не может быть отрицательным');
+      if (after < 0) throw BusinessException(L.current.errBonusNegative);
       final ledgerId = newId();
       await db.into(db.customerLedger).insert(CustomerLedgerCompanion.insert(
             id: ledgerId,

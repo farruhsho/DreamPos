@@ -6,6 +6,7 @@ import '../../../core/permissions.dart';
 import '../../../core/providers.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets/widgets.dart';
+import '../../../l10n/l10n.dart';
 import '../data/period.dart';
 import '../data/report_queries.dart';
 import '../data/report_table.dart';
@@ -24,6 +25,7 @@ class SalesTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = context.l10n;
     final period = ref.watch(reportPeriodProvider);
     final cost = ref.watch(sessionProvider)?.can(Perm.viewCost) ?? false;
     final summary = ref.watch(summaryProvider(period));
@@ -34,13 +36,13 @@ class SalesTab extends ConsumerWidget {
       onRetry: () => ref.invalidate(summaryProvider(period)),
       data: (s) => ListView(padding: const EdgeInsets.all(Gap.l), children: [
         if (s.isEmpty)
-          const Padding(
-            padding: EdgeInsets.only(bottom: Gap.m),
+          Padding(
+            padding: const EdgeInsets.only(bottom: Gap.m),
             child: Card(
               child: ListTile(
-                leading: Icon(Icons.info_outline),
-                title: Text('За выбранный период продаж нет'),
-                subtitle: Text('Выберите другой период вверху экрана.'),
+                leading: const Icon(Icons.info_outline),
+                title: Text(l.repNoSalesInPeriod),
+                subtitle: Text(l.repPickAnotherPeriod),
               ),
             ),
           ),
@@ -62,19 +64,20 @@ class _SummaryGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    String? pl(int? v) => v == null ? null : 'пред. период: ${Money.format(v)}';
+    final l = context.l10n;
+    String? pl(int? v) => v == null ? null : l.repPrevPeriod(Money.format(v));
     return ResponsiveGrid(minTile: 160, maxColumns: 4, children: [
       KpiTile(
-        label: 'Чистая выручка',
+        label: l.repNetRevenue,
         value: Money.format(s.net),
         icon: Icons.payments_outlined,
         current: s.net,
         previous: prev?.net,
         previousLabel: pl(prev?.net),
-        tooltip: 'Продажи минус возвраты за период (аннулированные чеки не учитываются)',
+        tooltip: l.repNetRevenueTooltip,
       ),
       KpiTile(
-        label: 'Продажи',
+        label: l.repTabSales,
         value: Money.format(s.gross),
         icon: Icons.shopping_bag_outlined,
         current: s.gross,
@@ -82,35 +85,35 @@ class _SummaryGrid extends StatelessWidget {
         previousLabel: pl(prev?.gross),
       ),
       KpiTile(
-        label: 'Возвраты',
+        label: l.repReturns,
         value: Money.format(s.returnsTotal),
         icon: Icons.assignment_return_outlined,
         color: AppColors.warning,
         current: s.returnsTotal,
         previous: prev?.returnsTotal,
         inverse: true,
-        hint: '${s.returnsCount} шт. · ${pctText(s.returnsPct)} от продаж',
+        hint: l.repReturnsHint('${s.returnsCount}', pctText(s.returnsPct)),
       ),
       KpiTile(
-        label: 'Скидки',
+        label: l.repDiscounts,
         value: Money.format(s.discounts),
         icon: Icons.percent,
         color: AppColors.info,
         current: s.discounts,
         previous: prev?.discounts,
         inverse: true,
-        hint: '${pctText(s.discountPct)} от суммы до скидок',
+        hint: l.repDiscountsHint(pctText(s.discountPct)),
       ),
       KpiTile(
-        label: 'Чеков',
+        label: l.repReceipts,
         value: '${s.receipts}',
         icon: Icons.receipt_long_outlined,
         current: s.receipts,
         previous: prev?.receipts,
-        hint: s.voids > 0 ? 'аннулировано: ${s.voids}' : 'аннулирований нет',
+        hint: s.voids > 0 ? l.repVoidedCount('${s.voids}') : l.repNoVoids,
       ),
       KpiTile(
-        label: 'Средний чек',
+        label: l.repAvgCheck,
         value: Money.format(s.avgCheck),
         icon: Icons.functions,
         current: s.avgCheck,
@@ -119,21 +122,21 @@ class _SummaryGrid extends StatelessWidget {
       ),
       if (withCost) ...[
         KpiTile(
-          label: 'Валовая прибыль',
+          label: l.repGrossProfit,
           value: Money.format(s.profit),
           icon: Icons.trending_up,
           color: AppColors.success,
           current: s.profit,
           previous: prev?.profit,
           previousLabel: pl(prev?.profit),
-          tooltip: 'Чистая выручка минус себестоимость проданного (с учётом возвратов на склад)',
+          tooltip: l.repGrossProfitTooltip,
         ),
         KpiTile(
-          label: 'Маржа',
+          label: l.repMargin,
           value: pctText(s.marginPct),
           icon: Icons.pie_chart_outline,
           color: AppColors.success,
-          hint: 'себестоимость: ${Money.format(s.netCost)}',
+          hint: l.repCostHint(Money.format(s.netCost)),
         ),
       ],
     ]);
@@ -147,6 +150,7 @@ class _ByDaySection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = context.l10n;
     final days = ref.watch(byDayProvider(period));
     return AsyncView<List<DayPoint>>(
       value: days,
@@ -162,17 +166,17 @@ class _ByDaySection extends ConsumerWidget {
                 receipts: a.receipts + d.receipts,
                 discounts: a.discounts + d.discounts));
         final table = RTable(
-          title: 'Продажи по дням',
-          subtitle: period.label,
+          title: l.repSalesByDay,
+          subtitle: period.labelIn(l),
           columns: [
-            const RCol('Дата'),
-            const RCol('Чеков', numeric: true),
-            const RCol('Продажи', numeric: true),
-            const RCol('Возвраты', numeric: true),
-            const RCol('Скидки', numeric: true),
-            const RCol('Чистая выручка', numeric: true),
-            const RCol('Средний чек', numeric: true),
-            if (withCost) const RCol('Прибыль', numeric: true),
+            RCol(l.commonDate),
+            RCol(l.repReceipts, numeric: true),
+            RCol(l.repTabSales, numeric: true),
+            RCol(l.repReturns, numeric: true),
+            RCol(l.repDiscounts, numeric: true),
+            RCol(l.repNetRevenue, numeric: true),
+            RCol(l.repAvgCheck, numeric: true),
+            if (withCost) RCol(l.repProfit, numeric: true),
           ],
           rows: [
             for (final d in rowsDesc)
@@ -188,7 +192,7 @@ class _ByDaySection extends ConsumerWidget {
               ],
           ],
           totals: [
-            const RCell('Итого'),
+            RCell(l.commonTotal),
             RCell.integer(total.receipts),
             RCell.money(total.gross),
             RCell.money(total.returns),
@@ -201,7 +205,7 @@ class _ByDaySection extends ConsumerWidget {
         return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           if (list.length > 1)
             SectionCard(
-              title: 'Чистая выручка по дням',
+              title: l.repNetRevenueByDay,
               child: SimpleBarChart(
                 height: 180,
                 formatAxis: (v) => Money.format(v),
@@ -212,9 +216,9 @@ class _ByDaySection extends ConsumerWidget {
                       value: d.net,
                       highlight: dayKey(d.day) == today,
                       tooltip: '${formatDate(d.day)}\n'
-                          'Чистая выручка: ${Money.format(d.net)}\n'
-                          'Чеков: ${d.receipts}'
-                          '${d.returns > 0 ? '\nВозвраты: ${Money.format(d.returns)}' : ''}',
+                          '${l.repTipNetRevenue(Money.format(d.net))}\n'
+                          '${l.repTipReceipts('${d.receipts}')}'
+                          '${d.returns > 0 ? '\n${l.repTipReturns(Money.format(d.returns))}' : ''}',
                     ),
                 ],
               ),
@@ -233,6 +237,7 @@ class _ByHourSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = context.l10n;
     final cells = ref.watch(byHourProvider(period));
     return AsyncView<List<HourCell>>(
       value: cells,
@@ -255,14 +260,14 @@ class _ByHourSection extends ConsumerWidget {
         final peak = total == 0 ? -1 : byHourN.indexOf(byHourN.reduce((a, b) => a > b ? a : b));
         final days = period.dayCount;
         final table = RTable(
-          title: 'Продажи по часам',
-          subtitle: period.label,
-          columns: const [
-            RCol('Час'),
-            RCol('Чеков', numeric: true),
-            RCol('Чеков в день', numeric: true, tooltip: 'Среднее количество чеков в этот час за день'),
-            RCol('Продажи', numeric: true),
-            RCol('Доля чеков', numeric: true),
+          title: l.repSalesByHour,
+          subtitle: period.labelIn(l),
+          columns: [
+            RCol(l.repHour),
+            RCol(l.repReceipts, numeric: true),
+            RCol(l.repReceiptsPerDay, numeric: true, tooltip: l.repReceiptsPerDayTooltip),
+            RCol(l.repTabSales, numeric: true),
+            RCol(l.repReceiptsShare, numeric: true),
           ],
           rows: [
             for (var h = 0; h < 24; h++)
@@ -279,13 +284,13 @@ class _ByHourSection extends ConsumerWidget {
         );
         return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           SectionCard(
-            title: 'Загрузка по часам',
+            title: l.repLoadByHour,
             trailing: peak >= 0
-                ? StatusChip('Пик: $peak:00–${peak + 1}:00', color: AppColors.warning)
+                ? StatusChip(l.repPeak('$peak', '${peak + 1}'), color: AppColors.warning)
                 : null,
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Text(
-                'Сколько чеков пробивается в каждый час — помогает планировать смены и второго кассира.',
+                l.repLoadByHourHint,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
@@ -298,18 +303,19 @@ class _ByHourSection extends ConsumerWidget {
                       label: '$h',
                       value: byHourN[h],
                       highlight: h == peak,
-                      tooltip: '$h:00–${h + 1}:00\nЧеков: ${byHourN[h]}'
-                          ' (≈${(byHourN[h] / days).toStringAsFixed(1).replaceAll('.', ',')} в день)\n'
-                          'Продажи: ${Money.format(byHourRev[h])}',
+                      tooltip: '$h:00–${h + 1}:00\n'
+                          '${l.repTipReceiptsPerDay('${byHourN[h]}', (byHourN[h] / days).toStringAsFixed(1).replaceAll('.', ','))}\n'
+                          '${l.repTipSales(Money.format(byHourRev[h]))}',
                     ),
                 ],
               ),
               const SizedBox(height: Gap.l),
-              Text('По дням недели', style: Theme.of(context).textTheme.titleSmall),
+              Text(l.repByWeekday, style: Theme.of(context).textTheme.titleSmall),
               const SizedBox(height: Gap.s),
               HourHeatmap(
                 values: grid,
-                tooltip: (wd, h, v) => '${weekdayShort[wd - 1]}, $h:00–${h + 1}:00 — чеков: $v',
+                tooltip: (wd, h, v) =>
+                    '${weekdayShortIn(l)[wd - 1]}, $h:00–${h + 1}:00 — ${l.repTipReceiptsLower('$v')}',
               ),
             ]),
           ),

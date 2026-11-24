@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/db/database.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
+import '../../l10n/l10n.dart';
 import 'staff_logic.dart';
 import 'staff_widgets.dart';
 import 'staff_providers.dart';
@@ -46,6 +47,7 @@ class _AuditTabState extends ConsumerState<AuditTab> {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final l = context.l10n;
     final users = ref.watch(staffUsersProvider).value ?? const <User>[];
     final byId = {for (final u in users) u.id: u};
     final entries = ref.watch(auditProvider(_filter));
@@ -59,9 +61,9 @@ class _AuditTabState extends ConsumerState<AuditTab> {
       DropdownButtonFormField<String?>(
         isExpanded: true,
         initialValue: _userId,
-        decoration: const InputDecoration(labelText: 'Сотрудник'),
+        decoration: InputDecoration(labelText: l.commonEmployee),
         items: [
-          const DropdownMenuItem(value: null, child: Text('Все')),
+          DropdownMenuItem(value: null, child: Text(l.commonAll)),
           for (final u in users)
             DropdownMenuItem(
               value: u.id,
@@ -73,10 +75,10 @@ class _AuditTabState extends ConsumerState<AuditTab> {
       DropdownButtonFormField<String?>(
         isExpanded: true,
         initialValue: _group,
-        decoration: const InputDecoration(labelText: 'Действие'),
+        decoration: InputDecoration(labelText: l.staffActionLabel),
         items: [
-          const DropdownMenuItem(value: null, child: Text('Все действия')),
-          for (final e in auditGroups.entries) DropdownMenuItem(value: e.key, child: Text(e.value)),
+          DropdownMenuItem(value: null, child: Text(l.staffAllActions)),
+          for (final e in auditGroupsOf(l).entries) DropdownMenuItem(value: e.key, child: Text(e.value)),
         ],
         onChanged: (v) => setState(() => _group = v),
       ),
@@ -124,11 +126,11 @@ class _AuditTabState extends ConsumerState<AuditTab> {
             onRetry: () => ref.invalidate(auditProvider(_filter)),
             data: (list) {
               if (list.isEmpty) {
-                return const FillScroll(
+                return FillScroll(
                   child: EmptyState(
                     icon: Icons.manage_search,
-                    title: 'Записей не найдено',
-                    message: 'Измените период или фильтры',
+                    title: l.staffNoRecords,
+                    message: l.staffNoRecordsHint,
                   ),
                 );
               }
@@ -139,7 +141,7 @@ class _AuditTabState extends ConsumerState<AuditTab> {
                     Padding(
                       padding: const EdgeInsets.only(bottom: Gap.s),
                       child: Text(
-                        'Показаны последние $auditLimit записей — уточните фильтр',
+                        l.staffAuditLimit('$auditLimit'),
                         style: t.textTheme.bodySmall?.copyWith(color: AppColors.warning),
                       ),
                     ),
@@ -162,12 +164,12 @@ class _AuditTabState extends ConsumerState<AuditTab> {
                               warn ? Icons.warning_amber_rounded : _auditIcon(a.action),
                               color: warn ? AppColors.warning : t.colorScheme.onSurfaceVariant,
                             ),
-                            title: Text(auditLabel(a.action)),
+                            title: Text(auditLabel(a.action, l)),
                             subtitle: Text(
                               [
                                 if (compact) formatDateTime(a.at),
-                                a.userId == null ? 'система' : (byId[a.userId]?.name ?? '—'),
-                                if ((a.details ?? '').isNotEmpty) auditDetailsText(a.action, a.details),
+                                a.userId == null ? l.staffSystem : (byId[a.userId]?.name ?? '—'),
+                                if ((a.details ?? '').isNotEmpty) auditDetailsText(a.action, a.details, l),
                               ].join(' · '),
                               maxLines: 3,
                               overflow: TextOverflow.ellipsis,

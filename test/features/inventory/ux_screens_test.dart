@@ -2,6 +2,7 @@
 //   SCREENSHOTS=1 SCREENSHOTS_DIR=build/screens_inventory flutter test test/features/inventory/ux_screens_test.dart
 import 'package:dreampos/domain/services/stock_service.dart';
 import 'package:dreampos/features/inventory/inventory_logic.dart';
+import 'package:dreampos/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -44,8 +45,11 @@ Future<void> _closeDocument(UxHarness h, String size) async {
   }
 }
 
+/// UI strings of the screenshot language (env SCREENSHOTS_LOCALE).
+AppLocalizations _l(UxHarness h) => L.of(h.locale);
+
 Future<void> _rowMenu(UxHarness h) async {
-  final f = find.byTooltip('Действия').first;
+  final f = find.byTooltip(_l(h).commonActions).first;
   await h.tester.ensureVisible(f);
   await h.settle(2);
   await h.tester.tap(f);
@@ -56,8 +60,7 @@ Future<void> _scan(UxHarness h, String code) async {
   final f = find.byWidgetPredicate(
     (w) =>
         w is TextField &&
-        (w.decoration?.labelText == 'Сканируйте штрихкод или введите артикул' ||
-            w.decoration?.labelText == 'Штрихкод или артикул'),
+        (w.decoration?.labelText == _l(h).invScanLong || w.decoration?.labelText == _l(h).invScanShort),
   );
   await h.tester.enterText(f, code);
   await h.tester.testTextInput.receiveAction(TextInputAction.done);
@@ -114,40 +117,41 @@ Future<void> _run(WidgetTester tester, String size) async {
     );
     await repo.reverseReceipt(wrong, reason: 'Ошибочный ввод количества', userId: h.owner.id);
   });
+  final l = _l(h);
   await h.go('/inventory');
   await h.shot('inventory_stock');
 
   // Row actions: write-off dialog and movement history.
   await _rowMenu(h);
   await h.settle();
-  await tester.tap(find.text('Списание').last);
+  await tester.tap(find.text(l.invWriteoff).last);
   await h.settle();
   await h.shot('inventory_writeoff_dialog');
   await _closeDialog(h);
 
   await _rowMenu(h);
   await h.settle();
-  await tester.tap(find.text('Приход').last);
+  await tester.tap(find.text(l.invReceipt).last);
   await h.settle();
   await h.shot('inventory_quick_receipt_dialog');
   await _closeDialog(h);
 
   await _rowMenu(h);
   await h.settle();
-  await tester.tap(find.text('Корректировка').last);
+  await tester.tap(find.text(l.invAdjustment).last);
   await h.settle();
   await h.shot('inventory_adjust_dialog');
   await _closeDialog(h);
 
   await _rowMenu(h);
   await h.settle();
-  await tester.tap(find.text('Движения').last);
+  await tester.tap(find.text(l.invMovements).last);
   await h.settle();
   await h.shot('inventory_history_dialog');
   await _closeDialog(h);
 
   // Goods receipt.
-  await _openTab(h, 'Приход');
+  await _openTab(h, l.invReceipt);
   await h.shot('inventory_receipt_empty');
   await _scan(h, '4780000000011');
   await _scan(h, '2000000000015');
@@ -156,43 +160,43 @@ Future<void> _run(WidgetTester tester, String size) async {
 
   // Receipt documents journal, detail and reversal dialog.
   ScaffoldMessenger.of(tester.element(find.byType(TabBar).first)).clearSnackBars();
-  await tester.tap(find.text('Документы').first);
+  await tester.tap(find.text(l.invDocuments).first);
   await h.settle();
   await h.shot('inventory_receipt_documents');
   await tester.tap(find.textContaining('ТН-004512').first);
   await h.settle();
   await h.shot('inventory_receipt_document');
-  await tester.tap(find.text('Сторнировать').first);
+  await tester.tap(find.text(l.invReverse).first);
   await h.settle();
   await h.shot('inventory_receipt_reverse_dialog');
-  await tester.tap(find.text('Отмена').last);
+  await tester.tap(find.text(l.commonCancel).last);
   await h.settle();
   await _closeDocument(h, size);
-  await tester.tap(find.text('Сторнирован').first);
+  await tester.tap(find.text(l.invReceiptReversed).first);
   await h.settle();
   await h.shot('inventory_receipt_document_reversed');
   await _closeDocument(h, size);
-  await tester.tap(find.text('Новый приход').first);
+  await tester.tap(find.text(l.invNewReceipt).first);
   await h.settle();
 
-  await _openTab(h, 'Списание');
+  await _openTab(h, l.invWriteoff);
   await h.shot('inventory_writeoff_tab');
 
-  await _openTab(h, 'Инвентаризация');
+  await _openTab(h, l.invCount);
   await h.shot('inventory_counts_empty');
-  await tester.tap(find.text('Новая инвентаризация').first);
+  await tester.tap(find.text(l.invNewCount).first);
   await h.settle();
   await h.shot('inventory_count_create');
-  await tester.tap(find.text('Категория').last);
+  await tester.tap(find.text(l.commonCategory).last);
   await h.settle();
   await h.shot('inventory_count_create_category');
-  await tester.tap(find.text(size == 'phone' ? 'Все' : 'Все товары').last);
+  await tester.tap(find.text(size == 'phone' ? l.commonAll : l.invAllProducts).last);
   await h.settle();
-  await tester.tap(find.text('Создать'));
+  await tester.tap(find.text(l.commonCreate));
   await h.settle(10);
   await h.shot('inventory_count_editor');
   // Count a few items by scan so differences and totals show up.
-  final scanField = find.widgetWithText(TextField, 'Скан: +1 к факту');
+  final scanField = find.widgetWithText(TextField, l.invScanPlusOne);
   for (final code in ['4780000000011', '4780000000011', '4780000000189']) {
     await tester.enterText(scanField, code);
     await tester.testTextInput.receiveAction(TextInputAction.done);
@@ -200,13 +204,13 @@ Future<void> _run(WidgetTester tester, String size) async {
   }
   await h.settle(10);
   await h.shot('inventory_count_editor_counted');
-  await tester.tap(find.textContaining('Расхождения').first);
+  await tester.tap(find.textContaining(l.invDiscrepancies).first);
   await h.settle();
   await h.shot('inventory_count_editor_diffs');
   await _back(h);
   await h.shot('inventory_counts_list');
 
-  await _openTab(h, 'Движения');
+  await _openTab(h, l.invMovements);
   await h.shot('inventory_movements');
   await h.finish();
 }

@@ -38,10 +38,7 @@ void main() {
       expect(parseBanknotes('1000, abc', uzs).error, contains('не число'));
       expect(parseBanknotes('0', uzs).error, contains('больше нуля'));
       expect(parseBanknotes('1000, 1000', uzs).error, contains('дважды'));
-      expect(
-        parseBanknotes(List.generate(11, (i) => '${i + 1}').join(','), uzs).error,
-        contains('Не больше'),
-      );
+      expect(parseBanknotes(List.generate(11, (i) => '${i + 1}').join(','), uzs).error, contains('Не больше'));
       expect(parseBanknotes('0.5', uzs).error, contains('нет дробных'));
       expect(parseBanknotes('-5', uzs).ok, isFalse);
     });
@@ -164,11 +161,7 @@ void main() {
 
   test('sample receipt uses store settings and width', () {
     final txt = sampleReceiptText(
-      {
-        'store_name': 'Мой магазин',
-        'store_phone': '+998 90 000-00-00',
-        'receipt_footer': 'Спасибо!\nЖдём снова',
-      },
+      {'store_name': 'Мой магазин', 'store_phone': '+998 90 000-00-00', 'receipt_footer': 'Спасибо!\nЖдём снова'},
       width: 32,
       now: DateTime(2026, 1, 2, 3, 4),
     );
@@ -195,9 +188,7 @@ void main() {
       expect(await f.db.getSetting('store_name'), 'New');
       final again = await saveSettings(f.db, {'store_name': 'New'}, userId: f.owner.id);
       expect(again, 0);
-      final audit = await (f.db.select(
-        f.db.auditLog,
-      )..where((a) => a.action.equals('settings.change'))).get();
+      final audit = await (f.db.select(f.db.auditLog)..where((a) => a.action.equals('settings.change'))).get();
       expect(audit, hasLength(2));
       expect(audit.map((a) => a.details), contains('store_name: Old → New'));
       expect(audit.map((a) => a.details), contains('return_days: — → 7'));
@@ -262,10 +253,7 @@ void main() {
       final id = await upsertRegister(f.db, name: 'Касса 2');
       await ShiftService(f.db).open(userId: f.owner.id, openingCash: 0, registerId: id);
       expect(await registerHasOpenShift(f.db, id), isTrue);
-      await expectLater(
-        upsertRegister(f.db, id: id, name: 'Касса 2', isActive: false),
-        throwsA(isA<Exception>()),
-      );
+      await expectLater(upsertRegister(f.db, id: id, name: 'Касса 2', isActive: false), throwsA(isA<Exception>()));
       final r = await (f.db.select(f.db.registers)..where((t) => t.id.equals(id))).getSingle();
       expect(r.isActive, isTrue);
       await expectLater(deleteRegister(f.db, r), throwsA(isA<Exception>()));
@@ -322,8 +310,7 @@ void main() {
       svc = BackupService(
         f.db,
         () async => tmp,
-        dbPath: () async =>
-            '${tmp.path}${Platform.pathSeparator}appdata${Platform.pathSeparator}dreampos.sqlite',
+        dbPath: () async => '${tmp.path}${Platform.pathSeparator}appdata${Platform.pathSeparator}dreampos.sqlite',
       );
     });
     tearDown(() async {

@@ -8,6 +8,7 @@ import '../../core/providers.dart';
 import '../../core/security/pin.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
+import '../../l10n/l10n.dart';
 
 /// First-run wizard: store → currency → owner account → finish.
 class SetupScreen extends ConsumerStatefulWidget {
@@ -55,7 +56,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         'loyalty_enabled': '0',
         'loyalty_earn_percent': '2',
         'loyalty_max_redeem_percent': '50',
-        'receipt_footer': 'Спасибо за покупку!',
+        'receipt_footer': L.current.setupDefaultReceiptFooter,
+        // receipts start in the language chosen in the wizard (footer matches)
+        'receipt_locale': L.current.localeName,
         'demo_mode': _demo ? '1' : '0',
       };
       for (final e in s.entries) {
@@ -96,10 +99,10 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               child: Padding(
                 padding: const EdgeInsets.all(Gap.xl),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  Text('Добро пожаловать в DreamPOS',
+                  Text(context.l10n.setupWelcome,
                       style: t.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
                   const SizedBox(height: Gap.xs),
-                  Text('Настройка займёт меньше минуты. Всё можно изменить позже в «Настройках».',
+                  Text(context.l10n.setupIntro,
                       style: t.textTheme.bodyMedium?.copyWith(color: t.colorScheme.onSurfaceVariant)),
                   const SizedBox(height: Gap.l),
                   _Steps(step: _step),
@@ -117,13 +120,13 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                     if (_step > 0)
                       OutlinedButton(
                           onPressed: _busy ? null : () => setState(() => _step--),
-                          child: const Text('Назад')),
+                          child: Text(context.l10n.commonBack)),
                     const Spacer(),
                     FilledButton(
                       onPressed: _busy ? null : _next,
                       child: _busy
                           ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                          : Text(_step == 2 ? 'Начать работу' : 'Далее'),
+                          : Text(_step == 2 ? context.l10n.setupStart : context.l10n.commonNext),
                     ),
                   ]),
                 ]),
@@ -137,32 +140,36 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
 
   Widget _storeStep() => Form(
         key: _storeKey,
-        child: Column(key: const ValueKey(0), children: [
+        child: Column(key: const ValueKey(0), crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text(context.l10n.coreUiLanguage, style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: Gap.s),
+          const UiLanguagePicker(),
+          const SizedBox(height: Gap.l),
           TextFormField(
             controller: _store,
             autofocus: true,
-            decoration: const InputDecoration(labelText: 'Название магазина *'),
-            validator: (v) => (v ?? '').trim().isEmpty ? 'Введите название' : null,
+            decoration: InputDecoration(labelText: context.l10n.setupStoreName),
+            validator: (v) => (v ?? '').trim().isEmpty ? context.l10n.setupEnterStoreName : null,
           ),
           const SizedBox(height: Gap.m),
-          TextFormField(controller: _address, decoration: const InputDecoration(labelText: 'Адрес')),
+          TextFormField(controller: _address, decoration: InputDecoration(labelText: context.l10n.commonAddress)),
           const SizedBox(height: Gap.m),
           Row(children: [
             Expanded(
                 child: TextFormField(
                     controller: _phone,
                     keyboardType: TextInputType.phone,
-                    decoration: const InputDecoration(labelText: 'Телефон'))),
+                    decoration: InputDecoration(labelText: context.l10n.commonPhone))),
             const SizedBox(width: Gap.m),
             Expanded(
                 child: TextFormField(
-                    controller: _taxId, decoration: const InputDecoration(labelText: 'ИНН / STIR'))),
+                    controller: _taxId, decoration: InputDecoration(labelText: context.l10n.setupTaxId))),
           ]),
         ]),
       );
 
   Widget _currencyStep() => Column(key: const ValueKey(1), crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Text('Валюта учёта', style: Theme.of(context).textTheme.titleMedium),
+        Text(context.l10n.setupCurrency, style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: Gap.s),
         Wrap(spacing: Gap.s, runSpacing: Gap.s, children: [
           for (final c in CurrencyConfig.presets)
@@ -173,10 +180,10 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             ),
         ]),
         const SizedBox(height: Gap.m),
-        Text('Пример: ${Money.format(1234500 * _currency.factor ~/ 1, c: _currency)}',
+        Text(context.l10n.setupCurrencyExample(Money.format(1234500 * _currency.factor ~/ 1, c: _currency)),
             style: Theme.of(context).textTheme.bodyLarge),
         const SizedBox(height: Gap.s),
-        Text('Валюту нельзя менять после первой продажи — от неё зависят все суммы в базе.',
+        Text(context.l10n.setupCurrencyWarning,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.warning)),
       ]);
 
@@ -186,8 +193,8 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
           TextFormField(
             controller: _owner,
             autofocus: true,
-            decoration: const InputDecoration(labelText: 'Ваше имя (владелец) *'),
-            validator: (v) => (v ?? '').trim().isEmpty ? 'Введите имя' : null,
+            decoration: InputDecoration(labelText: context.l10n.setupOwnerName),
+            validator: (v) => (v ?? '').trim().isEmpty ? context.l10n.commonEnterName : null,
           ),
           const SizedBox(height: Gap.m),
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -197,7 +204,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                 obscureText: true,
                 keyboardType: TextInputType.number,
                 maxLength: 8,
-                decoration: const InputDecoration(labelText: 'PIN-код (4–8 цифр) *', counterText: ''),
+                decoration: InputDecoration(labelText: context.l10n.setupPin, counterText: ''),
                 validator: (v) => PinHasher.validate(v ?? ''),
               ),
             ),
@@ -208,8 +215,8 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                 obscureText: true,
                 keyboardType: TextInputType.number,
                 maxLength: 8,
-                decoration: const InputDecoration(labelText: 'Повторите PIN *', counterText: ''),
-                validator: (v) => v != _pin.text ? 'PIN не совпадает' : null,
+                decoration: InputDecoration(labelText: context.l10n.setupPinRepeat, counterText: ''),
+                validator: (v) => v != _pin.text ? context.l10n.setupPinMismatch : null,
               ),
             ),
           ]),
@@ -218,9 +225,8 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             value: _demo,
             onChanged: (v) => setState(() => _demo = v ?? false),
             contentPadding: EdgeInsets.zero,
-            title: const Text('Заполнить демо-данными'),
-            subtitle: const Text(
-                'Товары, клиенты и акции для знакомства с системой. Не включайте для реального магазина.'),
+            title: Text(context.l10n.setupDemo),
+            subtitle: Text(context.l10n.setupDemoHint),
           ),
         ]),
       );
@@ -231,7 +237,8 @@ class _Steps extends StatelessWidget {
   final int step;
   @override
   Widget build(BuildContext context) {
-    const labels = ['Магазин', 'Валюта', 'Владелец'];
+    final l = context.l10n;
+    final labels = [l.setupStepStore, l.setupStepCurrency, l.setupStepOwner];
     final t = Theme.of(context);
     return Row(children: [
       for (var i = 0; i < labels.length; i++) ...[

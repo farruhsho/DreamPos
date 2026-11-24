@@ -11,20 +11,27 @@ import '../../core/printing/pdf_fonts.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
+import '../../l10n/l10n.dart';
 import 'product_logic.dart';
 import 'products_repo.dart';
 
 /// A4 label grid presets.
 enum LabelLayout {
-  small(4, 10, 'Маленькие 4×10 (52×29 мм)'),
-  medium(3, 8, 'Средние 3×8 (70×37 мм)'),
-  large(2, 5, 'Крупные 2×5 (105×59 мм)');
+  small(4, 10),
+  medium(3, 8),
+  large(2, 5);
 
-  const LabelLayout(this.cols, this.rows, this.label);
+  const LabelLayout(this.cols, this.rows);
   final int cols;
   final int rows;
-  final String label;
   int get perPage => cols * rows;
+
+  String labelIn(AppLocalizations l) => switch (this) {
+        LabelLayout.small => l.prodLabelSmall,
+        LabelLayout.medium => l.prodLabelMedium,
+        LabelLayout.large => l.prodLabelLarge,
+      };
+  String get label => labelIn(L.current);
 }
 
 /// Picks a symbology the scanner will read back as the same code.
@@ -48,7 +55,9 @@ Future<Uint8List> buildPriceLabelsPdf(
   pw.ThemeData? theme,
 }) async {
   final th = theme ?? await PdfFonts.theme();
-  final doc = pw.Document(theme: th, title: 'Ценники', author: 'DreamPOS');
+  // Printed labels are read by customers: store receipt language.
+  final pl = L.receipt;
+  final doc = pw.Document(theme: th, title: L.printable(pl.prodPriceLabels), author: 'DreamPOS');
   final labels = [for (final p in products) for (var i = 0; i < copies; i++) p];
   final d = date ?? DateTime.now();
   final dateStr = formatDate(d);
@@ -62,7 +71,7 @@ Future<Uint8List> buildPriceLabelsPdf(
 
   pw.Widget label(Product p) {
     final bc = showBarcode ? labelBarcode(p.barcode) : null;
-    final perUnit = p.unit == 'pcs' ? '' : ' / ${Qty.unitLabel(p.unit)}';
+    final perUnit = p.unit == 'pcs' ? '' : ' / ${L.printable(Qty.unitLabel(p.unit, pl))}';
     return pw.Container(
       width: w,
       height: h,
@@ -102,7 +111,7 @@ Future<Uint8List> buildPriceLabelsPdf(
             )
           else
             pw.Expanded(
-              child: pw.Text(p.sku == null ? '' : 'арт. ${p.sku}', style: const pw.TextStyle(fontSize: 6)),
+              child: pw.Text(p.sku == null ? '' : L.printable(pl.prodSkuShort(p.sku!)), style: const pw.TextStyle(fontSize: 6)),
             ),
           pw.SizedBox(width: 4),
           pw.Text(dateStr, style: const pw.TextStyle(fontSize: 5.5, color: PdfColors.grey700)),
@@ -125,7 +134,7 @@ Future<Uint8List> buildPriceLabelsPdf(
 
 /// Options dialog + print preview for price labels of [ids].
 Future<void> showPriceLabelsDialog(BuildContext context, Set<String> ids) =>
-    showFormDialog<void>(context, title: 'Печать ценников', width: 520, child: _LabelsDialog(ids: ids));
+    showFormDialog<void>(context, title: context.l10n.prodPrintLabelsTitle, width: 520, child: _LabelsDialog(ids: ids));
 
 class _LabelsDialog extends ConsumerStatefulWidget {
   const _LabelsDialog({required this.ids});
@@ -149,8 +158,9 @@ class _LabelsDialogState extends ConsumerState<_LabelsDialog> {
   Future<void> _print() async {
     if (_busy) return;
     final copies = int.tryParse(_copies.text.trim()) ?? 0;
+    final l = context.l10n;
     if (copies < 1 || copies > 100) {
-      showError(context, 'Количество копий — от 1 до 100');
+      showError(context, l.prodCopiesRange);
       return;
     }
     setState(() => _busy = true);
@@ -159,7 +169,7 @@ class _LabelsDialogState extends ConsumerState<_LabelsDialog> {
       final store = ref.read(settingProvider('store_name'));
       final bytes = await buildPriceLabelsPdf(products,
           layout: _layout, copies: copies, showBarcode: _barcode, storeName: store);
-      await Printing.layoutPdf(onLayout: (_) async => bytes, name: 'Ценники');
+      await Printing.layoutPdf(onLayout: (_) async => bytes, name: l.prodPriceLabels);
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) showError(context, e);
@@ -173,23 +183,24 @@ class _LabelsDialogState extends ConsumerState<_LabelsDialog> {
     final copies = int.tryParse(_copies.text.trim()) ?? 0;
     final total = widget.ids.length * (copies < 1 ? 0 : copies);
     final pages = (total / _layout.perPage).ceil();
+    final l = context.l10n;
     return Padding(
       padding: const EdgeInsets.fromLTRB(Gap.xl, Gap.s, Gap.xl, Gap.l),
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Text('Товаров: ${widget.ids.length}. Формат A4, линии реза пунктиром.',
+        Text(l.prodLabelsIntro('${widget.ids.length}'),
             style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
         const SizedBox(height: Gap.m),
-        Text('Размер ценника', style: Theme.of(context).textTheme.titleSmall),
+        Text(l.prodLabelSize, style: Theme.of(context).textTheme.titleSmall),
         RadioGroup<LabelLayout>(
           groupValue: _layout,
           onChanged: (v) => setState(() => _layout = v ?? _layout),
           child: Column(children: [
-            for (final l in LabelLayout.values)
+            for (final lt in LabelLayout.values)
               RadioListTile<LabelLayout>(
-                value: l,
+                value: lt,
                 contentPadding: EdgeInsets.zero,
                 visualDensity: VisualDensity.compact,
-                title: Text(l.label),
+                title: Text(lt.labelIn(l)),
               ),
           ]),
         ),
@@ -201,14 +212,14 @@ class _LabelsDialogState extends ConsumerState<_LabelsDialog> {
               controller: _copies,
               keyboardType: TextInputType.number,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: const InputDecoration(labelText: 'Копий каждого'),
+              decoration: InputDecoration(labelText: l.prodCopiesEach),
               onChanged: (_) => setState(() {}),
               onSubmitted: (_) => _print(),
             ),
           ),
           const SizedBox(width: Gap.l),
           Expanded(
-            child: Text('Всего ценников: $total\nСтраниц A4: $pages',
+            child: Text(l.prodLabelsTotal('$total', '$pages'),
                 style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
           ),
         ]),
@@ -216,11 +227,11 @@ class _LabelsDialogState extends ConsumerState<_LabelsDialog> {
           contentPadding: EdgeInsets.zero,
           value: _barcode,
           onChanged: (v) => setState(() => _barcode = v),
-          title: const Text('Печатать штрихкод'),
+          title: Text(l.prodPrintBarcode),
         ),
         const SizedBox(height: Gap.m),
         Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')),
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(l.commonCancel)),
           const SizedBox(width: Gap.s),
           FilledButton.icon(
             autofocus: true,
@@ -228,13 +239,13 @@ class _LabelsDialogState extends ConsumerState<_LabelsDialog> {
             icon: _busy
                 ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                 : const Icon(Icons.print_outlined),
-            label: const Text('Печать'),
+            label: Text(l.commonPrint),
           ),
         ]),
         if (_busy)
-          const Padding(
-            padding: EdgeInsets.only(top: Gap.s),
-            child: Text('Готовим PDF…', style: TextStyle(color: AppColors.info)),
+          Padding(
+            padding: const EdgeInsets.only(top: Gap.s),
+            child: Text(l.prodPreparingPdf, style: const TextStyle(color: AppColors.info)),
           ),
       ]),
     );

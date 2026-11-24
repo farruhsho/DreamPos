@@ -48,8 +48,7 @@ void main() {
         databaseProvider.overrideWithValue(f.db),
         settingsDocumentsDirProvider.overrideWithValue(() async => Directory.systemTemp),
         settingsDbPathProvider.overrideWithValue(
-          () async =>
-              '${Directory.systemTemp.path}${Platform.pathSeparator}dreampos_settings_widget_test.sqlite',
+          () async => '${Directory.systemTemp.path}${Platform.pathSeparator}dreampos_settings_widget_test.sqlite',
         ),
       ],
     );
@@ -167,11 +166,7 @@ void main() {
       'nav-data',
       'nav-about',
     ]) {
-      await tester.scrollUntilVisible(
-        find.byKey(ValueKey(key)),
-        100,
-        scrollable: find.byType(Scrollable).first,
-      );
+      await tester.scrollUntilVisible(find.byKey(ValueKey(key)), 100, scrollable: find.byType(Scrollable).first);
       await tester.tap(find.byKey(ValueKey(key)));
       await settle(tester);
       expect(tester.takeException(), isNull, reason: key);

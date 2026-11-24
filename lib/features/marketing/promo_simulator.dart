@@ -9,6 +9,7 @@ import '../../core/theme.dart';
 import '../../core/widgets/pickers.dart';
 import '../../core/widgets/widgets.dart';
 import '../../domain/pricing.dart';
+import '../../l10n/l10n.dart';
 
 Future<void> showPromoSimulator(BuildContext context) {
   final size = MediaQuery.sizeOf(context);
@@ -17,13 +18,13 @@ Future<void> showPromoSimulator(BuildContext context) {
       MaterialPageRoute(
         fullscreenDialog: true,
         builder: (_) => Scaffold(
-          appBar: AppBar(title: const Text('Проверка акций на чеке')),
+          appBar: AppBar(title: Text(context.l10n.mktSimTitle)),
           body: const PromoSimulator(),
         ),
       ),
     );
   }
-  return showFormDialog<void>(context, title: 'Проверка акций на чеке', width: 860, child: const PromoSimulator());
+  return showFormDialog<void>(context, title: context.l10n.mktSimTitle, width: 860, child: const PromoSimulator());
 }
 
 class _SimLine {
@@ -75,7 +76,7 @@ class _PromoSimulatorState extends ConsumerState<PromoSimulator> {
   }
 
   Future<void> _add() async {
-    final p = await pickProduct(context, title: 'Добавить товар в тестовый чек');
+    final p = await pickProduct(context, title: context.l10n.mktSimAddProductTitle);
     if (p == null) return;
     setState(() {
       final existing = _lines.where((l) => l.product.id == p.id).firstOrNull;
@@ -130,6 +131,7 @@ class _PromoSimulatorState extends ConsumerState<PromoSimulator> {
     if (_loadError != null) return ErrorView(error: _loadError!, onRetry: _loadRules);
     if (_rules == null) return const SizedBox(height: 200, child: LoadingView());
     final res = _compute();
+    final s = context.l10n;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(Gap.xl, Gap.s, Gap.xl, Gap.l),
@@ -137,9 +139,7 @@ class _PromoSimulatorState extends ConsumerState<PromoSimulator> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Добавьте товары и посмотрите, какие скидки применит касса. Действует активных акций: ${_rules!.length}. '
-            'Скидки на позицию не суммируются — берётся лучшая из акции на товар/категорию, «N+M» '
-            'и персональной скидки клиента. Из скидок на чек (акция на чек, промокод) применяется одна, самая выгодная.',
+            s.mktSimIntro('${_rules!.length}'),
             style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant),
           ),
           const SizedBox(height: Gap.m),
@@ -149,23 +149,23 @@ class _PromoSimulatorState extends ConsumerState<PromoSimulator> {
                 autofocus: true,
                 onPressed: _add,
                 icon: const Icon(Icons.add),
-                label: const Text('Добавить товар'),
+                label: Text(s.mktSimAddProduct),
               );
               final pct = TextField(
                 controller: _customerPct,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
                 decoration: InputDecoration(
-                  labelText: 'Скидка клиента',
+                  labelText: s.mktSimCustomerDiscount,
                   suffixText: '%',
-                  errorText: _customerPercent == null ? 'От 0 до 100' : null,
+                  errorText: _customerPercent == null ? s.mktSim0To100 : null,
                 ),
                 onChanged: (_) => setState(() {}),
               );
               final code = TextField(
                 controller: _code,
                 textCapitalization: TextCapitalization.characters,
-                decoration: const InputDecoration(labelText: 'Промокод'),
+                decoration: InputDecoration(labelText: s.mktTypePromoCode),
                 onChanged: (_) => setState(() {}),
               );
               // Phones: full-width button, both inputs share one row instead of
@@ -201,10 +201,10 @@ class _PromoSimulatorState extends ConsumerState<PromoSimulator> {
           ),
           const SizedBox(height: Gap.l),
           if (_lines.isEmpty)
-            const EmptyState(
+            EmptyState(
               icon: Icons.shopping_cart_outlined,
-              title: 'Тестовый чек пуст',
-              message: 'Добавьте один или несколько товаров',
+              title: s.mktSimEmptyTitle,
+              message: s.mktSimEmptyMessage,
             )
           else ...[
             Card(
@@ -222,11 +222,15 @@ class _PromoSimulatorState extends ConsumerState<PromoSimulator> {
   }
 
   Widget _lineRow(ThemeData t, _SimLine l, PricedLine? pl) {
+    final s = context.l10n;
     final info = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(l.product.name, style: const TextStyle(fontWeight: FontWeight.w600)),
-        Text('${Money.format(l.product.price)} за ${Qty.unitLabel(l.product.unit)}', style: t.textTheme.bodySmall),
+        Text(
+          s.mktSimPricePer(Money.format(l.product.price), Qty.unitLabel(l.product.unit, s)),
+          style: t.textTheme.bodySmall,
+        ),
         if (pl != null && pl.autoDiscount > 0)
           Text(
             '−${Money.format(pl.autoDiscount)} · ${pl.autoReason ?? ''}',
@@ -234,11 +238,11 @@ class _PromoSimulatorState extends ConsumerState<PromoSimulator> {
           ),
         if (pl != null && pl.orderDiscount > 0)
           Text(
-            '−${Money.format(pl.orderDiscount)} · доля скидки на чек',
+            s.mktSimOrderShare(Money.format(pl.orderDiscount)),
             style: const TextStyle(color: AppColors.info, fontSize: 12),
           ),
         if (l.value <= 0)
-          const Text('Укажите количество больше нуля', style: TextStyle(color: AppColors.danger, fontSize: 12)),
+          Text(s.mktSimQtyPositive, style: const TextStyle(color: AppColors.danger, fontSize: 12)),
       ],
     );
     final qty = SizedBox(
@@ -247,7 +251,7 @@ class _PromoSimulatorState extends ConsumerState<PromoSimulator> {
         controller: l.qty,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
-        decoration: InputDecoration(labelText: 'Кол-во', suffixText: Qty.unitLabel(l.product.unit)),
+        decoration: InputDecoration(labelText: s.mktSimQtyShort, suffixText: Qty.unitLabel(l.product.unit, s)),
         onChanged: (_) => setState(() {}),
       ),
     );
@@ -262,7 +266,7 @@ class _PromoSimulatorState extends ConsumerState<PromoSimulator> {
         Text(Money.format(pl?.total ?? 0), style: const TextStyle(fontWeight: FontWeight.w700)),
       ],
     );
-    final remove = IconButton(tooltip: 'Убрать', icon: const Icon(Icons.close), onPressed: () => _removeLine(l));
+    final remove = IconButton(tooltip: s.mktRemove, icon: const Icon(Icons.close), onPressed: () => _removeLine(l));
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: Gap.m, vertical: Gap.s),
       child: LayoutBuilder(
@@ -315,26 +319,27 @@ class _PromoSimulatorState extends ConsumerState<PromoSimulator> {
       ),
     );
     final code = res.promoCodeValid;
+    final s = context.l10n;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(Gap.l),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            row('Сумма без скидок', Money.format(res.subtotal)),
-            row('Скидка', '−${Money.format(res.discountTotal)}', color: AppColors.success),
+            row(s.mktSimSubtotal, Money.format(res.subtotal)),
+            row(s.commonDiscount, '−${Money.format(res.discountTotal)}', color: AppColors.success),
             const Divider(),
-            row('К оплате', Money.format(res.total), strong: true),
+            row(s.mktSimToPay, Money.format(res.total), strong: true),
             const SizedBox(height: Gap.m),
             if (code != null)
               Text(
-                code ? 'Промокод принят' : 'Промокод не найден, не активен или сумма чека меньше минимальной',
+                code ? s.mktSimCodeAccepted : s.mktSimCodeRejected,
                 style: TextStyle(color: code ? AppColors.success : AppColors.danger),
               ),
             const SizedBox(height: Gap.xs),
-            Text('Применённые скидки:', style: t.textTheme.labelLarge),
+            Text(s.mktSimApplied, style: t.textTheme.labelLarge),
             if (res.appliedPromotions.isEmpty)
-              Text('нет', style: t.textTheme.bodySmall)
+              Text(s.mktSimNone, style: t.textTheme.bodySmall)
             else
               Wrap(
                 spacing: Gap.xs,

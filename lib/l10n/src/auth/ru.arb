@@ -1,0 +1,23 @@
+{
+  "authEnterPin": "Введите PIN-код",
+  "authDemoMode": "Демо-режим",
+  "setupDefaultReceiptFooter": "Спасибо за покупку!",
+  "setupWelcome": "Добро пожаловать в DreamPOS",
+  "setupIntro": "Настройка займёт меньше минуты. Всё можно изменить позже в «Настройках».",
+  "setupStart": "Начать работу",
+  "setupStoreName": "Название магазина *",
+  "setupEnterStoreName": "Введите название",
+  "setupTaxId": "ИНН / STIR",
+  "setupCurrency": "Валюта учёта",
+  "setupCurrencyExample": "Пример: {amount}",
+  "setupCurrencyWarning": "Валюту нельзя менять после первой продажи — от неё зависят все суммы в базе.",
+  "setupOwnerName": "Ваше имя (владелец) *",
+  "setupPin": "PIN-код (4–8 цифр) *",
+  "setupPinRepeat": "Повторите PIN *",
+  "setupPinMismatch": "PIN не совпадает",
+  "setupDemo": "Заполнить демо-данными",
+  "setupDemoHint": "Товары, клиенты и акции для знакомства с системой. Не включайте для реального магазина.",
+  "setupStepStore": "Магазин",
+  "setupStepCurrency": "Валюта",
+  "setupStepOwner": "Владелец"
+}

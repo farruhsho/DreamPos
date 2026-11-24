@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../domain/services/auth_service.dart';
 import '../domain/services/customer_service.dart';
@@ -10,6 +11,7 @@ import '../domain/services/sale_service.dart';
 import '../domain/services/shift_service.dart';
 import '../domain/services/stock_service.dart';
 import '../domain/services/supplier_service.dart';
+import '../l10n/l10n.dart';
 import 'db/database.dart';
 import 'money.dart';
 import 'permissions.dart';
@@ -42,6 +44,54 @@ final settingsProvider = StreamProvider<Map<String, String>>((ref) {
 /// Read a single setting with a default, e.g. `ref.watch(settingProvider('store_name'))`.
 final settingProvider = Provider.family<String?, String>(
     (ref, key) => ref.watch(settingsProvider).value?[key]);
+
+// ------------------------------------------------------------------ language
+
+/// UI language code (`ru`/`uz`/`ky`/`en`): a device preference stored in
+/// SharedPreferences `ui_locale`, default ru. Keeps [L.current] in sync.
+/// main() passes the saved value (no flash); otherwise it is loaded async.
+class UiLocaleNotifier extends Notifier<String> {
+  UiLocaleNotifier([this.initial]);
+  final String? initial;
+  static const prefsKey = 'ui_locale';
+
+  @override
+  String build() {
+    final code = L.normalize(initial);
+    L.setCurrent(code);
+    if (initial == null) _load();
+    return code;
+  }
+
+  Future<void> _load() async {
+    try {
+      final saved = (await SharedPreferences.getInstance()).getString(prefsKey);
+      if (saved != null && ref.mounted && L.normalize(saved) != state) {
+        L.setCurrent(saved);
+        state = L.normalize(saved);
+      }
+    } catch (_) {/* no prefs (tests): keep ru */}
+  }
+
+  Future<void> set(String code) async {
+    final c = L.normalize(code);
+    L.setCurrent(c);
+    state = c;
+    try {
+      await (await SharedPreferences.getInstance()).setString(prefsKey, c);
+    } catch (_) {}
+  }
+}
+
+final uiLocaleProvider = NotifierProvider<UiLocaleNotifier, String>(UiLocaleNotifier.new);
+
+/// Language of printed customer documents: store setting `receipt_locale` (default ru).
+/// Keeps [L.receipt] in sync.
+final receiptLocaleProvider = Provider<String>((ref) {
+  final c = L.normalize(ref.watch(settingProvider('receipt_locale')));
+  L.setReceipt(c);
+  return c;
+});
 
 // ------------------------------------------------------------------ session
 
