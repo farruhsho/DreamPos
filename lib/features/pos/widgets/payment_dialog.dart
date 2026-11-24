@@ -186,7 +186,7 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
   }
 
   Future<void> _checkGift() async {
-    final code = _giftCode.text.trim();
+    final code = normalizeGiftCode(_giftCode.text);
     if (code.isEmpty) {
       setState(() => _giftError = 'Введите код сертификата');
       return;

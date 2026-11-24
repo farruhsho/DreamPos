@@ -111,9 +111,9 @@ void main() {
     final f = (await tester.runAsync(Fixture.create))!;
     final p = (await tester.runAsync(() async {
       await f.db.into(f.db.giftCards).insert(GiftCardsCompanion.insert(
-          id: newId(), code: 'GC-100', initialAmount: 10000, balance: 10000));
+          id: newId(), code: 'GC100', initialAmount: 10000, balance: 10000));
       await f.db.into(f.db.giftCards).insert(GiftCardsCompanion.insert(
-          id: newId(), code: 'GC-OLD', initialAmount: 10000, balance: 0, status: const Value('used')));
+          id: newId(), code: 'GCOLD', initialAmount: 10000, balance: 0, status: const Value('used')));
       return f.product('Книга', price: 15000);
     }))!;
     final (c, results) = await pumpDialog(tester, f, cartOf(p, 1), 15000);
@@ -137,7 +137,7 @@ void main() {
 
     expect(results.single, isNotNull);
     final card = (await tester.runAsync(() =>
-        (f.db.select(f.db.giftCards)..where((g) => g.code.equals('GC-100'))).getSingle()))!;
+        (f.db.select(f.db.giftCards)..where((g) => g.code.equals('GC100'))).getSingle()))!;
     expect(card.balance, 0);
     expect(card.status, 'used');
     await finish(tester, f, c);
