@@ -1,4 +1,4 @@
-package com.example.dreampos
+package uz.dreamdev.dreampos
 
 import io.flutter.embedding.android.FlutterActivity
 
