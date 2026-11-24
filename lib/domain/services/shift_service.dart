@@ -22,6 +22,10 @@ class ShiftReport {
     required this.supplierCashPaid,
     required this.voidedCount,
     this.returnedCost = 0,
+    this.giftSalesCount = 0,
+    this.giftVoidsCount = 0,
+    this.giftSalesByMethod = const {},
+    this.giftRefundsByMethod = const {},
   });
 
   final Shift shift;
@@ -43,6 +47,26 @@ class ShiftReport {
   /// Cost of goods returned in this shift.
   final int returnedCost;
 
+  /// Gift card sale documents recorded in this shift (D-023), including ones
+  /// voided later: the money did come into this shift's drawer.
+  final int giftSalesCount;
+
+  /// Gift card sales voided in this shift (whatever shift sold them).
+  final int giftVoidsCount;
+
+  /// Gift card sale payments by method for [giftSalesCount] documents.
+  /// An advance, not revenue: never part of [salesTotal] / [byMethod].
+  final Map<String, int> giftSalesByMethod;
+
+  /// Refunds of gift card sales voided in this shift, by original method.
+  final Map<String, int> giftRefundsByMethod;
+
+  int get giftSalesTotal => giftSalesByMethod.values.fold(0, (s, v) => s + v);
+  int get giftRefundsTotal => giftRefundsByMethod.values.fold(0, (s, v) => s + v);
+
+  /// Net effect of gift card sales and voids on the cash drawer.
+  int get giftCashNet => (giftSalesByMethod['cash'] ?? 0) - (giftRefundsByMethod['cash'] ?? 0);
+
   int get cashSales => byMethod['cash'] ?? 0;
   int get cashRefunds => refundsByMethod['cash'] ?? 0;
   int get netRevenue => salesTotal - returnsTotal;
@@ -56,7 +80,8 @@ class ShiftReport {
       payIn -
       payOut +
       debtCollectedCash -
-      supplierCashPaid;
+      supplierCashPaid +
+      giftCashNet;
 
   int? get difference =>
       shift.countedCash == null ? null : shift.countedCash! - expectedCash;
@@ -182,6 +207,24 @@ class ShiftService {
     final supPays = await (db.select(db.supplierPayments)
           ..where((p) => p.shiftId.equals(shiftId) & p.method.equals('cash') & p.cancelledAt.isNull() & p.deletedAt.isNull()))
         .get();
+    final giftSold = await (db.select(db.giftCardSales)
+          ..where((g) => g.shiftId.equals(shiftId) & g.deletedAt.isNull()))
+        .get();
+    final giftVoided = await (db.select(db.giftCardSales)
+          ..where((g) => g.voidShiftId.equals(shiftId) & g.status.equals('voided') & g.deletedAt.isNull()))
+        .get();
+    Future<Map<String, int>> giftByMethod(List<GiftCardSale> docs) async {
+      final out = <String, int>{};
+      if (docs.isEmpty) return out;
+      final pays = await (db.select(db.giftCardSalePayments)
+            ..where((p) => p.saleId.isIn(docs.map((d) => d.id)) & p.deletedAt.isNull()))
+          .get();
+      for (final p in pays) {
+        out[p.method] = (out[p.method] ?? 0) + p.amount;
+      }
+      return out;
+    }
+
     return ShiftReport(
       shift: shift,
       salesCount: valid.length,
@@ -199,6 +242,10 @@ class ShiftService {
       supplierCashPaid: supPays.fold(0, (s, p) => s + p.amount),
       voidedCount: sales.where((s) => s.status == 'voided').length,
       returnedCost: returnedCost,
+      giftSalesCount: giftSold.length,
+      giftVoidsCount: giftVoided.length,
+      giftSalesByMethod: await giftByMethod(giftSold),
+      giftRefundsByMethod: await giftByMethod(giftVoided),
     );
   }
 

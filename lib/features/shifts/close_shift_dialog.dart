@@ -112,10 +112,10 @@ class _CloseShiftFormState extends ConsumerState<_CloseShiftForm> {
   @override
   Widget build(BuildContext context) {
     final fig = ref.watch(shiftFiguresProvider(widget.shiftId));
-    return AsyncView(value: fig, data: (f) => _form(context, f.expectedCash));
+    return AsyncView(value: fig, data: (f) => _form(context, f.expectedCash, giftCashNet: f.report.giftCashNet));
   }
 
-  Widget _form(BuildContext context, int expected) {
+  Widget _form(BuildContext context, int expected, {int giftCashNet = 0}) {
     final t = Theme.of(context);
     final counted = _counted;
     final diff = counted == null ? null : counted - expected;
@@ -200,6 +200,12 @@ class _CloseShiftFormState extends ConsumerState<_CloseShiftForm> {
                       child: Column(
                         children: [
                           _kv(context, 'Ожидается в кассе', Money.format(expected)),
+                          if (giftCashNet != 0)
+                            _kv(
+                              context,
+                              'в т.ч. сертификаты (нал.)',
+                              '${giftCashNet < 0 ? '−' : '+'}${Money.format(giftCashNet.abs())}',
+                            ),
                           _kv(context, 'Пересчитано', counted == null ? '—' : Money.format(counted), bold: true),
                           const Divider(height: Gap.l),
                           _kv(

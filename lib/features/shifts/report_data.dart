@@ -84,6 +84,21 @@ class ZReportData {
         for (final k in refunds)
           ReportLine('в т.ч. ${paymentMethodLabel(k).toLowerCase()}', m(r.refundsByMethod[k]!), indent: true),
       ]),
+      if (r.giftSalesCount > 0 || r.giftVoidsCount > 0)
+        ReportSection('Сертификаты', [
+          ReportLine('Продано', '${r.giftSalesCount}'),
+          ReportLine('Сумма продаж (аванс)', m(r.giftSalesTotal), bold: true),
+          for (final k in _sortedKeys(r.giftSalesByMethod))
+            ReportLine('в т.ч. ${paymentMethodLabel(k).toLowerCase()}', m(r.giftSalesByMethod[k]!), indent: true),
+          if (r.giftVoidsCount > 0) ...[
+            ReportLine('Аннулировано', '${r.giftVoidsCount}'),
+            ReportLine('Возвращено покупателям', '−${m(r.giftRefundsTotal)}', bold: true),
+            for (final k in _sortedKeys(r.giftRefundsByMethod))
+              ReportLine('в т.ч. ${paymentMethodLabel(k).toLowerCase()}', '−${m(r.giftRefundsByMethod[k]!)}', indent: true),
+          ],
+          ReportLine('Влияние на кассу (нал.)', _signed(r.giftCashNet, m), bold: true),
+          const ReportLine('аванс, не входит в выручку', '', indent: true),
+        ]),
       ReportSection('Итог', [
         ReportLine('Выручка (за вычетом возвратов)', m(figures.netRevenue), bold: true),
         if (showProfit) ReportLine('Себестоимость', m(figures.netCost)),
@@ -103,6 +118,8 @@ class ZReportData {
         ReportLine('Погашение долгов (нал.)', m(r.debtCollectedCash)),
         if (r.debtCollectedNonCash > 0) ReportLine('Погашение долгов (безнал.)', m(r.debtCollectedNonCash)),
         if (r.supplierCashPaid > 0) ReportLine('Оплаты поставщикам', '−${m(r.supplierCashPaid)}'),
+        if (r.giftCashNet != 0)
+          ReportLine('Сертификаты (нал., аванс)', _signed(r.giftCashNet, m)),
         ReportLine('Ожидается в кассе', m(figures.expectedForDiff), bold: true),
         if (s.countedCash != null) ReportLine('Фактически', m(s.countedCash!), bold: true),
         if (figures.difference != null)
@@ -119,6 +136,11 @@ class ZReportData {
       ]),
     ];
   }
+
+  static List<String> _sortedKeys(Map<String, int> m) =>
+      [for (final e in m.entries) if (e.value != 0) e.key]..sort();
+
+  static String _signed(int v, String Function(int) m) => v == 0 ? m(0) : '${v < 0 ? '−' : '+'}${m(v.abs())}';
 
   /// Monospace layout for receipt printers.
   String toText({int width = 42}) {

@@ -17306,6 +17306,1518 @@ class GiftCardsCompanion extends UpdateCompanion<GiftCard> {
   }
 }
 
+class $GiftCardSalesTable extends GiftCardSales
+    with TableInfo<$GiftCardSalesTable, GiftCardSale> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $GiftCardSalesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _numberMeta = const VerificationMeta('number');
+  @override
+  late final GeneratedColumn<int> number = GeneratedColumn<int>(
+    'number',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _giftCardIdMeta = const VerificationMeta(
+    'giftCardId',
+  );
+  @override
+  late final GeneratedColumn<String> giftCardId = GeneratedColumn<String>(
+    'gift_card_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES gift_cards (id)',
+    ),
+  );
+  static const VerificationMeta _amountMeta = const VerificationMeta('amount');
+  @override
+  late final GeneratedColumn<int> amount = GeneratedColumn<int>(
+    'amount',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _shiftIdMeta = const VerificationMeta(
+    'shiftId',
+  );
+  @override
+  late final GeneratedColumn<String> shiftId = GeneratedColumn<String>(
+    'shift_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _registerIdMeta = const VerificationMeta(
+    'registerId',
+  );
+  @override
+  late final GeneratedColumn<String> registerId = GeneratedColumn<String>(
+    'register_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _cashierIdMeta = const VerificationMeta(
+    'cashierId',
+  );
+  @override
+  late final GeneratedColumn<String> cashierId = GeneratedColumn<String>(
+    'cashier_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _customerIdMeta = const VerificationMeta(
+    'customerId',
+  );
+  @override
+  late final GeneratedColumn<String> customerId = GeneratedColumn<String>(
+    'customer_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('completed'),
+  );
+  static const VerificationMeta _changeDueMeta = const VerificationMeta(
+    'changeDue',
+  );
+  @override
+  late final GeneratedColumn<int> changeDue = GeneratedColumn<int>(
+    'change_due',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _voidedAtMeta = const VerificationMeta(
+    'voidedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> voidedAt = GeneratedColumn<DateTime>(
+    'voided_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _voidedByMeta = const VerificationMeta(
+    'voidedBy',
+  );
+  @override
+  late final GeneratedColumn<String> voidedBy = GeneratedColumn<String>(
+    'voided_by',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _voidShiftIdMeta = const VerificationMeta(
+    'voidShiftId',
+  );
+  @override
+  late final GeneratedColumn<String> voidShiftId = GeneratedColumn<String>(
+    'void_shift_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _voidReasonMeta = const VerificationMeta(
+    'voidReason',
+  );
+  @override
+  late final GeneratedColumn<String> voidReason = GeneratedColumn<String>(
+    'void_reason',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _noteMeta = const VerificationMeta('note');
+  @override
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+    'note',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    number,
+    giftCardId,
+    amount,
+    shiftId,
+    registerId,
+    cashierId,
+    customerId,
+    status,
+    changeDue,
+    voidedAt,
+    voidedBy,
+    voidShiftId,
+    voidReason,
+    note,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'gift_card_sales';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<GiftCardSale> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    if (data.containsKey('number')) {
+      context.handle(
+        _numberMeta,
+        number.isAcceptableOrUnknown(data['number']!, _numberMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_numberMeta);
+    }
+    if (data.containsKey('gift_card_id')) {
+      context.handle(
+        _giftCardIdMeta,
+        giftCardId.isAcceptableOrUnknown(
+          data['gift_card_id']!,
+          _giftCardIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_giftCardIdMeta);
+    }
+    if (data.containsKey('amount')) {
+      context.handle(
+        _amountMeta,
+        amount.isAcceptableOrUnknown(data['amount']!, _amountMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_amountMeta);
+    }
+    if (data.containsKey('shift_id')) {
+      context.handle(
+        _shiftIdMeta,
+        shiftId.isAcceptableOrUnknown(data['shift_id']!, _shiftIdMeta),
+      );
+    }
+    if (data.containsKey('register_id')) {
+      context.handle(
+        _registerIdMeta,
+        registerId.isAcceptableOrUnknown(data['register_id']!, _registerIdMeta),
+      );
+    }
+    if (data.containsKey('cashier_id')) {
+      context.handle(
+        _cashierIdMeta,
+        cashierId.isAcceptableOrUnknown(data['cashier_id']!, _cashierIdMeta),
+      );
+    }
+    if (data.containsKey('customer_id')) {
+      context.handle(
+        _customerIdMeta,
+        customerId.isAcceptableOrUnknown(data['customer_id']!, _customerIdMeta),
+      );
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    }
+    if (data.containsKey('change_due')) {
+      context.handle(
+        _changeDueMeta,
+        changeDue.isAcceptableOrUnknown(data['change_due']!, _changeDueMeta),
+      );
+    }
+    if (data.containsKey('voided_at')) {
+      context.handle(
+        _voidedAtMeta,
+        voidedAt.isAcceptableOrUnknown(data['voided_at']!, _voidedAtMeta),
+      );
+    }
+    if (data.containsKey('voided_by')) {
+      context.handle(
+        _voidedByMeta,
+        voidedBy.isAcceptableOrUnknown(data['voided_by']!, _voidedByMeta),
+      );
+    }
+    if (data.containsKey('void_shift_id')) {
+      context.handle(
+        _voidShiftIdMeta,
+        voidShiftId.isAcceptableOrUnknown(
+          data['void_shift_id']!,
+          _voidShiftIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('void_reason')) {
+      context.handle(
+        _voidReasonMeta,
+        voidReason.isAcceptableOrUnknown(data['void_reason']!, _voidReasonMeta),
+      );
+    }
+    if (data.containsKey('note')) {
+      context.handle(
+        _noteMeta,
+        note.isAcceptableOrUnknown(data['note']!, _noteMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  GiftCardSale map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return GiftCardSale(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+      number: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}number'],
+      )!,
+      giftCardId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}gift_card_id'],
+      )!,
+      amount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}amount'],
+      )!,
+      shiftId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}shift_id'],
+      ),
+      registerId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}register_id'],
+      ),
+      cashierId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cashier_id'],
+      ),
+      customerId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}customer_id'],
+      ),
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      changeDue: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}change_due'],
+      )!,
+      voidedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}voided_at'],
+      ),
+      voidedBy: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}voided_by'],
+      ),
+      voidShiftId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}void_shift_id'],
+      ),
+      voidReason: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}void_reason'],
+      ),
+      note: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note'],
+      ),
+    );
+  }
+
+  @override
+  $GiftCardSalesTable createAlias(String alias) {
+    return $GiftCardSalesTable(attachedDatabase, alias);
+  }
+}
+
+class GiftCardSale extends DataClass implements Insertable<GiftCardSale> {
+  final String id;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final DateTime? deletedAt;
+  final int number;
+  final String giftCardId;
+  final int amount;
+  final String? shiftId;
+  final String? registerId;
+  final String? cashierId;
+  final String? customerId;
+  final String status;
+  final int changeDue;
+  final DateTime? voidedAt;
+  final String? voidedBy;
+  final String? voidShiftId;
+  final String? voidReason;
+  final String? note;
+  const GiftCardSale({
+    required this.id,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+    required this.number,
+    required this.giftCardId,
+    required this.amount,
+    this.shiftId,
+    this.registerId,
+    this.cashierId,
+    this.customerId,
+    required this.status,
+    required this.changeDue,
+    this.voidedAt,
+    this.voidedBy,
+    this.voidShiftId,
+    this.voidReason,
+    this.note,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    map['number'] = Variable<int>(number);
+    map['gift_card_id'] = Variable<String>(giftCardId);
+    map['amount'] = Variable<int>(amount);
+    if (!nullToAbsent || shiftId != null) {
+      map['shift_id'] = Variable<String>(shiftId);
+    }
+    if (!nullToAbsent || registerId != null) {
+      map['register_id'] = Variable<String>(registerId);
+    }
+    if (!nullToAbsent || cashierId != null) {
+      map['cashier_id'] = Variable<String>(cashierId);
+    }
+    if (!nullToAbsent || customerId != null) {
+      map['customer_id'] = Variable<String>(customerId);
+    }
+    map['status'] = Variable<String>(status);
+    map['change_due'] = Variable<int>(changeDue);
+    if (!nullToAbsent || voidedAt != null) {
+      map['voided_at'] = Variable<DateTime>(voidedAt);
+    }
+    if (!nullToAbsent || voidedBy != null) {
+      map['voided_by'] = Variable<String>(voidedBy);
+    }
+    if (!nullToAbsent || voidShiftId != null) {
+      map['void_shift_id'] = Variable<String>(voidShiftId);
+    }
+    if (!nullToAbsent || voidReason != null) {
+      map['void_reason'] = Variable<String>(voidReason);
+    }
+    if (!nullToAbsent || note != null) {
+      map['note'] = Variable<String>(note);
+    }
+    return map;
+  }
+
+  GiftCardSalesCompanion toCompanion(bool nullToAbsent) {
+    return GiftCardSalesCompanion(
+      id: Value(id),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+      number: Value(number),
+      giftCardId: Value(giftCardId),
+      amount: Value(amount),
+      shiftId: shiftId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(shiftId),
+      registerId: registerId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(registerId),
+      cashierId: cashierId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(cashierId),
+      customerId: customerId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(customerId),
+      status: Value(status),
+      changeDue: Value(changeDue),
+      voidedAt: voidedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(voidedAt),
+      voidedBy: voidedBy == null && nullToAbsent
+          ? const Value.absent()
+          : Value(voidedBy),
+      voidShiftId: voidShiftId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(voidShiftId),
+      voidReason: voidReason == null && nullToAbsent
+          ? const Value.absent()
+          : Value(voidReason),
+      note: note == null && nullToAbsent ? const Value.absent() : Value(note),
+    );
+  }
+
+  factory GiftCardSale.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return GiftCardSale(
+      id: serializer.fromJson<String>(json['id']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+      number: serializer.fromJson<int>(json['number']),
+      giftCardId: serializer.fromJson<String>(json['giftCardId']),
+      amount: serializer.fromJson<int>(json['amount']),
+      shiftId: serializer.fromJson<String?>(json['shiftId']),
+      registerId: serializer.fromJson<String?>(json['registerId']),
+      cashierId: serializer.fromJson<String?>(json['cashierId']),
+      customerId: serializer.fromJson<String?>(json['customerId']),
+      status: serializer.fromJson<String>(json['status']),
+      changeDue: serializer.fromJson<int>(json['changeDue']),
+      voidedAt: serializer.fromJson<DateTime?>(json['voidedAt']),
+      voidedBy: serializer.fromJson<String?>(json['voidedBy']),
+      voidShiftId: serializer.fromJson<String?>(json['voidShiftId']),
+      voidReason: serializer.fromJson<String?>(json['voidReason']),
+      note: serializer.fromJson<String?>(json['note']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+      'number': serializer.toJson<int>(number),
+      'giftCardId': serializer.toJson<String>(giftCardId),
+      'amount': serializer.toJson<int>(amount),
+      'shiftId': serializer.toJson<String?>(shiftId),
+      'registerId': serializer.toJson<String?>(registerId),
+      'cashierId': serializer.toJson<String?>(cashierId),
+      'customerId': serializer.toJson<String?>(customerId),
+      'status': serializer.toJson<String>(status),
+      'changeDue': serializer.toJson<int>(changeDue),
+      'voidedAt': serializer.toJson<DateTime?>(voidedAt),
+      'voidedBy': serializer.toJson<String?>(voidedBy),
+      'voidShiftId': serializer.toJson<String?>(voidShiftId),
+      'voidReason': serializer.toJson<String?>(voidReason),
+      'note': serializer.toJson<String?>(note),
+    };
+  }
+
+  GiftCardSale copyWith({
+    String? id,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Value<DateTime?> deletedAt = const Value.absent(),
+    int? number,
+    String? giftCardId,
+    int? amount,
+    Value<String?> shiftId = const Value.absent(),
+    Value<String?> registerId = const Value.absent(),
+    Value<String?> cashierId = const Value.absent(),
+    Value<String?> customerId = const Value.absent(),
+    String? status,
+    int? changeDue,
+    Value<DateTime?> voidedAt = const Value.absent(),
+    Value<String?> voidedBy = const Value.absent(),
+    Value<String?> voidShiftId = const Value.absent(),
+    Value<String?> voidReason = const Value.absent(),
+    Value<String?> note = const Value.absent(),
+  }) => GiftCardSale(
+    id: id ?? this.id,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+    number: number ?? this.number,
+    giftCardId: giftCardId ?? this.giftCardId,
+    amount: amount ?? this.amount,
+    shiftId: shiftId.present ? shiftId.value : this.shiftId,
+    registerId: registerId.present ? registerId.value : this.registerId,
+    cashierId: cashierId.present ? cashierId.value : this.cashierId,
+    customerId: customerId.present ? customerId.value : this.customerId,
+    status: status ?? this.status,
+    changeDue: changeDue ?? this.changeDue,
+    voidedAt: voidedAt.present ? voidedAt.value : this.voidedAt,
+    voidedBy: voidedBy.present ? voidedBy.value : this.voidedBy,
+    voidShiftId: voidShiftId.present ? voidShiftId.value : this.voidShiftId,
+    voidReason: voidReason.present ? voidReason.value : this.voidReason,
+    note: note.present ? note.value : this.note,
+  );
+  GiftCardSale copyWithCompanion(GiftCardSalesCompanion data) {
+    return GiftCardSale(
+      id: data.id.present ? data.id.value : this.id,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      number: data.number.present ? data.number.value : this.number,
+      giftCardId: data.giftCardId.present
+          ? data.giftCardId.value
+          : this.giftCardId,
+      amount: data.amount.present ? data.amount.value : this.amount,
+      shiftId: data.shiftId.present ? data.shiftId.value : this.shiftId,
+      registerId: data.registerId.present
+          ? data.registerId.value
+          : this.registerId,
+      cashierId: data.cashierId.present ? data.cashierId.value : this.cashierId,
+      customerId: data.customerId.present
+          ? data.customerId.value
+          : this.customerId,
+      status: data.status.present ? data.status.value : this.status,
+      changeDue: data.changeDue.present ? data.changeDue.value : this.changeDue,
+      voidedAt: data.voidedAt.present ? data.voidedAt.value : this.voidedAt,
+      voidedBy: data.voidedBy.present ? data.voidedBy.value : this.voidedBy,
+      voidShiftId: data.voidShiftId.present
+          ? data.voidShiftId.value
+          : this.voidShiftId,
+      voidReason: data.voidReason.present
+          ? data.voidReason.value
+          : this.voidReason,
+      note: data.note.present ? data.note.value : this.note,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('GiftCardSale(')
+          ..write('id: $id, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('number: $number, ')
+          ..write('giftCardId: $giftCardId, ')
+          ..write('amount: $amount, ')
+          ..write('shiftId: $shiftId, ')
+          ..write('registerId: $registerId, ')
+          ..write('cashierId: $cashierId, ')
+          ..write('customerId: $customerId, ')
+          ..write('status: $status, ')
+          ..write('changeDue: $changeDue, ')
+          ..write('voidedAt: $voidedAt, ')
+          ..write('voidedBy: $voidedBy, ')
+          ..write('voidShiftId: $voidShiftId, ')
+          ..write('voidReason: $voidReason, ')
+          ..write('note: $note')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    number,
+    giftCardId,
+    amount,
+    shiftId,
+    registerId,
+    cashierId,
+    customerId,
+    status,
+    changeDue,
+    voidedAt,
+    voidedBy,
+    voidShiftId,
+    voidReason,
+    note,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is GiftCardSale &&
+          other.id == this.id &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt &&
+          other.number == this.number &&
+          other.giftCardId == this.giftCardId &&
+          other.amount == this.amount &&
+          other.shiftId == this.shiftId &&
+          other.registerId == this.registerId &&
+          other.cashierId == this.cashierId &&
+          other.customerId == this.customerId &&
+          other.status == this.status &&
+          other.changeDue == this.changeDue &&
+          other.voidedAt == this.voidedAt &&
+          other.voidedBy == this.voidedBy &&
+          other.voidShiftId == this.voidShiftId &&
+          other.voidReason == this.voidReason &&
+          other.note == this.note);
+}
+
+class GiftCardSalesCompanion extends UpdateCompanion<GiftCardSale> {
+  final Value<String> id;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> deletedAt;
+  final Value<int> number;
+  final Value<String> giftCardId;
+  final Value<int> amount;
+  final Value<String?> shiftId;
+  final Value<String?> registerId;
+  final Value<String?> cashierId;
+  final Value<String?> customerId;
+  final Value<String> status;
+  final Value<int> changeDue;
+  final Value<DateTime?> voidedAt;
+  final Value<String?> voidedBy;
+  final Value<String?> voidShiftId;
+  final Value<String?> voidReason;
+  final Value<String?> note;
+  final Value<int> rowid;
+  const GiftCardSalesCompanion({
+    this.id = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.number = const Value.absent(),
+    this.giftCardId = const Value.absent(),
+    this.amount = const Value.absent(),
+    this.shiftId = const Value.absent(),
+    this.registerId = const Value.absent(),
+    this.cashierId = const Value.absent(),
+    this.customerId = const Value.absent(),
+    this.status = const Value.absent(),
+    this.changeDue = const Value.absent(),
+    this.voidedAt = const Value.absent(),
+    this.voidedBy = const Value.absent(),
+    this.voidShiftId = const Value.absent(),
+    this.voidReason = const Value.absent(),
+    this.note = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  GiftCardSalesCompanion.insert({
+    required String id,
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    required int number,
+    required String giftCardId,
+    required int amount,
+    this.shiftId = const Value.absent(),
+    this.registerId = const Value.absent(),
+    this.cashierId = const Value.absent(),
+    this.customerId = const Value.absent(),
+    this.status = const Value.absent(),
+    this.changeDue = const Value.absent(),
+    this.voidedAt = const Value.absent(),
+    this.voidedBy = const Value.absent(),
+    this.voidShiftId = const Value.absent(),
+    this.voidReason = const Value.absent(),
+    this.note = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       number = Value(number),
+       giftCardId = Value(giftCardId),
+       amount = Value(amount);
+  static Insertable<GiftCardSale> custom({
+    Expression<String>? id,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? deletedAt,
+    Expression<int>? number,
+    Expression<String>? giftCardId,
+    Expression<int>? amount,
+    Expression<String>? shiftId,
+    Expression<String>? registerId,
+    Expression<String>? cashierId,
+    Expression<String>? customerId,
+    Expression<String>? status,
+    Expression<int>? changeDue,
+    Expression<DateTime>? voidedAt,
+    Expression<String>? voidedBy,
+    Expression<String>? voidShiftId,
+    Expression<String>? voidReason,
+    Expression<String>? note,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (number != null) 'number': number,
+      if (giftCardId != null) 'gift_card_id': giftCardId,
+      if (amount != null) 'amount': amount,
+      if (shiftId != null) 'shift_id': shiftId,
+      if (registerId != null) 'register_id': registerId,
+      if (cashierId != null) 'cashier_id': cashierId,
+      if (customerId != null) 'customer_id': customerId,
+      if (status != null) 'status': status,
+      if (changeDue != null) 'change_due': changeDue,
+      if (voidedAt != null) 'voided_at': voidedAt,
+      if (voidedBy != null) 'voided_by': voidedBy,
+      if (voidShiftId != null) 'void_shift_id': voidShiftId,
+      if (voidReason != null) 'void_reason': voidReason,
+      if (note != null) 'note': note,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  GiftCardSalesCompanion copyWith({
+    Value<String>? id,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? deletedAt,
+    Value<int>? number,
+    Value<String>? giftCardId,
+    Value<int>? amount,
+    Value<String?>? shiftId,
+    Value<String?>? registerId,
+    Value<String?>? cashierId,
+    Value<String?>? customerId,
+    Value<String>? status,
+    Value<int>? changeDue,
+    Value<DateTime?>? voidedAt,
+    Value<String?>? voidedBy,
+    Value<String?>? voidShiftId,
+    Value<String?>? voidReason,
+    Value<String?>? note,
+    Value<int>? rowid,
+  }) {
+    return GiftCardSalesCompanion(
+      id: id ?? this.id,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      number: number ?? this.number,
+      giftCardId: giftCardId ?? this.giftCardId,
+      amount: amount ?? this.amount,
+      shiftId: shiftId ?? this.shiftId,
+      registerId: registerId ?? this.registerId,
+      cashierId: cashierId ?? this.cashierId,
+      customerId: customerId ?? this.customerId,
+      status: status ?? this.status,
+      changeDue: changeDue ?? this.changeDue,
+      voidedAt: voidedAt ?? this.voidedAt,
+      voidedBy: voidedBy ?? this.voidedBy,
+      voidShiftId: voidShiftId ?? this.voidShiftId,
+      voidReason: voidReason ?? this.voidReason,
+      note: note ?? this.note,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (number.present) {
+      map['number'] = Variable<int>(number.value);
+    }
+    if (giftCardId.present) {
+      map['gift_card_id'] = Variable<String>(giftCardId.value);
+    }
+    if (amount.present) {
+      map['amount'] = Variable<int>(amount.value);
+    }
+    if (shiftId.present) {
+      map['shift_id'] = Variable<String>(shiftId.value);
+    }
+    if (registerId.present) {
+      map['register_id'] = Variable<String>(registerId.value);
+    }
+    if (cashierId.present) {
+      map['cashier_id'] = Variable<String>(cashierId.value);
+    }
+    if (customerId.present) {
+      map['customer_id'] = Variable<String>(customerId.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (changeDue.present) {
+      map['change_due'] = Variable<int>(changeDue.value);
+    }
+    if (voidedAt.present) {
+      map['voided_at'] = Variable<DateTime>(voidedAt.value);
+    }
+    if (voidedBy.present) {
+      map['voided_by'] = Variable<String>(voidedBy.value);
+    }
+    if (voidShiftId.present) {
+      map['void_shift_id'] = Variable<String>(voidShiftId.value);
+    }
+    if (voidReason.present) {
+      map['void_reason'] = Variable<String>(voidReason.value);
+    }
+    if (note.present) {
+      map['note'] = Variable<String>(note.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('GiftCardSalesCompanion(')
+          ..write('id: $id, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('number: $number, ')
+          ..write('giftCardId: $giftCardId, ')
+          ..write('amount: $amount, ')
+          ..write('shiftId: $shiftId, ')
+          ..write('registerId: $registerId, ')
+          ..write('cashierId: $cashierId, ')
+          ..write('customerId: $customerId, ')
+          ..write('status: $status, ')
+          ..write('changeDue: $changeDue, ')
+          ..write('voidedAt: $voidedAt, ')
+          ..write('voidedBy: $voidedBy, ')
+          ..write('voidShiftId: $voidShiftId, ')
+          ..write('voidReason: $voidReason, ')
+          ..write('note: $note, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $GiftCardSalePaymentsTable extends GiftCardSalePayments
+    with TableInfo<$GiftCardSalePaymentsTable, GiftCardSalePayment> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $GiftCardSalePaymentsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _saleIdMeta = const VerificationMeta('saleId');
+  @override
+  late final GeneratedColumn<String> saleId = GeneratedColumn<String>(
+    'sale_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES gift_card_sales (id)',
+    ),
+  );
+  static const VerificationMeta _methodMeta = const VerificationMeta('method');
+  @override
+  late final GeneratedColumn<String> method = GeneratedColumn<String>(
+    'method',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _amountMeta = const VerificationMeta('amount');
+  @override
+  late final GeneratedColumn<int> amount = GeneratedColumn<int>(
+    'amount',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _referenceMeta = const VerificationMeta(
+    'reference',
+  );
+  @override
+  late final GeneratedColumn<String> reference = GeneratedColumn<String>(
+    'reference',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    saleId,
+    method,
+    amount,
+    reference,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'gift_card_sale_payments';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<GiftCardSalePayment> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    if (data.containsKey('sale_id')) {
+      context.handle(
+        _saleIdMeta,
+        saleId.isAcceptableOrUnknown(data['sale_id']!, _saleIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_saleIdMeta);
+    }
+    if (data.containsKey('method')) {
+      context.handle(
+        _methodMeta,
+        method.isAcceptableOrUnknown(data['method']!, _methodMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_methodMeta);
+    }
+    if (data.containsKey('amount')) {
+      context.handle(
+        _amountMeta,
+        amount.isAcceptableOrUnknown(data['amount']!, _amountMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_amountMeta);
+    }
+    if (data.containsKey('reference')) {
+      context.handle(
+        _referenceMeta,
+        reference.isAcceptableOrUnknown(data['reference']!, _referenceMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  GiftCardSalePayment map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return GiftCardSalePayment(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+      saleId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sale_id'],
+      )!,
+      method: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}method'],
+      )!,
+      amount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}amount'],
+      )!,
+      reference: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}reference'],
+      ),
+    );
+  }
+
+  @override
+  $GiftCardSalePaymentsTable createAlias(String alias) {
+    return $GiftCardSalePaymentsTable(attachedDatabase, alias);
+  }
+}
+
+class GiftCardSalePayment extends DataClass
+    implements Insertable<GiftCardSalePayment> {
+  final String id;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final DateTime? deletedAt;
+  final String saleId;
+  final String method;
+  final int amount;
+  final String? reference;
+  const GiftCardSalePayment({
+    required this.id,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+    required this.saleId,
+    required this.method,
+    required this.amount,
+    this.reference,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    map['sale_id'] = Variable<String>(saleId);
+    map['method'] = Variable<String>(method);
+    map['amount'] = Variable<int>(amount);
+    if (!nullToAbsent || reference != null) {
+      map['reference'] = Variable<String>(reference);
+    }
+    return map;
+  }
+
+  GiftCardSalePaymentsCompanion toCompanion(bool nullToAbsent) {
+    return GiftCardSalePaymentsCompanion(
+      id: Value(id),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+      saleId: Value(saleId),
+      method: Value(method),
+      amount: Value(amount),
+      reference: reference == null && nullToAbsent
+          ? const Value.absent()
+          : Value(reference),
+    );
+  }
+
+  factory GiftCardSalePayment.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return GiftCardSalePayment(
+      id: serializer.fromJson<String>(json['id']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+      saleId: serializer.fromJson<String>(json['saleId']),
+      method: serializer.fromJson<String>(json['method']),
+      amount: serializer.fromJson<int>(json['amount']),
+      reference: serializer.fromJson<String?>(json['reference']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+      'saleId': serializer.toJson<String>(saleId),
+      'method': serializer.toJson<String>(method),
+      'amount': serializer.toJson<int>(amount),
+      'reference': serializer.toJson<String?>(reference),
+    };
+  }
+
+  GiftCardSalePayment copyWith({
+    String? id,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Value<DateTime?> deletedAt = const Value.absent(),
+    String? saleId,
+    String? method,
+    int? amount,
+    Value<String?> reference = const Value.absent(),
+  }) => GiftCardSalePayment(
+    id: id ?? this.id,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+    saleId: saleId ?? this.saleId,
+    method: method ?? this.method,
+    amount: amount ?? this.amount,
+    reference: reference.present ? reference.value : this.reference,
+  );
+  GiftCardSalePayment copyWithCompanion(GiftCardSalePaymentsCompanion data) {
+    return GiftCardSalePayment(
+      id: data.id.present ? data.id.value : this.id,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      saleId: data.saleId.present ? data.saleId.value : this.saleId,
+      method: data.method.present ? data.method.value : this.method,
+      amount: data.amount.present ? data.amount.value : this.amount,
+      reference: data.reference.present ? data.reference.value : this.reference,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('GiftCardSalePayment(')
+          ..write('id: $id, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('saleId: $saleId, ')
+          ..write('method: $method, ')
+          ..write('amount: $amount, ')
+          ..write('reference: $reference')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    saleId,
+    method,
+    amount,
+    reference,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is GiftCardSalePayment &&
+          other.id == this.id &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt &&
+          other.saleId == this.saleId &&
+          other.method == this.method &&
+          other.amount == this.amount &&
+          other.reference == this.reference);
+}
+
+class GiftCardSalePaymentsCompanion
+    extends UpdateCompanion<GiftCardSalePayment> {
+  final Value<String> id;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> deletedAt;
+  final Value<String> saleId;
+  final Value<String> method;
+  final Value<int> amount;
+  final Value<String?> reference;
+  final Value<int> rowid;
+  const GiftCardSalePaymentsCompanion({
+    this.id = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.saleId = const Value.absent(),
+    this.method = const Value.absent(),
+    this.amount = const Value.absent(),
+    this.reference = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  GiftCardSalePaymentsCompanion.insert({
+    required String id,
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    required String saleId,
+    required String method,
+    required int amount,
+    this.reference = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       saleId = Value(saleId),
+       method = Value(method),
+       amount = Value(amount);
+  static Insertable<GiftCardSalePayment> custom({
+    Expression<String>? id,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? deletedAt,
+    Expression<String>? saleId,
+    Expression<String>? method,
+    Expression<int>? amount,
+    Expression<String>? reference,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (saleId != null) 'sale_id': saleId,
+      if (method != null) 'method': method,
+      if (amount != null) 'amount': amount,
+      if (reference != null) 'reference': reference,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  GiftCardSalePaymentsCompanion copyWith({
+    Value<String>? id,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? deletedAt,
+    Value<String>? saleId,
+    Value<String>? method,
+    Value<int>? amount,
+    Value<String?>? reference,
+    Value<int>? rowid,
+  }) {
+    return GiftCardSalePaymentsCompanion(
+      id: id ?? this.id,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      saleId: saleId ?? this.saleId,
+      method: method ?? this.method,
+      amount: amount ?? this.amount,
+      reference: reference ?? this.reference,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (saleId.present) {
+      map['sale_id'] = Variable<String>(saleId.value);
+    }
+    if (method.present) {
+      map['method'] = Variable<String>(method.value);
+    }
+    if (amount.present) {
+      map['amount'] = Variable<int>(amount.value);
+    }
+    if (reference.present) {
+      map['reference'] = Variable<String>(reference.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('GiftCardSalePaymentsCompanion(')
+          ..write('id: $id, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('saleId: $saleId, ')
+          ..write('method: $method, ')
+          ..write('amount: $amount, ')
+          ..write('reference: $reference, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $PromotionsTable extends Promotions
     with TableInfo<$PromotionsTable, Promotion> {
   @override
@@ -21688,6 +23200,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ReturnsTable returns = $ReturnsTable(this);
   late final $ReturnItemsTable returnItems = $ReturnItemsTable(this);
   late final $GiftCardsTable giftCards = $GiftCardsTable(this);
+  late final $GiftCardSalesTable giftCardSales = $GiftCardSalesTable(this);
+  late final $GiftCardSalePaymentsTable giftCardSalePayments =
+      $GiftCardSalePaymentsTable(this);
   late final $PromotionsTable promotions = $PromotionsTable(this);
   late final $InventoryCountsTable inventoryCounts = $InventoryCountsTable(
     this,
@@ -21728,6 +23243,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     returns,
     returnItems,
     giftCards,
+    giftCardSales,
+    giftCardSalePayments,
     promotions,
     inventoryCounts,
     inventoryCountItems,
@@ -34058,6 +35575,32 @@ typedef $$GiftCardsTableUpdateCompanionBuilder =
       Value<int> rowid,
     });
 
+final class $$GiftCardsTableReferences
+    extends BaseReferences<_$AppDatabase, $GiftCardsTable, GiftCard> {
+  $$GiftCardsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static MultiTypedResultKey<$GiftCardSalesTable, List<GiftCardSale>>
+  _giftCardSalesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.giftCardSales,
+    aliasName: $_aliasNameGenerator(
+      db.giftCards.id,
+      db.giftCardSales.giftCardId,
+    ),
+  );
+
+  $$GiftCardSalesTableProcessedTableManager get giftCardSalesRefs {
+    final manager = $$GiftCardSalesTableTableManager(
+      $_db,
+      $_db.giftCardSales,
+    ).filter((f) => f.giftCardId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_giftCardSalesRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
 class $$GiftCardsTableFilterComposer
     extends Composer<_$AppDatabase, $GiftCardsTable> {
   $$GiftCardsTableFilterComposer({
@@ -34121,6 +35664,31 @@ class $$GiftCardsTableFilterComposer
     column: $table.customerId,
     builder: (column) => ColumnFilters(column),
   );
+
+  Expression<bool> giftCardSalesRefs(
+    Expression<bool> Function($$GiftCardSalesTableFilterComposer f) f,
+  ) {
+    final $$GiftCardSalesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.giftCardSales,
+      getReferencedColumn: (t) => t.giftCardId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GiftCardSalesTableFilterComposer(
+            $db: $db,
+            $table: $db.giftCardSales,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$GiftCardsTableOrderingComposer
@@ -34235,6 +35803,31 @@ class $$GiftCardsTableAnnotationComposer
     column: $table.customerId,
     builder: (column) => column,
   );
+
+  Expression<T> giftCardSalesRefs<T extends Object>(
+    Expression<T> Function($$GiftCardSalesTableAnnotationComposer a) f,
+  ) {
+    final $$GiftCardSalesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.giftCardSales,
+      getReferencedColumn: (t) => t.giftCardId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GiftCardSalesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.giftCardSales,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$GiftCardsTableTableManager
@@ -34248,9 +35841,9 @@ class $$GiftCardsTableTableManager
           $$GiftCardsTableAnnotationComposer,
           $$GiftCardsTableCreateCompanionBuilder,
           $$GiftCardsTableUpdateCompanionBuilder,
-          (GiftCard, BaseReferences<_$AppDatabase, $GiftCardsTable, GiftCard>),
+          (GiftCard, $$GiftCardsTableReferences),
           GiftCard,
-          PrefetchHooks Function()
+          PrefetchHooks Function({bool giftCardSalesRefs})
         > {
   $$GiftCardsTableTableManager(_$AppDatabase db, $GiftCardsTable table)
     : super(
@@ -34320,9 +35913,45 @@ class $$GiftCardsTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$GiftCardsTableReferences(db, table, e),
+                ),
+              )
               .toList(),
-          prefetchHooksCallback: null,
+          prefetchHooksCallback: ({giftCardSalesRefs = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [
+                if (giftCardSalesRefs) db.giftCardSales,
+              ],
+              addJoins: null,
+              getPrefetchedDataCallback: (items) async {
+                return [
+                  if (giftCardSalesRefs)
+                    await $_getPrefetchedData<
+                      GiftCard,
+                      $GiftCardsTable,
+                      GiftCardSale
+                    >(
+                      currentTable: table,
+                      referencedTable: $$GiftCardsTableReferences
+                          ._giftCardSalesRefsTable(db),
+                      managerFromTypedResult: (p0) =>
+                          $$GiftCardsTableReferences(
+                            db,
+                            table,
+                            p0,
+                          ).giftCardSalesRefs,
+                      referencedItemsForCurrentItem: (item, referencedItems) =>
+                          referencedItems.where((e) => e.giftCardId == item.id),
+                      typedResults: items,
+                    ),
+                ];
+              },
+            );
+          },
         ),
       );
 }
@@ -34337,9 +35966,1094 @@ typedef $$GiftCardsTableProcessedTableManager =
       $$GiftCardsTableAnnotationComposer,
       $$GiftCardsTableCreateCompanionBuilder,
       $$GiftCardsTableUpdateCompanionBuilder,
-      (GiftCard, BaseReferences<_$AppDatabase, $GiftCardsTable, GiftCard>),
+      (GiftCard, $$GiftCardsTableReferences),
       GiftCard,
-      PrefetchHooks Function()
+      PrefetchHooks Function({bool giftCardSalesRefs})
+    >;
+typedef $$GiftCardSalesTableCreateCompanionBuilder =
+    GiftCardSalesCompanion Function({
+      required String id,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      required int number,
+      required String giftCardId,
+      required int amount,
+      Value<String?> shiftId,
+      Value<String?> registerId,
+      Value<String?> cashierId,
+      Value<String?> customerId,
+      Value<String> status,
+      Value<int> changeDue,
+      Value<DateTime?> voidedAt,
+      Value<String?> voidedBy,
+      Value<String?> voidShiftId,
+      Value<String?> voidReason,
+      Value<String?> note,
+      Value<int> rowid,
+    });
+typedef $$GiftCardSalesTableUpdateCompanionBuilder =
+    GiftCardSalesCompanion Function({
+      Value<String> id,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<int> number,
+      Value<String> giftCardId,
+      Value<int> amount,
+      Value<String?> shiftId,
+      Value<String?> registerId,
+      Value<String?> cashierId,
+      Value<String?> customerId,
+      Value<String> status,
+      Value<int> changeDue,
+      Value<DateTime?> voidedAt,
+      Value<String?> voidedBy,
+      Value<String?> voidShiftId,
+      Value<String?> voidReason,
+      Value<String?> note,
+      Value<int> rowid,
+    });
+
+final class $$GiftCardSalesTableReferences
+    extends BaseReferences<_$AppDatabase, $GiftCardSalesTable, GiftCardSale> {
+  $$GiftCardSalesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $GiftCardsTable _giftCardIdTable(_$AppDatabase db) =>
+      db.giftCards.createAlias(
+        $_aliasNameGenerator(db.giftCardSales.giftCardId, db.giftCards.id),
+      );
+
+  $$GiftCardsTableProcessedTableManager get giftCardId {
+    final $_column = $_itemColumn<String>('gift_card_id')!;
+
+    final manager = $$GiftCardsTableTableManager(
+      $_db,
+      $_db.giftCards,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_giftCardIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $GiftCardSalePaymentsTable,
+    List<GiftCardSalePayment>
+  >
+  _giftCardSalePaymentsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.giftCardSalePayments,
+        aliasName: $_aliasNameGenerator(
+          db.giftCardSales.id,
+          db.giftCardSalePayments.saleId,
+        ),
+      );
+
+  $$GiftCardSalePaymentsTableProcessedTableManager
+  get giftCardSalePaymentsRefs {
+    final manager = $$GiftCardSalePaymentsTableTableManager(
+      $_db,
+      $_db.giftCardSalePayments,
+    ).filter((f) => f.saleId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _giftCardSalePaymentsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$GiftCardSalesTableFilterComposer
+    extends Composer<_$AppDatabase, $GiftCardSalesTable> {
+  $$GiftCardSalesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get number => $composableBuilder(
+    column: $table.number,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get amount => $composableBuilder(
+    column: $table.amount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get shiftId => $composableBuilder(
+    column: $table.shiftId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get registerId => $composableBuilder(
+    column: $table.registerId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get cashierId => $composableBuilder(
+    column: $table.cashierId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get customerId => $composableBuilder(
+    column: $table.customerId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get changeDue => $composableBuilder(
+    column: $table.changeDue,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get voidedAt => $composableBuilder(
+    column: $table.voidedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get voidedBy => $composableBuilder(
+    column: $table.voidedBy,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get voidShiftId => $composableBuilder(
+    column: $table.voidShiftId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get voidReason => $composableBuilder(
+    column: $table.voidReason,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$GiftCardsTableFilterComposer get giftCardId {
+    final $$GiftCardsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.giftCardId,
+      referencedTable: $db.giftCards,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GiftCardsTableFilterComposer(
+            $db: $db,
+            $table: $db.giftCards,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<bool> giftCardSalePaymentsRefs(
+    Expression<bool> Function($$GiftCardSalePaymentsTableFilterComposer f) f,
+  ) {
+    final $$GiftCardSalePaymentsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.giftCardSalePayments,
+      getReferencedColumn: (t) => t.saleId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GiftCardSalePaymentsTableFilterComposer(
+            $db: $db,
+            $table: $db.giftCardSalePayments,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$GiftCardSalesTableOrderingComposer
+    extends Composer<_$AppDatabase, $GiftCardSalesTable> {
+  $$GiftCardSalesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get number => $composableBuilder(
+    column: $table.number,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get amount => $composableBuilder(
+    column: $table.amount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get shiftId => $composableBuilder(
+    column: $table.shiftId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get registerId => $composableBuilder(
+    column: $table.registerId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get cashierId => $composableBuilder(
+    column: $table.cashierId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get customerId => $composableBuilder(
+    column: $table.customerId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get changeDue => $composableBuilder(
+    column: $table.changeDue,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get voidedAt => $composableBuilder(
+    column: $table.voidedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get voidedBy => $composableBuilder(
+    column: $table.voidedBy,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get voidShiftId => $composableBuilder(
+    column: $table.voidShiftId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get voidReason => $composableBuilder(
+    column: $table.voidReason,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$GiftCardsTableOrderingComposer get giftCardId {
+    final $$GiftCardsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.giftCardId,
+      referencedTable: $db.giftCards,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GiftCardsTableOrderingComposer(
+            $db: $db,
+            $table: $db.giftCards,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$GiftCardSalesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $GiftCardSalesTable> {
+  $$GiftCardSalesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get number =>
+      $composableBuilder(column: $table.number, builder: (column) => column);
+
+  GeneratedColumn<int> get amount =>
+      $composableBuilder(column: $table.amount, builder: (column) => column);
+
+  GeneratedColumn<String> get shiftId =>
+      $composableBuilder(column: $table.shiftId, builder: (column) => column);
+
+  GeneratedColumn<String> get registerId => $composableBuilder(
+    column: $table.registerId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get cashierId =>
+      $composableBuilder(column: $table.cashierId, builder: (column) => column);
+
+  GeneratedColumn<String> get customerId => $composableBuilder(
+    column: $table.customerId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<int> get changeDue =>
+      $composableBuilder(column: $table.changeDue, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get voidedAt =>
+      $composableBuilder(column: $table.voidedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get voidedBy =>
+      $composableBuilder(column: $table.voidedBy, builder: (column) => column);
+
+  GeneratedColumn<String> get voidShiftId => $composableBuilder(
+    column: $table.voidShiftId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get voidReason => $composableBuilder(
+    column: $table.voidReason,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get note =>
+      $composableBuilder(column: $table.note, builder: (column) => column);
+
+  $$GiftCardsTableAnnotationComposer get giftCardId {
+    final $$GiftCardsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.giftCardId,
+      referencedTable: $db.giftCards,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GiftCardsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.giftCards,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<T> giftCardSalePaymentsRefs<T extends Object>(
+    Expression<T> Function($$GiftCardSalePaymentsTableAnnotationComposer a) f,
+  ) {
+    final $$GiftCardSalePaymentsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.giftCardSalePayments,
+          getReferencedColumn: (t) => t.saleId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$GiftCardSalePaymentsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.giftCardSalePayments,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+}
+
+class $$GiftCardSalesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $GiftCardSalesTable,
+          GiftCardSale,
+          $$GiftCardSalesTableFilterComposer,
+          $$GiftCardSalesTableOrderingComposer,
+          $$GiftCardSalesTableAnnotationComposer,
+          $$GiftCardSalesTableCreateCompanionBuilder,
+          $$GiftCardSalesTableUpdateCompanionBuilder,
+          (GiftCardSale, $$GiftCardSalesTableReferences),
+          GiftCardSale,
+          PrefetchHooks Function({
+            bool giftCardId,
+            bool giftCardSalePaymentsRefs,
+          })
+        > {
+  $$GiftCardSalesTableTableManager(_$AppDatabase db, $GiftCardSalesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$GiftCardSalesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$GiftCardSalesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$GiftCardSalesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> number = const Value.absent(),
+                Value<String> giftCardId = const Value.absent(),
+                Value<int> amount = const Value.absent(),
+                Value<String?> shiftId = const Value.absent(),
+                Value<String?> registerId = const Value.absent(),
+                Value<String?> cashierId = const Value.absent(),
+                Value<String?> customerId = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<int> changeDue = const Value.absent(),
+                Value<DateTime?> voidedAt = const Value.absent(),
+                Value<String?> voidedBy = const Value.absent(),
+                Value<String?> voidShiftId = const Value.absent(),
+                Value<String?> voidReason = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => GiftCardSalesCompanion(
+                id: id,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                number: number,
+                giftCardId: giftCardId,
+                amount: amount,
+                shiftId: shiftId,
+                registerId: registerId,
+                cashierId: cashierId,
+                customerId: customerId,
+                status: status,
+                changeDue: changeDue,
+                voidedAt: voidedAt,
+                voidedBy: voidedBy,
+                voidShiftId: voidShiftId,
+                voidReason: voidReason,
+                note: note,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                required int number,
+                required String giftCardId,
+                required int amount,
+                Value<String?> shiftId = const Value.absent(),
+                Value<String?> registerId = const Value.absent(),
+                Value<String?> cashierId = const Value.absent(),
+                Value<String?> customerId = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<int> changeDue = const Value.absent(),
+                Value<DateTime?> voidedAt = const Value.absent(),
+                Value<String?> voidedBy = const Value.absent(),
+                Value<String?> voidShiftId = const Value.absent(),
+                Value<String?> voidReason = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => GiftCardSalesCompanion.insert(
+                id: id,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                number: number,
+                giftCardId: giftCardId,
+                amount: amount,
+                shiftId: shiftId,
+                registerId: registerId,
+                cashierId: cashierId,
+                customerId: customerId,
+                status: status,
+                changeDue: changeDue,
+                voidedAt: voidedAt,
+                voidedBy: voidedBy,
+                voidShiftId: voidShiftId,
+                voidReason: voidReason,
+                note: note,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$GiftCardSalesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({giftCardId = false, giftCardSalePaymentsRefs = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (giftCardSalePaymentsRefs) db.giftCardSalePayments,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (giftCardId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.giftCardId,
+                                    referencedTable:
+                                        $$GiftCardSalesTableReferences
+                                            ._giftCardIdTable(db),
+                                    referencedColumn:
+                                        $$GiftCardSalesTableReferences
+                                            ._giftCardIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (giftCardSalePaymentsRefs)
+                        await $_getPrefetchedData<
+                          GiftCardSale,
+                          $GiftCardSalesTable,
+                          GiftCardSalePayment
+                        >(
+                          currentTable: table,
+                          referencedTable: $$GiftCardSalesTableReferences
+                              ._giftCardSalePaymentsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$GiftCardSalesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).giftCardSalePaymentsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.saleId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$GiftCardSalesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $GiftCardSalesTable,
+      GiftCardSale,
+      $$GiftCardSalesTableFilterComposer,
+      $$GiftCardSalesTableOrderingComposer,
+      $$GiftCardSalesTableAnnotationComposer,
+      $$GiftCardSalesTableCreateCompanionBuilder,
+      $$GiftCardSalesTableUpdateCompanionBuilder,
+      (GiftCardSale, $$GiftCardSalesTableReferences),
+      GiftCardSale,
+      PrefetchHooks Function({bool giftCardId, bool giftCardSalePaymentsRefs})
+    >;
+typedef $$GiftCardSalePaymentsTableCreateCompanionBuilder =
+    GiftCardSalePaymentsCompanion Function({
+      required String id,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      required String saleId,
+      required String method,
+      required int amount,
+      Value<String?> reference,
+      Value<int> rowid,
+    });
+typedef $$GiftCardSalePaymentsTableUpdateCompanionBuilder =
+    GiftCardSalePaymentsCompanion Function({
+      Value<String> id,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<String> saleId,
+      Value<String> method,
+      Value<int> amount,
+      Value<String?> reference,
+      Value<int> rowid,
+    });
+
+final class $$GiftCardSalePaymentsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $GiftCardSalePaymentsTable,
+          GiftCardSalePayment
+        > {
+  $$GiftCardSalePaymentsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $GiftCardSalesTable _saleIdTable(_$AppDatabase db) =>
+      db.giftCardSales.createAlias(
+        $_aliasNameGenerator(
+          db.giftCardSalePayments.saleId,
+          db.giftCardSales.id,
+        ),
+      );
+
+  $$GiftCardSalesTableProcessedTableManager get saleId {
+    final $_column = $_itemColumn<String>('sale_id')!;
+
+    final manager = $$GiftCardSalesTableTableManager(
+      $_db,
+      $_db.giftCardSales,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_saleIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$GiftCardSalePaymentsTableFilterComposer
+    extends Composer<_$AppDatabase, $GiftCardSalePaymentsTable> {
+  $$GiftCardSalePaymentsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get method => $composableBuilder(
+    column: $table.method,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get amount => $composableBuilder(
+    column: $table.amount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get reference => $composableBuilder(
+    column: $table.reference,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$GiftCardSalesTableFilterComposer get saleId {
+    final $$GiftCardSalesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.saleId,
+      referencedTable: $db.giftCardSales,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GiftCardSalesTableFilterComposer(
+            $db: $db,
+            $table: $db.giftCardSales,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$GiftCardSalePaymentsTableOrderingComposer
+    extends Composer<_$AppDatabase, $GiftCardSalePaymentsTable> {
+  $$GiftCardSalePaymentsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get method => $composableBuilder(
+    column: $table.method,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get amount => $composableBuilder(
+    column: $table.amount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get reference => $composableBuilder(
+    column: $table.reference,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$GiftCardSalesTableOrderingComposer get saleId {
+    final $$GiftCardSalesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.saleId,
+      referencedTable: $db.giftCardSales,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GiftCardSalesTableOrderingComposer(
+            $db: $db,
+            $table: $db.giftCardSales,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$GiftCardSalePaymentsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $GiftCardSalePaymentsTable> {
+  $$GiftCardSalePaymentsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get method =>
+      $composableBuilder(column: $table.method, builder: (column) => column);
+
+  GeneratedColumn<int> get amount =>
+      $composableBuilder(column: $table.amount, builder: (column) => column);
+
+  GeneratedColumn<String> get reference =>
+      $composableBuilder(column: $table.reference, builder: (column) => column);
+
+  $$GiftCardSalesTableAnnotationComposer get saleId {
+    final $$GiftCardSalesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.saleId,
+      referencedTable: $db.giftCardSales,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GiftCardSalesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.giftCardSales,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$GiftCardSalePaymentsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $GiftCardSalePaymentsTable,
+          GiftCardSalePayment,
+          $$GiftCardSalePaymentsTableFilterComposer,
+          $$GiftCardSalePaymentsTableOrderingComposer,
+          $$GiftCardSalePaymentsTableAnnotationComposer,
+          $$GiftCardSalePaymentsTableCreateCompanionBuilder,
+          $$GiftCardSalePaymentsTableUpdateCompanionBuilder,
+          (GiftCardSalePayment, $$GiftCardSalePaymentsTableReferences),
+          GiftCardSalePayment,
+          PrefetchHooks Function({bool saleId})
+        > {
+  $$GiftCardSalePaymentsTableTableManager(
+    _$AppDatabase db,
+    $GiftCardSalePaymentsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$GiftCardSalePaymentsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$GiftCardSalePaymentsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$GiftCardSalePaymentsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<String> saleId = const Value.absent(),
+                Value<String> method = const Value.absent(),
+                Value<int> amount = const Value.absent(),
+                Value<String?> reference = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => GiftCardSalePaymentsCompanion(
+                id: id,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                saleId: saleId,
+                method: method,
+                amount: amount,
+                reference: reference,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                required String saleId,
+                required String method,
+                required int amount,
+                Value<String?> reference = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => GiftCardSalePaymentsCompanion.insert(
+                id: id,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                saleId: saleId,
+                method: method,
+                amount: amount,
+                reference: reference,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$GiftCardSalePaymentsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({saleId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (saleId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.saleId,
+                                referencedTable:
+                                    $$GiftCardSalePaymentsTableReferences
+                                        ._saleIdTable(db),
+                                referencedColumn:
+                                    $$GiftCardSalePaymentsTableReferences
+                                        ._saleIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$GiftCardSalePaymentsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $GiftCardSalePaymentsTable,
+      GiftCardSalePayment,
+      $$GiftCardSalePaymentsTableFilterComposer,
+      $$GiftCardSalePaymentsTableOrderingComposer,
+      $$GiftCardSalePaymentsTableAnnotationComposer,
+      $$GiftCardSalePaymentsTableCreateCompanionBuilder,
+      $$GiftCardSalePaymentsTableUpdateCompanionBuilder,
+      (GiftCardSalePayment, $$GiftCardSalePaymentsTableReferences),
+      GiftCardSalePayment,
+      PrefetchHooks Function({bool saleId})
     >;
 typedef $$PromotionsTableCreateCompanionBuilder =
     PromotionsCompanion Function({
@@ -36923,6 +39637,10 @@ class $AppDatabaseManager {
       $$ReturnItemsTableTableManager(_db, _db.returnItems);
   $$GiftCardsTableTableManager get giftCards =>
       $$GiftCardsTableTableManager(_db, _db.giftCards);
+  $$GiftCardSalesTableTableManager get giftCardSales =>
+      $$GiftCardSalesTableTableManager(_db, _db.giftCardSales);
+  $$GiftCardSalePaymentsTableTableManager get giftCardSalePayments =>
+      $$GiftCardSalePaymentsTableTableManager(_db, _db.giftCardSalePayments);
   $$PromotionsTableTableManager get promotions =>
       $$PromotionsTableTableManager(_db, _db.promotions);
   $$InventoryCountsTableTableManager get inventoryCounts =>

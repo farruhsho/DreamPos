@@ -325,8 +325,37 @@ class GiftCards extends Table with SyncColumns {
   IntColumn get balance => integer()();
   TextColumn get status => text().withDefault(const Constant('active'))();
   DateTimeColumn get expiresAt => dateTime().nullable()();
-  TextColumn get soldSaleId => text().nullable()();
+  TextColumn get soldSaleId => text().nullable()(); // gift_card_sales.id
   TextColumn get customerId => text().nullable()();
+}
+
+/// Gift card sale document («Продажа сертификата №N», D-023). The money is an
+/// advance (liability), not revenue: these rows are never part of `sales`.
+/// status: completed | voided
+class GiftCardSales extends Table with SyncColumns {
+  IntColumn get number => integer()(); // db.nextNumber('gift_sale')
+  TextColumn get giftCardId => text().references(GiftCards, #id)();
+  IntColumn get amount => integer()(); // nominal = sum of payments
+  TextColumn get shiftId => text().nullable()();
+  TextColumn get registerId => text().nullable()();
+  TextColumn get cashierId => text().nullable()();
+  TextColumn get customerId => text().nullable()();
+  TextColumn get status => text().withDefault(const Constant('completed'))();
+  IntColumn get changeDue => integer().withDefault(const Constant(0))();
+  DateTimeColumn get voidedAt => dateTime().nullable()();
+  TextColumn get voidedBy => text().nullable()();
+  TextColumn get voidShiftId => text().nullable()();
+  TextColumn get voidReason => text().nullable()();
+  TextColumn get note => text().nullable()();
+}
+
+/// Payments of a gift card sale. method: cash | card | transfer
+/// (amount > 0; the cash amount is net of change).
+class GiftCardSalePayments extends Table with SyncColumns {
+  TextColumn get saleId => text().references(GiftCardSales, #id)();
+  TextColumn get method => text()();
+  IntColumn get amount => integer()();
+  TextColumn get reference => text().nullable()(); // card slip / transfer id
 }
 
 /// Marketing promotions.

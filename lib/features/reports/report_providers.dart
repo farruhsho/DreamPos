@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/providers.dart';
 import 'data/analytics.dart';
+import 'data/gift_sales_report.dart';
 import 'data/insights.dart';
 import 'data/period.dart';
 import 'data/report_queries.dart';
@@ -39,6 +40,15 @@ final byStaffProvider = StreamProvider.autoDispose
 
 final paymentsProvider = StreamProvider.autoDispose.family<List<PaymentRow>, ReportPeriod>(
     (ref, p) => watchPayments(ref.watch(databaseProvider), p));
+
+/// Gift card advances for the payments report (live; D-023).
+final giftSalesReportProvider = StreamProvider.autoDispose.family<GiftSalesByMethod, ReportPeriod>((ref, p) {
+  final db = ref.watch(databaseProvider);
+  return db
+      .customSelect('SELECT 1', readsFrom: {db.giftCardSales, db.giftCardSalePayments})
+      .watch()
+      .asyncMap((_) => giftSalesByMethod(db, p.start, p.end));
+});
 
 final debtsProvider = StreamProvider.autoDispose.family<DebtSummary, ReportPeriod>(
     (ref, p) => watchDebts(ref.watch(databaseProvider), p));

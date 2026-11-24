@@ -10,6 +10,7 @@ import '../../core/providers.dart';
 import '../../core/widgets/pickers.dart';
 import '../../core/widgets/widgets.dart';
 import '../../domain/services/sale_service.dart';
+import '../marketing/gift_sale_dialog.dart' as gift;
 import 'cart_controller.dart';
 import 'parked_carts.dart';
 import 'pos_providers.dart';
@@ -19,6 +20,15 @@ import 'widgets/sale_success_dialog.dart';
 
 /// Whether selling is currently possible (open shift or shift not required).
 bool posCanSell(WidgetRef ref) => ref.read(posCanSellProvider);
+
+/// Visible reason under the POS menu item «Продать сертификат» (D-023), or
+/// null when a sale is possible. Without a shift the item stays tappable:
+/// [PosActions.sellGiftCard] explains and offers to open one.
+String? giftSaleMenuHint({required bool canSell, required bool hasShift}) => !canSell
+    ? 'Нет права продавать'
+    : !hasShift
+    ? 'Нужна открытая смена'
+    : null;
 
 /// Outcome of Enter in the scanner field.
 enum ScanOutcome { added, notFound, failed, cancelled }
@@ -334,6 +344,37 @@ class PosActions {
               ? 'Чек восстановлен. Цены обновлены по прайсу: $repriced поз.'
               : 'Чек восстановлен');
     }
+    _done();
+  }
+
+  // ------------------------------------------------------------ gift cards
+
+  /// «Продать сертификат» (D-023): the shared marketing dialog. An advance,
+  /// not a receipt — the current basket is left untouched.
+  Future<void> sellGiftCard() async {
+    if (_paying) return;
+    final s = _session;
+    if (s == null || !s.can(Perm.sell)) {
+      _err('Нет права продавать');
+      return _done();
+    }
+    if (ref.read(currentShiftProvider).value == null) {
+      // A gift card sale always needs a shift, even with require_shift = '0'
+      // (D-023): explain it and offer to open one right here.
+      if (!s.can(Perm.openCloseShift)) {
+        _err('Откройте смену, чтобы продать сертификат');
+        return _done();
+      }
+      final open = await confirm(
+        context,
+        title: 'Смена не открыта',
+        message: 'Откройте смену, чтобы продать сертификат.',
+        ok: 'Открыть смену',
+      );
+      if (open && context.mounted) await openShift();
+      return _done();
+    }
+    await gift.sellGiftCard(context, ref);
     _done();
   }
 

@@ -1,6 +1,6 @@
 // Marketing data access: promotions & gift cards (reference data, written via
-// drift with updatedAt + markDirty), cash for sold certificates via
-// ShiftService, loyalty stats.
+// drift with updatedAt + markDirty), gift card sales via GiftCardService
+// (D-023), loyalty stats.
 import 'dart:math';
 
 import 'package:drift/drift.dart';
@@ -10,7 +10,7 @@ import '../../core/db/database.dart';
 import '../../core/providers.dart';
 import '../../domain/errors.dart';
 import '../../domain/services/sale_service.dart' show normalizeGiftCode;
-import '../../domain/services/shift_service.dart';
+import '../../domain/services/gift_card_service.dart';
 import 'promotion_logic.dart';
 
 // Single source of truth lives in the domain (checkout uses the same rule).
@@ -55,17 +55,17 @@ GiftStatus giftStatusOf(GiftCard g, DateTime now) {
   return GiftStatus.active;
 }
 
+/// Methods a certificate can be sold for (see [giftSaleMethods]).
 const giftPaymentMethods = {
   'cash': 'Наличные',
   'card': 'Карта',
   'transfer': 'Перевод',
-  'free': 'Без оплаты (подарок)',
 };
 
 class MarketingRepo {
-  MarketingRepo(this.db) : shifts = ShiftService(db);
+  MarketingRepo(this.db, [GiftCardService? gifts]) : gifts = gifts ?? GiftCardService(db);
   final AppDatabase db;
-  final ShiftService shifts;
+  final GiftCardService gifts;
 
   // ---------------------------------------------------------------- promos
 
@@ -156,8 +156,9 @@ class MarketingRepo {
     throw BusinessException('Не удалось сгенерировать уникальный код');
   }
 
-  /// Issues (sells) a certificate. Cash payment is recorded as a pay-in to the
-  /// open shift in the same transaction so the drawer reconciles.
+  /// Sells a certificate with a single payment — delegates to
+  /// [GiftCardService.sell] (numbered document, D-023). An open shift is
+  /// required for every method.
   Future<GiftCard> issueGiftCard({
     required String code,
     required int amount,
@@ -167,51 +168,25 @@ class MarketingRepo {
     String? customerId,
     String? shiftId,
   }) async {
-    final c = normalizeGiftCode(code);
-    if (c.length < 6) throw BusinessException('Код сертификата — минимум 6 символов');
-    if (c.length > 32) throw BusinessException('Код сертификата слишком длинный');
-    if (!RegExp(r'^[A-Z0-9]+$').hasMatch(c)) {
-      throw BusinessException('Код: только латинские буквы и цифры');
-    }
-    if (amount <= 0) throw BusinessException('Номинал должен быть больше нуля');
-    if (!giftPaymentMethods.containsKey(method)) throw BusinessException('Выберите способ оплаты');
-    if (expiresAt != null && expiresAt.isBefore(DateTime.now())) {
-      throw BusinessException('Срок действия уже истёк');
-    }
-    if (method == 'cash' && shiftId == null) {
-      throw BusinessException('Для оплаты наличными откройте смену');
-    }
-    return db.transaction(() async {
-      if (await isGiftCodeTaken(c)) throw BusinessException('Сертификат с кодом $c уже существует');
-      final id = newId();
-      final now = DateTime.now();
-      await db.into(db.giftCards).insert(GiftCardsCompanion.insert(
-            id: id,
-            code: c,
-            initialAmount: amount,
-            balance: amount,
-            expiresAt: Value(expiresAt),
-            customerId: Value(customerId),
-            createdAt: Value(now),
-            updatedAt: Value(now),
-          ));
-      await db.markDirty('gift_cards', id);
-      if (method == 'cash') {
-        await shifts.cashMovement(
-          shiftId: shiftId!,
-          kind: 'pay_in',
-          amount: amount,
-          userId: userId,
-          reason: 'Продажа сертификата $c',
-        );
-      }
-      await db.audit('gift_card.issue', userId: userId, entity: 'gift_card', entityId: id,
-          details: '$c; $amount; $method');
-      return (db.select(db.giftCards)..where((g) => g.id.equals(id))).getSingle();
-    });
+    final res = await gifts.sell(GiftCardSaleRequest(
+      code: code,
+      amount: amount,
+      payments: [GiftSalePaymentInput(method, amount)],
+      cashierId: userId,
+      shiftId: shiftId,
+      customerId: customerId,
+      expiresAt: expiresAt,
+    ));
+    return res.giftCard;
   }
 
   Future<void> setGiftBlocked(GiftCard g, bool blocked, {required String userId, String? reason}) async {
+    if (!blocked && g.soldSaleId != null) {
+      final sale = await (db.select(db.giftCardSales)..where((s) => s.id.equals(g.soldSaleId!))).getSingleOrNull();
+      if (sale?.status == GiftSaleStatus.voided) {
+        throw BusinessException('Продажа сертификата аннулирована — разблокировка невозможна');
+      }
+    }
     final status = blocked ? 'blocked' : (g.balance > 0 ? 'active' : 'used');
     await (db.update(db.giftCards)..where((t) => t.id.equals(g.id)))
         .write(GiftCardsCompanion(status: Value(status), updatedAt: Value(DateTime.now())));

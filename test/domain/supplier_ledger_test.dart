@@ -248,7 +248,7 @@ void main() {
       final cols = await db.customSelect('PRAGMA table_info(supplier_payments)').get();
       expect(cols.map((r) => r.read<String>('name')), containsAll(['cancelled_at', 'cancel_reason']));
       final version = await db.customSelect('PRAGMA user_version').getSingle();
-      expect(version.data.values.first, 3);
+      expect(version.data.values.first, 4);
     });
 
     test('a v2 database is upgraded: tables, columns, indexes, opening entries', () async {
@@ -291,7 +291,7 @@ void main() {
       expect(byS.containsKey(zero), isFalse);
 
       final version = await db.customSelect('PRAGMA user_version').getSingle();
-      expect(version.data.values.first, 3);
+      expect(version.data.values.first, 4);
       final idx = await db
           .customSelect("SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'ix_%'")
           .get();

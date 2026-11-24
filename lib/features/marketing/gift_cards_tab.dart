@@ -10,8 +10,11 @@ import '../../core/money.dart';
 import '../../core/printing/pdf_fonts.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
-import '../../core/widgets/pickers.dart';
+import '../../core/permissions.dart';
 import '../../core/widgets/widgets.dart';
+import 'gift_card_detail.dart';
+import 'gift_sale_dialog.dart';
+import 'gift_sales_list.dart';
 import 'marketing_repo.dart';
 
 Color giftStatusColor(GiftStatus s) => switch (s) {
@@ -31,18 +34,10 @@ class _GiftCardsTabState extends ConsumerState<GiftCardsTab> {
   GiftStatus? _filter;
   String _search = '';
 
-  Future<void> _issue() async {
-    final card = await showFormDialog<GiftCard>(
-      context,
-      title: 'Выпуск сертификата',
-      width: 540,
-      child: const _IssueForm(),
-    );
-    if (card == null || !mounted) return;
-    showSuccess(context, 'Сертификат ${card.code} на ${Money.format(card.initialAmount)} выпущен');
-    final print = await confirm(context, title: 'Распечатать сертификат?', message: 'Код ${card.code}', ok: 'Печать');
-    if (print && mounted) await _print(card);
-  }
+  bool _salesView = false;
+
+  /// «Выпустить» = the shared «Продажа сертификата» flow (also on the POS).
+  Future<void> _issue() => sellGiftCard(context, ref);
 
   Future<void> _print(GiftCard g) async {
     final store = ref.read(settingProvider('store_name')) ?? 'DreamPOS';
@@ -70,7 +65,44 @@ class _GiftCardsTabState extends ConsumerState<GiftCardsTab> {
 
   @override
   Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.topLeft,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1100),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(Gap.l, Gap.m, Gap.l, 0),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: SegmentedButton<bool>(
+                  showSelectedIcon: false,
+                  segments: const [
+                    ButtonSegment(value: false, icon: Icon(Icons.card_giftcard), label: Text('Сертификаты')),
+                    ButtonSegment(value: true, icon: Icon(Icons.receipt_long_outlined), label: Text('Продажи')),
+                  ],
+                  selected: {_salesView},
+                  onSelectionChanged: (v) => setState(() => _salesView = v.first),
+                ),
+              ),
+            ),
+            Expanded(child: _salesView ? const GiftSalesList() : _cards(context)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _cards(BuildContext context) {
     final async = ref.watch(giftCardsProvider);
+    final session = ref.watch(sessionProvider);
+    final shift = ref.watch(currentShiftProvider).value;
+    final issueBlocked = session == null || !session.can(Perm.sell)
+        ? 'Нет права продавать'
+        : shift == null
+        ? 'Откройте смену, чтобы продать сертификат'
+        : null;
     final names = ref.watch(customerNamesProvider).value ?? const <String, String>{};
     final now = DateTime.now();
     return AsyncView<List<GiftCard>>(
@@ -101,7 +133,7 @@ class _GiftCardsTabState extends ConsumerState<GiftCardsTab> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(Gap.l, Gap.l, Gap.l, 0),
+                      padding: const EdgeInsets.fromLTRB(Gap.l, Gap.m, Gap.l, 0),
                       // Phones: two cards side by side without icons instead of
                       // two full-width cards (~170px) above the list.
                       child: IntrinsicHeight(
@@ -144,10 +176,14 @@ class _GiftCardsTabState extends ConsumerState<GiftCardsTab> {
                             width: narrow ? double.infinity : 280,
                             child: SearchField(hint: 'Код или клиент', onChanged: (v) => setState(() => _search = v)),
                           ),
-                          FilledButton.icon(
-                            onPressed: _issue,
-                            icon: const Icon(Icons.add_card),
-                            label: const Text('Выпустить'),
+                          Tooltip(
+                            message: issueBlocked ?? 'Продажа сертификата (аванс, не выручка)',
+                            child: FilledButton.icon(
+                              key: const Key('gift-issue'),
+                              onPressed: issueBlocked == null ? _issue : null,
+                              icon: const Icon(Icons.add_card),
+                              label: const Text('Выпустить'),
+                            ),
                           ),
                           OutlinedButton.icon(
                             onPressed: () => showGiftBalanceDialog(context),
@@ -184,11 +220,19 @@ class _GiftCardsTabState extends ConsumerState<GiftCardsTab> {
                           ? EmptyState(
                               icon: Icons.card_giftcard,
                               title: 'Сертификатов пока нет',
-                              message: 'Продавайте подарочные сертификаты — их можно принять в оплату на кассе.',
-                              action: FilledButton.icon(
-                                onPressed: _issue,
-                                icon: const Icon(Icons.add_card),
-                                label: const Text('Выпустить сертификат'),
+                              // a blocked call to action says why right here
+                              // (a tooltip needs hover / long-press)
+                              message:
+                                  issueBlocked ??
+                                  'Продавайте подарочные сертификаты — их можно принять в оплату на кассе.',
+                              action: Tooltip(
+                                message: issueBlocked ?? 'Продажа сертификата (аванс, не выручка)',
+                                child: FilledButton.icon(
+                                  key: const Key('gift-issue-empty'),
+                                  onPressed: issueBlocked == null ? _issue : null,
+                                  icon: const Icon(Icons.add_card),
+                                  label: const Text('Выпустить сертификат'),
+                                ),
                               ),
                             )
                           : list.isEmpty
@@ -204,8 +248,11 @@ class _GiftCardsTabState extends ConsumerState<GiftCardsTab> {
                                   card: g,
                                   status: st,
                                   customerName: g.customerId == null ? null : names[g.customerId] ?? 'клиент',
+                                  onTap: () => showGiftCardDetail(context, g.id),
                                   onAction: (v) {
                                     switch (v) {
+                                      case 'details':
+                                        showGiftCardDetail(context, g.id);
                                       case 'print':
                                         _print(g);
                                       case 'copy':
@@ -235,8 +282,15 @@ class _GiftCardsTabState extends ConsumerState<GiftCardsTab> {
 /// One certificate: code and balance on the first line (balance right-aligned
 /// and as prominent as the code), status and dates below.
 class _GiftRow extends StatelessWidget {
-  const _GiftRow({required this.card, required this.status, required this.customerName, required this.onAction});
+  const _GiftRow({
+    required this.card,
+    required this.status,
+    required this.customerName,
+    required this.onAction,
+    required this.onTap,
+  });
   final GiftCard card;
+  final VoidCallback onTap;
   final GiftStatus status;
   final String? customerName;
   final ValueChanged<String> onAction;
@@ -248,293 +302,90 @@ class _GiftRow extends StatelessWidget {
     final muted = status != GiftStatus.active;
     final meta = t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant);
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(Gap.l, Gap.m, Gap.xs, Gap.m),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.card_giftcard, size: 20, color: giftStatusColor(status)),
-                      const SizedBox(width: Gap.s),
-                      Expanded(
-                        child: SelectableText(
-                          g.code,
-                          maxLines: 1,
-                          style: t.textTheme.titleSmall?.copyWith(
-                            fontFamily: AppFonts.mono,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.5,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(Gap.l, Gap.m, Gap.xs, Gap.m),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.card_giftcard, size: 20, color: giftStatusColor(status)),
+                        const SizedBox(width: Gap.s),
+                        Expanded(
+                          child: Text(
+                            g.code,
+                            maxLines: 1,
+                            style: t.textTheme.titleSmall?.copyWith(
+                              fontFamily: AppFonts.mono,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.5,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: Gap.s),
-                      Text(
-                        Money.format(g.balance),
-                        style: t.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: muted ? t.colorScheme.onSurfaceVariant : null,
+                        const SizedBox(width: Gap.s),
+                        Text(
+                          Money.format(g.balance),
+                          style: t.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: muted ? t.colorScheme.onSurfaceVariant : null,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: Gap.xs),
-                  Row(
-                    children: [
-                      StatusChip(status.label, color: giftStatusColor(status)),
-                      const Spacer(),
-                      Text(
-                        g.balance != g.initialAmount ? 'из ${Money.format(g.initialAmount)}' : 'номинал',
-                        style: meta,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: Gap.xs),
-                  Text(
-                    [
-                      'выпущен ${formatDate(g.createdAt)}',
-                      g.expiresAt == null ? 'бессрочный' : 'до ${formatDate(g.expiresAt!)}',
-                      ?customerName,
-                    ].join(' · '),
-                    style: meta,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                      ],
+                    ),
+                    const SizedBox(height: Gap.xs),
+                    Row(
+                      children: [
+                        StatusChip(status.label, color: giftStatusColor(status)),
+                        const SizedBox(width: Gap.s),
+                        Expanded(
+                          child: Text(
+                            g.balance != g.initialAmount ? 'из ${Money.format(g.initialAmount)}' : 'номинал',
+                            style: meta,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.end,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: Gap.xs),
+                    Text(
+                      [
+                        'выпущен ${formatDate(g.createdAt)}',
+                        g.expiresAt == null ? 'бессрочный' : 'до ${formatDate(g.expiresAt!)}',
+                        ?customerName,
+                      ].join(' · '),
+                      style: meta,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              PopupMenuButton<String>(
+                tooltip: 'Действия',
+                onSelected: onAction,
+                itemBuilder: (_) => [
+                  const PopupMenuItem(value: 'details', child: Text('Документ продажи')),
+                  const PopupMenuItem(value: 'print', child: Text('Бланк сертификата')),
+                  const PopupMenuItem(value: 'copy', child: Text('Копировать код')),
+                  if (g.status == 'blocked')
+                    const PopupMenuItem(value: 'unblock', child: Text('Разблокировать'))
+                  else
+                    const PopupMenuItem(
+                      value: 'block',
+                      child: Text('Заблокировать', style: TextStyle(color: AppColors.danger)),
+                    ),
                 ],
               ),
-            ),
-            PopupMenuButton<String>(
-              tooltip: 'Действия',
-              onSelected: onAction,
-              itemBuilder: (_) => [
-                const PopupMenuItem(value: 'print', child: Text('Печать')),
-                const PopupMenuItem(value: 'copy', child: Text('Копировать код')),
-                if (g.status == 'blocked')
-                  const PopupMenuItem(value: 'unblock', child: Text('Разблокировать'))
-                else
-                  const PopupMenuItem(
-                    value: 'block',
-                    child: Text('Заблокировать', style: TextStyle(color: AppColors.danger)),
-                  ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ------------------------------------------------------------------ issue
-
-class _IssueForm extends ConsumerStatefulWidget {
-  const _IssueForm();
-  @override
-  ConsumerState<_IssueForm> createState() => _IssueFormState();
-}
-
-class _IssueFormState extends ConsumerState<_IssueForm> {
-  final _form = GlobalKey<FormState>();
-  final _code = TextEditingController();
-  final _amount = TextEditingController();
-  DateTime? _expires = () {
-    final n = DateTime.now();
-    return DateTime(n.year + 1, n.month, n.day);
-  }();
-  Customer? _customer;
-  String _method = 'cash';
-  bool _busy = false;
-  String? _codeError;
-
-  @override
-  void initState() {
-    super.initState();
-    _regen();
-  }
-
-  @override
-  void dispose() {
-    _code.dispose();
-    _amount.dispose();
-    super.dispose();
-  }
-
-  Future<void> _regen() async {
-    try {
-      final c = await ref.read(marketingRepoProvider).generateUniqueGiftCode();
-      if (mounted) {
-        setState(() {
-          _code.text = c;
-          _codeError = null;
-        });
-      }
-    } catch (e) {
-      if (mounted) setState(() => _codeError = errorText(e));
-    }
-  }
-
-  Future<void> _pickExpiry() async {
-    final now = DateTime.now();
-    final d = await showDatePicker(
-      context: context,
-      initialDate: _expires ?? DateTime(now.year + 1, now.month, now.day),
-      firstDate: now,
-      lastDate: DateTime(now.year + 10),
-      helpText: 'Действует до (включительно)',
-    );
-    if (d != null) setState(() => _expires = d);
-  }
-
-  Future<void> _submit() async {
-    // Busy flag is taken before the first await: a double Enter must not
-    // try to sell the certificate (and take the cash) twice.
-    if (_busy || !_form.currentState!.validate()) return;
-    setState(() => _busy = true);
-    final repo = ref.read(marketingRepoProvider);
-    try {
-      if (await repo.isGiftCodeTaken(_code.text)) {
-        if (mounted) {
-          setState(() {
-            _codeError = 'Такой код уже существует';
-            _busy = false;
-          });
-        }
-        return;
-      }
-      final card = await repo.issueGiftCard(
-        code: _code.text,
-        amount: Money.parse(_amount.text)!,
-        method: _method,
-        userId: ref.read(sessionProvider)!.user.id,
-        expiresAt: _expires == null ? null : DateTime(_expires!.year, _expires!.month, _expires!.day, 23, 59, 59),
-        customerId: _customer?.id,
-        shiftId: ref.read(currentShiftProvider).value?.id,
-      );
-      if (mounted) Navigator.pop(context, card);
-    } catch (e) {
-      if (mounted) {
-        setState(() => _busy = false);
-        showError(context, e);
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = Theme.of(context);
-    final shift = ref.watch(currentShiftProvider).value;
-    final blocked = _method == 'cash' && shift == null;
-    return Form(
-      key: _form,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(Gap.xl, Gap.m, Gap.xl, Gap.l),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            TextFormField(
-              controller: _code,
-              textCapitalization: TextCapitalization.characters,
-              style: const TextStyle(fontFamily: 'RobotoMono', fontWeight: FontWeight.w600, letterSpacing: 1.5),
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9]')),
-                TextInputFormatter.withFunction((o, n) => n.copyWith(text: n.text.toUpperCase())),
-              ],
-              decoration: InputDecoration(
-                labelText: 'Код сертификата *',
-                errorText: _codeError,
-                helperText: 'Латинские буквы и цифры, 6–32 символа',
-                suffixIcon: IconButton(tooltip: 'Сгенерировать', icon: const Icon(Icons.refresh), onPressed: _regen),
-              ),
-              validator: (v) {
-                final c = normalizeGiftCode(v ?? '');
-                if (c.length < 6) return 'Минимум 6 символов';
-                if (c.length > 32) return 'Максимум 32 символа';
-                return null;
-              },
-              onChanged: (_) {
-                if (_codeError != null) setState(() => _codeError = null);
-              },
-            ),
-            const SizedBox(height: Gap.m),
-            MoneyField(
-              label: 'Номинал *',
-              controller: _amount,
-              autofocus: true,
-              required: true,
-              allowZero: false,
-              onSubmitted: (_) => _submit(),
-            ),
-            const SizedBox(height: Gap.m),
-            InkWell(
-              onTap: _pickExpiry,
-              borderRadius: BorderRadius.circular(10),
-              child: InputDecorator(
-                decoration: InputDecoration(
-                  labelText: 'Действует до',
-                  prefixIcon: const Icon(Icons.event),
-                  suffixIcon: _expires == null
-                      ? null
-                      : IconButton(
-                          tooltip: 'Бессрочный',
-                          icon: const Icon(Icons.close),
-                          onPressed: () => setState(() => _expires = null),
-                        ),
-                ),
-                child: Text(_expires == null ? 'Бессрочный' : formatDate(_expires!)),
-              ),
-            ),
-            const SizedBox(height: Gap.m),
-            InkWell(
-              onTap: () async {
-                final c = await pickCustomer(context);
-                if (c != null) setState(() => _customer = c);
-              },
-              borderRadius: BorderRadius.circular(10),
-              child: InputDecorator(
-                decoration: InputDecoration(
-                  labelText: 'Покупатель (необязательно)',
-                  prefixIcon: const Icon(Icons.person_outline),
-                  suffixIcon: _customer == null
-                      ? const Icon(Icons.search)
-                      : IconButton(icon: const Icon(Icons.close), onPressed: () => setState(() => _customer = null)),
-                ),
-                child: Text(_customer?.name ?? 'Не выбран'),
-              ),
-            ),
-            const SizedBox(height: Gap.l),
-            Text('Оплата сертификата', style: t.textTheme.labelLarge),
-            const SizedBox(height: Gap.s),
-            Wrap(
-              spacing: Gap.xs,
-              runSpacing: Gap.xs,
-              children: [
-                for (final e in giftPaymentMethods.entries)
-                  ChoiceChip(
-                    label: Text(e.value),
-                    selected: _method == e.key,
-                    onSelected: (_) => setState(() => _method = e.key),
-                  ),
-              ],
-            ),
-            const SizedBox(height: Gap.s),
-            Text(switch (_method) {
-              'cash' =>
-                shift == null
-                    ? 'Смена закрыта: откройте смену, чтобы принять наличные.'
-                    : 'Наличные будут внесены в кассу смены №${shift.number} (внесение «Продажа сертификата»).',
-              'free' => 'Сертификат выдаётся бесплатно (подарок, компенсация). Операция попадёт в журнал аудита.',
-              _ => 'Безналичная оплата фиксируется в журнале аудита.',
-            }, style: TextStyle(color: blocked ? AppColors.danger : t.colorScheme.onSurfaceVariant, fontSize: 12)),
-            const SizedBox(height: Gap.l),
-            FilledButton.icon(
-              onPressed: _busy || blocked ? null : _submit,
-              icon: const Icon(Icons.check),
-              label: const Text('Выпустить сертификат'),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

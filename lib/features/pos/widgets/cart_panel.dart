@@ -66,6 +66,8 @@ class _CartHeader extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final cart = ref.watch(cartProvider);
     final parked = ref.watch(parkedCartsProvider).value?.length ?? 0;
+    final canSellGift = ref.watch(sessionProvider)?.can(Perm.sell) ?? false;
+    final giftHint = giftSaleMenuHint(canSell: canSellGift, hasShift: ref.watch(currentShiftProvider).value != null);
     final users = ref.watch(posActiveUsersProvider).value ?? const <User>[];
     String? sellerName;
     for (final u in users) {
@@ -106,6 +108,7 @@ class _CartHeader extends ConsumerWidget {
               'parked' => actions.showParked(),
               'seller' => actions.chooseSeller(),
               'clear' => actions.clearCart(),
+              'gift' => actions.sellGiftCard(),
               _ => null,
             },
             itemBuilder: (_) => [
@@ -129,6 +132,15 @@ class _CartHeader extends ConsumerWidget {
               const PopupMenuItem(
                 value: 'seller',
                 child: ListTile(leading: Icon(Icons.badge_outlined), title: Text('Продавец')),
+              ),
+              PopupMenuItem(
+                value: 'gift',
+                enabled: canSellGift,
+                child: ListTile(
+                  leading: const Icon(Icons.card_giftcard),
+                  title: const Text('Продать сертификат'),
+                  subtitle: giftHint == null ? null : Text(giftHint),
+                ),
               ),
               PopupMenuItem(
                 value: 'clear',

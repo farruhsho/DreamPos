@@ -45,6 +45,16 @@ void main() {
         await shot('cart_menu');
         await tester.tapAt(const Offset(10, 820));
         await h.settle();
+        // «Продать сертификат» from the cart page menu (D-023)
+        await tap(find.byKey(const Key('pos-cart-menu')));
+        await tap(find.text('Продать сертификат'));
+        await shot('gift_sale');
+        await tap(find.byTooltip('Закрыть').last);
+      } else {
+        await tap(find.byTooltip('Действия с чеком'));
+        await tap(find.text('Продать сертификат'));
+        await shot('gift_sale');
+        await tap(find.byTooltip('Закрыть').last);
       }
 
       // line discount
@@ -76,12 +86,15 @@ void main() {
       await tap(find.byTooltip('Закрыть (Esc)'));
 
       // parked list
-      await tester.runAsync(() => h.container
-          .read(parkedCartsProvider.notifier)
-          .park(h.container.read(cartProvider), note: 'Азиз, вернётся через 5 минут', cashierName: 'Фаррух'));
-      await tester.runAsync(() => h.container
-          .read(parkedCartsProvider.notifier)
-          .park(h.container.read(cartProvider), cashierName: 'Фаррух'));
+      await tester.runAsync(
+        () => h.container
+            .read(parkedCartsProvider.notifier)
+            .park(h.container.read(cartProvider), note: 'Азиз, вернётся через 5 минут', cashierName: 'Фаррух'),
+      );
+      await tester.runAsync(
+        () =>
+            h.container.read(parkedCartsProvider.notifier).park(h.container.read(cartProvider), cashierName: 'Фаррух'),
+      );
       await h.settle();
       await tap(find.byTooltip(size == 'phone' ? 'Отложенные чеки' : 'Отложенные чеки (F9)'));
       await shot('parked');

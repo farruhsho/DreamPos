@@ -9,6 +9,7 @@ import 'package:dreampos/features/marketing/promotion_logic.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../helpers.dart';
 
@@ -23,6 +24,7 @@ void main() {
   late Fixture f;
 
   setUp(() async {
+    SharedPreferences.setMockInitialValues({});
     f = await Fixture.create();
     final repo = MarketingRepo(f.db);
     await repo.savePromotion(PromoDraft(name: 'Чёрная пятница', type: 'percent_order', percent: 15),
@@ -30,7 +32,8 @@ void main() {
     await repo.savePromotion(
         PromoDraft(name: 'Будущая акция', type: 'percent_order', percent: 5, startDay: DateTime.now().add(const Duration(days: 10))),
         userId: f.owner.id);
-    await repo.issueGiftCard(code: 'GIFTTEST2345', amount: 100000, method: 'card', userId: f.owner.id);
+    await repo.issueGiftCard(
+        code: 'GIFTTEST2345', amount: 100000, method: 'card', userId: f.owner.id, shiftId: f.shift.id);
     final c = await f.customer('Должник Иван');
     await (f.db.update(f.db.customers)..where((t) => t.id.equals(c.id))).write(
         const CustomersCompanion(debtBalance: Value(5000), phone: Value('+998901112233')));
@@ -126,17 +129,23 @@ void main() {
     await openTab('Сертификаты');
     await tester.tap(find.text('Выпустить'));
     await tester.pumpAndSettle();
-    expect(find.text('Выпуск сертификата'), findsOneWidget);
+    expect(find.text('Продажа сертификата'), findsOneWidget);
     await tester.enterText(find.widgetWithText(TextFormField, 'Номинал *'), '20000');
-    await tester.tap(find.text('Выпустить сертификат'));
+    FocusManager.instance.primaryFocus?.unfocus();
     await tester.pumpAndSettle();
-    expect(find.text('Распечатать сертификат?'), findsOneWidget);
-    await tester.tap(find.text('Отмена'));
+    await tester.ensureVisible(find.text('Продать сертификат'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Продать сертификат'));
+    await tester.pumpAndSettle();
+    expect(find.text('Сертификат продан'), findsOneWidget);
+    await tester.tap(find.text('Готово'));
     await tester.pumpAndSettle();
     final cards = await f.db.select(f.db.giftCards).get();
     expect(cards, hasLength(2));
-    final cash = await f.db.select(f.db.cashMovements).get();
-    expect(cash.single.amount, Money.parse('20000'));
+    // D-023: a sale document with a cash payment, no shift pay-in.
+    expect(await f.db.select(f.db.cashMovements).get(), isEmpty);
+    final pays = await f.db.select(f.db.giftCardSalePayments).get();
+    expect(pays.map((p) => (p.method, p.amount)), contains(('cash', Money.parse('20000'))));
     await dispose(tester);
   });
 

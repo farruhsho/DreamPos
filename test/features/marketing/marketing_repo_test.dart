@@ -41,38 +41,51 @@ void main() {
     });
     tearDown(() => f.db.close());
 
-    test('cash gift card sale is a pay-in of the open shift', () async {
+    test('cash gift card sale is a document counted in the shift cash, not a pay-in', () async {
       final before = await ShiftService(f.db).report(f.shift.id);
       final g = await repo.issueGiftCard(
           code: 'abcd-2345-wxyz', amount: 50000, method: 'cash', userId: f.owner.id, shiftId: f.shift.id);
       expect(g.code, 'ABCD2345WXYZ');
       expect(g.balance, 50000);
       expect(g.status, 'active');
+      expect(g.soldSaleId, isNotNull);
       final after = await ShiftService(f.db).report(f.shift.id);
       expect(after.expectedCash - before.expectedCash, 50000);
-      final mv = await f.db.select(f.db.cashMovements).get();
-      expect(mv.single.reason, 'Продажа сертификата ABCD2345WXYZ');
-      expect((await f.db.select(f.db.auditLog).get()).map((a) => a.action), contains('gift_card.issue'));
+      expect(after.salesTotal, before.salesTotal);
+      expect(await f.db.select(f.db.cashMovements).get(), isEmpty);
+      expect((await f.db.select(f.db.auditLog).get()).map((a) => a.action), contains('gift_card.sell'));
       // duplicate code rejected, nothing written
-      expect(
+      await expectLater(
           () => repo.issueGiftCard(
               code: 'ABCD2345WXYZ', amount: 1000, method: 'card', userId: f.owner.id, shiftId: f.shift.id),
           throwsA(isA<BusinessException>()));
       expect(await f.db.select(f.db.giftCards).get(), hasLength(1));
+      expect(await f.db.select(f.db.giftCardSales).get(), hasLength(1));
     });
 
-    test('card payment does not touch the drawer; cash needs a shift', () async {
-      await repo.issueGiftCard(code: 'CARDPAY123', amount: 1000, method: 'card', userId: f.owner.id);
-      expect(await f.db.select(f.db.cashMovements).get(), isEmpty);
-      expect(() => repo.issueGiftCard(code: 'NOSHIFT123', amount: 1000, method: 'cash', userId: f.owner.id),
+    test('every method needs a shift; card payment does not touch the drawer', () async {
+      for (final m in ['cash', 'card', 'transfer']) {
+        await expectLater(() => repo.issueGiftCard(code: 'NOSHIFT$m', amount: 1000, method: m, userId: f.owner.id),
+            throwsA(isA<BusinessException>()));
+      }
+      await expectLater(
+          () => repo.issueGiftCard(code: 'FREE123456', amount: 1000, method: 'free', userId: f.owner.id, shiftId: f.shift.id),
           throwsA(isA<BusinessException>()));
-      expect(() => repo.issueGiftCard(code: 'ZERO123456', amount: 0, method: 'card', userId: f.owner.id),
+      final before = await ShiftService(f.db).report(f.shift.id);
+      await repo.issueGiftCard(code: 'CARDPAY123', amount: 1000, method: 'card', userId: f.owner.id, shiftId: f.shift.id);
+      final after = await ShiftService(f.db).report(f.shift.id);
+      expect(after.expectedCash, before.expectedCash);
+      expect(after.giftSalesByMethod, {'card': 1000});
+      await expectLater(
+          () => repo.issueGiftCard(code: 'ZERO123456', amount: 0, method: 'card', userId: f.owner.id, shiftId: f.shift.id),
           throwsA(isA<BusinessException>()));
+      expect(await f.db.select(f.db.giftCards).get(), hasLength(1));
     });
 
     test('issued card is accepted by checkout; block/unblock', () async {
       final g = await repo.generateUniqueGiftCode();
-      final card = await repo.issueGiftCard(code: g, amount: 5000, method: 'transfer', userId: f.owner.id);
+      final card = await repo.issueGiftCard(
+          code: g, amount: 5000, method: 'transfer', userId: f.owner.id, shiftId: f.shift.id);
       final p = await f.product('Товар', price: 3000);
       await SaleService(f.db).checkout(CheckoutRequest(
         lines: [CheckoutLine(productId: p.id, qty: 1, unitPrice: 3000)],
@@ -90,7 +103,7 @@ void main() {
 
     test('effective status: expired and used', () async {
       final g = await repo.issueGiftCard(
-          code: 'EXPIRE1234', amount: 1000, method: 'free', userId: f.owner.id, expiresAt: DateTime.now().add(const Duration(days: 1)));
+          code: 'EXPIRE1234', amount: 1000, method: 'card', userId: f.owner.id, shiftId: f.shift.id, expiresAt: DateTime.now().add(const Duration(days: 1)));
       expect(giftStatusOf(g, DateTime.now()), GiftStatus.active);
       expect(giftStatusOf(g, DateTime.now().add(const Duration(days: 2))), GiftStatus.expired);
       expect(giftStatusOf(g.copyWith(balance: 0), DateTime.now()), GiftStatus.used);

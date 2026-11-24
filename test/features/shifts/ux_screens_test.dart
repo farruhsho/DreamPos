@@ -1,3 +1,4 @@
+import 'package:dreampos/domain/services/gift_card_service.dart';
 import 'package:dreampos/domain/services/shift_service.dart';
 import 'package:dreampos/features/shifts/z_report.dart';
 import 'package:flutter/material.dart';
@@ -38,6 +39,23 @@ void main() {
         reason: 'Пакеты и скотч',
       );
       await svc.cashMovement(shiftId: shift.id, kind: 'collection', amount: 300000, userId: h.owner.id);
+      // Gift card sales for the «Сертификаты» section (D-023).
+      final gifts = GiftCardService(h.db);
+      await gifts.sell(GiftCardSaleRequest(
+        code: 'UXGIFT0001',
+        amount: 500000,
+        payments: const [GiftSalePaymentInput('cash', 200000), GiftSalePaymentInput('card', 300000)],
+        cashierId: h.owner.id,
+        shiftId: shift.id,
+      ));
+      final v = await gifts.sell(GiftCardSaleRequest(
+        code: 'UXGIFT0002',
+        amount: 200000,
+        payments: const [GiftSalePaymentInput('cash', 200000)],
+        cashierId: h.owner.id,
+        shiftId: shift.id,
+      ));
+      await gifts.voidSale(v.saleId, reason: 'Ошибка кассира', userId: h.owner.id, shiftId: shift.id);
     });
     final errs = <String>[];
     for (final size in ['desktop', 'tablet', 'phone']) {

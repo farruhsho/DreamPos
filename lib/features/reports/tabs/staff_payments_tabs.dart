@@ -5,6 +5,8 @@ import '../../../core/money.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets/widgets.dart';
 import '../../../domain/services/sale_service.dart' show paymentMethodLabel;
+import '../data/gift_sales_report.dart';
+import '../data/period.dart';
 import '../data/report_queries.dart';
 import '../data/report_table.dart';
 import '../report_providers.dart';
@@ -201,6 +203,7 @@ class PaymentsTab extends ConsumerWidget {
           ),
           const SizedBox(height: Gap.m),
           ReportTableCard(table: table, initialSort: 4),
+          _GiftSalesBlock(period: period),
         ]);
       },
     );
@@ -213,4 +216,54 @@ class PaymentsTab extends ConsumerWidget {
           Text(value, style: TextStyle(fontWeight: bold ? FontWeight.w700 : FontWeight.w500)),
         ]),
       );
+}
+
+/// «Продажа сертификатов (аванс, не выручка)»: separate from revenue and from
+/// the payments table above; hidden when the period has no gift card sales.
+class _GiftSalesBlock extends ConsumerWidget {
+  const _GiftSalesBlock({required this.period});
+  final ReportPeriod period;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final gifts = ref.watch(giftSalesReportProvider(period));
+    return gifts.when(
+      loading: () => const SizedBox.shrink(),
+      error: (e, _) => Padding(
+        padding: const EdgeInsets.only(top: Gap.m),
+        child: SectionCard(
+          title: giftSalesReportTitle,
+          child: ErrorView(error: e, onRetry: () => ref.invalidate(giftSalesReportProvider(period))),
+        ),
+      ),
+      data: (g) {
+        if (g.isEmpty) return const SizedBox.shrink();
+        final t = Theme.of(context);
+        return Padding(
+          padding: const EdgeInsets.only(top: Gap.m),
+          child: ReportTableCard(
+            key: const ValueKey('gift-sales-report'),
+            table: giftSalesTable(g, period),
+            pageSize: 10,
+            header: Padding(
+              padding: const EdgeInsets.only(bottom: Gap.s),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.info_outline, size: 16, color: t.colorScheme.onSurfaceVariant),
+                  const SizedBox(width: Gap.xs),
+                  Expanded(
+                    child: Text(
+                      giftSalesReportHint,
+                      style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
 }

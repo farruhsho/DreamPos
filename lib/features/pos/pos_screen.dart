@@ -475,6 +475,8 @@ class _CartPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final cart = ref.watch(cartProvider);
+    final canSellGift = ref.watch(sessionProvider)?.can(Perm.sell) ?? false;
+    final giftHint = giftSaleMenuHint(canSell: canSellGift, hasShift: ref.watch(currentShiftProvider).value != null);
     final parked = ref.watch(parkedCartsProvider).value?.length ?? 0;
     final a = PosActions(
       context,
@@ -505,6 +507,7 @@ class _CartPage extends ConsumerWidget {
               'park' => a.park(),
               'seller' => a.chooseSeller(),
               'clear' => a.clearCart(),
+              'gift' => a.sellGiftCard(),
               _ => null,
             },
             itemBuilder: (_) => [
@@ -516,6 +519,15 @@ class _CartPage extends ConsumerWidget {
               const PopupMenuItem(
                 value: 'seller',
                 child: ListTile(leading: Icon(Icons.badge_outlined), title: Text('Продавец')),
+              ),
+              PopupMenuItem(
+                value: 'gift',
+                enabled: canSellGift,
+                child: ListTile(
+                  leading: const Icon(Icons.card_giftcard),
+                  title: const Text('Продать сертификат'),
+                  subtitle: giftHint == null ? null : Text(giftHint),
+                ),
               ),
               PopupMenuItem(
                 value: 'clear',

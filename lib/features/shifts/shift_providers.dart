@@ -27,6 +27,8 @@ final shiftFiguresProvider = StreamProvider.autoDispose.family<ShiftFigures, Str
           db.cashMovements,
           db.customerLedger,
           db.supplierPayments,
+          db.giftCardSales,
+          db.giftCardSalePayments,
         },
       )
       .watch()

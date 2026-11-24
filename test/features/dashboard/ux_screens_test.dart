@@ -1,5 +1,7 @@
 // Visual QA screenshots for dashboard, reports and notifications.
 // Run: SCREENSHOTS=1 SCREENSHOTS_DIR=build/screens_dashboard flutter test test/features/dashboard/ux_screens_test.dart
+import 'package:dreampos/domain/services/gift_card_service.dart';
+import 'package:dreampos/domain/services/shift_service.dart';
 import 'package:dreampos/features/notifications/notification_engine.dart';
 import 'package:dreampos/features/notifications/notifications_screen.dart';
 import 'package:flutter/material.dart';
@@ -21,6 +23,26 @@ void main() {
   testWidgets('dashboard / reports / notifications screens', (tester) async {
     final h = await UxHarness.start(tester);
     final errors = <String, List<String>>{};
+    // Gift card advances for the payments report block (D-023).
+    await tester.runAsync(() async {
+      final shift = (await ShiftService(h.db).currentShift())!;
+      final gifts = GiftCardService(h.db);
+      await gifts.sell(GiftCardSaleRequest(
+        code: 'UXGIFT0001',
+        amount: 500000,
+        payments: const [GiftSalePaymentInput('cash', 200000), GiftSalePaymentInput('card', 300000)],
+        cashierId: h.owner.id,
+        shiftId: shift.id,
+      ));
+      final v = await gifts.sell(GiftCardSaleRequest(
+        code: 'UXGIFT0002',
+        amount: 200000,
+        payments: const [GiftSalePaymentInput('transfer', 200000)],
+        cashierId: h.owner.id,
+        shiftId: shift.id,
+      ));
+      await gifts.voidSale(v.saleId, reason: 'Ошибка кассира', userId: h.owner.id, shiftId: shift.id);
+    });
     Future<void> shot(String name) async {
       final e = await h.shot(name);
       if (e.isNotEmpty) errors['${h.sizeName}_$name'] = e;
@@ -51,6 +73,11 @@ void main() {
           await tester.drag(sc.first, const Offset(0, -700), warnIfMissed: false);
           await h.settle();
           await shot('reports_${i}_scrolled');
+          if (_reportTabs[i] == 'Оплаты') {
+            await tester.drag(sc.first, const Offset(0, -3000), warnIfMissed: false);
+            await h.settle();
+            await shot('reports_payments_gifts');
+          }
         }
       }
       // back to first tab for next size

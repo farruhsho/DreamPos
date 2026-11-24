@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../domain/services/auth_service.dart';
 import '../domain/services/customer_service.dart';
+import '../domain/services/gift_card_service.dart';
 import '../domain/services/receipt_service.dart';
 import '../domain/services/sale_service.dart';
 import '../domain/services/shift_service.dart';
@@ -27,6 +28,8 @@ final receiptServiceProvider = Provider((ref) => ReceiptService(
       ref.watch(stockServiceProvider),
       ref.watch(supplierLedgerServiceProvider),
     ));
+
+final giftCardServiceProvider = Provider((ref) => GiftCardService(ref.watch(databaseProvider)));
 
 /// All settings as a live map.
 final settingsProvider = StreamProvider<Map<String, String>>((ref) {

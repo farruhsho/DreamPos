@@ -67,6 +67,8 @@ Future<int> insertOpeningSupplierEntries(AppDatabase db) async {
   Returns,
   ReturnItems,
   GiftCards,
+  GiftCardSales,
+  GiftCardSalePayments,
   Promotions,
   InventoryCounts,
   InventoryCountItems,
@@ -86,7 +88,7 @@ class AppDatabase extends _$AppDatabase {
       );
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -115,6 +117,15 @@ class AppDatabase extends _$AppDatabase {
                 await m.addColumn(supplierPayments, supplierPayments.cancelReason);
               }
               await insertOpeningSupplierEntries(this);
+            });
+          }
+          // v4: gift card sale documents (D-023). createTable is
+          // CREATE TABLE IF NOT EXISTS, so a half-migrated file still
+          // upgrades. No back-fill: older cards keep soldSaleId = null.
+          if (from < 4) {
+            await transaction(() async {
+              await m.createTable(giftCardSales);
+              await m.createTable(giftCardSalePayments);
             });
           }
           // v2: report/lookup indexes. All index DDL is IF NOT EXISTS, so
@@ -170,6 +181,13 @@ class AppDatabase extends _$AppDatabase {
     'CREATE INDEX IF NOT EXISTS ix_goods_receipts_order ON goods_receipts(order_id)',
     'CREATE INDEX IF NOT EXISTS ix_goods_receipt_items_receipt ON goods_receipt_items(receipt_id)',
     'CREATE INDEX IF NOT EXISTS ix_supplier_ledger_supplier ON supplier_ledger(supplier_id, created_at)',
+    // v4
+    'CREATE INDEX IF NOT EXISTS ix_gift_sales_shift ON gift_card_sales(shift_id)',
+    'CREATE INDEX IF NOT EXISTS ix_gift_sales_void_shift ON gift_card_sales(void_shift_id)',
+    'CREATE INDEX IF NOT EXISTS ix_gift_sales_created ON gift_card_sales(created_at)',
+    'CREATE INDEX IF NOT EXISTS ix_gift_sales_card ON gift_card_sales(gift_card_id)',
+    'CREATE UNIQUE INDEX IF NOT EXISTS ux_gift_sales_number ON gift_card_sales(number)',
+    'CREATE INDEX IF NOT EXISTS ix_gift_sale_payments_sale ON gift_card_sale_payments(sale_id)',
   ];
 
   // ---------------------------------------------------------------- helpers
