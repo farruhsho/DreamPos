@@ -199,4 +199,15 @@ void main() {
     expect(const ProductQuery().isFiltered, isFalse);
     expect(a.isFiltered, isTrue);
   });
+
+  test('defaultVatFromSetting parses the setting, falls back to 0', () {
+    expect(defaultVatFromSetting(null), 0);
+    expect(defaultVatFromSetting(''), 0);
+    expect(defaultVatFromSetting('12'), 12);
+    expect(defaultVatFromSetting('12,5'), 12.5);
+    expect(defaultVatFromSetting('15%'), 15);
+    expect(defaultVatFromSetting('abc'), 0);
+    expect(defaultVatFromSetting('150'), 0);
+    expect(defaultVatFromSetting('-1'), 0);
+  });
 }

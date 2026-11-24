@@ -136,6 +136,21 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     _searchFocus.requestFocus();
   }
 
+  /// Text typed/scanned while the sale-success dialog was open.
+  void _onForwardedScan(ScanForward? f) {
+    if (f == null) return;
+    Future.microtask(() => ref.read(posScanForwardProvider.notifier).consumed());
+    if (!mounted) return;
+    if (f.submit) {
+      _onSubmitted(f.text);
+    } else {
+      _search.text = f.text;
+      _search.selection = TextSelection.collapsed(offset: f.text.length);
+      _onSearchChanged(f.text);
+      _searchFocus.requestFocus();
+    }
+  }
+
   Future<void> _onTapProduct(Product p) async {
     await _actions(context).addProduct(p);
   }
@@ -231,6 +246,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     final session = ref.watch(sessionProvider);
     // keep settings (currency!) loaded
     ref.watch(settingsProvider);
+    ref.listen(posScanForwardProvider, (_, next) => _onForwardedScan(next));
 
     return Focus(
       onKeyEvent: _onKey,

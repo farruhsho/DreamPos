@@ -366,6 +366,7 @@ class _Orders extends ConsumerWidget {
   final String supplierId;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final partly = ref.watch(purPartlyReceivedOrderIdsProvider).value ?? const <String>{};
     return AsyncView(
       value: ref.watch(purSupplierOrdersProvider(supplierId)),
       data: (list) => list.isEmpty
@@ -387,7 +388,7 @@ class _Orders extends ConsumerWidget {
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
                       ),
                       const SizedBox(width: Gap.m),
-                      poStatusChip(o.status),
+                      poStatusChip(poDisplayStatus(o.status, anyReceived: partly.contains(o.id))),
                     ],
                   ),
                   onTap: () => pushOrderPage(context, o.id),

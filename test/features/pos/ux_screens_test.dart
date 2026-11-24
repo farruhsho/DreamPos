@@ -21,6 +21,7 @@ void main() {
       await h.settle();
     }
 
+    await tester.runAsync(() => h.db.setSetting('cash_rounding', '1000'));
     final cart = h.container.read(cartProvider.notifier);
     final customers = (await tester.runAsync(() => h.db.select(h.db.customers).get()))!;
     final Customer cust = customers.firstWhere((c) => c.debtLimit > 0, orElse: () => customers.first);
@@ -60,9 +61,18 @@ void main() {
       await tap(find.byKey(const Key('pos-pay')));
       await shot('pay_simple');
       await tap(find.text('Смешанная оплата'));
-      await tester.enterText(find.byType(TextField).at(1), '50000');
+      await tester.enterText(find.widgetWithText(TextField, 'Карта'), '50000');
       await h.settle();
       await shot('pay_split');
+      final debtField = find.widgetWithText(TextField, 'В долг');
+      if (debtField.evaluate().isNotEmpty) {
+        await tester.enterText(find.widgetWithText(TextField, 'Карта'), '');
+        await tester.enterText(debtField, '20000');
+        await h.settle();
+        await tester.ensureVisible(find.byKey(const Key('pay-debt-due')));
+        await h.settle();
+        await shot('pay_debt');
+      }
       await tap(find.byTooltip('Закрыть (Esc)'));
 
       // parked list

@@ -9,6 +9,7 @@ import 'package:dreampos/features/pos/cart_controller.dart';
 import 'package:dreampos/features/pos/pos_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../helpers.dart';
 
@@ -136,5 +137,89 @@ void main() {
     final p = await f.product('Чай', price: 5000);
     c.read(cartProvider.notifier).addProduct(p);
     expect(await cartManualDiscountPercent(c.read(saleServiceProvider), c.read(cartProvider)), 0);
+  });
+
+  group('settings wiring', () {
+    test('cash rounding (step 1000): cash-only is rounded down, mixed is not', () async {
+      await f.db.setSetting('cash_rounding', '1000');
+      final p = await f.product('Сахар', price: 12500, stock: 10);
+      c.read(cartProvider.notifier).addProduct(p);
+      final svc = c.read(saleServiceProvider);
+      final cart = c.read(cartProvider);
+
+      // the live quote (no payments yet) shows the full amount
+      expect((await c.read(cartQuoteProvider.future))!.total, 12500);
+
+      // what the payment dialog shows for cash-only
+      final q = await svc.quote(cart.toRequest(
+          cashierId: f.owner.id, applyCashRounding: true, payments: [PaymentInput('cash', 12500)]));
+      expect(q.total, 12000);
+      expect(q.roundingDiscount, 500);
+
+      // the rounded amount in cash is accepted; nothing to give back
+      final res = await svc.checkout(cart.toRequest(
+        cashierId: f.owner.id,
+        shiftId: f.shift.id,
+        applyCashRounding: true,
+        payments: [PaymentInput('cash', 12000)],
+      ));
+      expect(res.sale.total, 12000);
+      expect(res.changeDue, 0);
+
+      // mixed payment: no rounding even when the flag is set
+      final mixed = await svc.checkout(cart.toRequest(
+        cashierId: f.owner.id,
+        shiftId: f.shift.id,
+        applyCashRounding: true,
+        payments: [PaymentInput('card', 5000), PaymentInput('cash', 7500)],
+      ));
+      expect(mixed.sale.total, 12500);
+      expect(mixed.changeDue, 0);
+    });
+
+    test('cash rounding off ("none") keeps the exact total', () async {
+      await f.db.setSetting('cash_rounding', 'none');
+      final p = await f.product('Соль', price: 12500);
+      c.read(cartProvider.notifier).addProduct(p);
+      final q = await c.read(saleServiceProvider).quote(c.read(cartProvider).toRequest(
+          cashierId: f.owner.id, applyCashRounding: true, payments: [PaymentInput('cash', 12500)]));
+      expect(q.total, 12500);
+    });
+
+    test('quick-tender banknotes: setting when valid, else currency defaults', () {
+      expect(posBanknotes('5000, 1000,abc'), [1000, 5000]);
+      expect(posBanknotes(''), isNotEmpty);
+      expect(posBanknotes('x,-5'), posBanknotes(null));
+    });
+
+    test('device register: used only while it exists and is active', () async {
+      Future<String> reg(String name, {bool active = true}) async {
+        final id = newId();
+        await f.db.into(f.db.registers).insert(RegistersCompanion.insert(
+            id: id, name: name, isActive: Value(active)));
+        return id;
+      }
+
+      final ok = await reg('Касса 1');
+      final off = await reg('Касса 2', active: false);
+      SharedPreferences.setMockInitialValues({'register_id': ok});
+      expect(await resolveDeviceRegisterId(f.db), ok);
+      SharedPreferences.setMockInitialValues({'register_id': off});
+      expect(await resolveDeviceRegisterId(f.db), isNull);
+      SharedPreferences.setMockInitialValues({'register_id': 'gone'});
+      expect(await resolveDeviceRegisterId(f.db), isNull);
+      SharedPreferences.setMockInitialValues({});
+      expect(await resolveDeviceRegisterId(f.db), isNull);
+
+      // the register travels with the sale
+      final p = await f.product('Вода', price: 3000);
+      c.read(cartProvider.notifier).addProduct(p);
+      final res = await c.read(saleServiceProvider).checkout(c.read(cartProvider).toRequest(
+          cashierId: f.owner.id,
+          shiftId: f.shift.id,
+          registerId: ok,
+          payments: [PaymentInput('cash', 3000)]));
+      expect(res.sale.registerId, ok);
+    });
   });
 }

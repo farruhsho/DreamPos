@@ -1,9 +1,11 @@
 import 'package:drift/drift.dart' show Value;
 import 'package:dreampos/core/db/database.dart';
+import 'package:dreampos/core/money.dart';
 import 'package:dreampos/core/permissions.dart';
 import 'package:dreampos/core/providers.dart';
 import 'package:dreampos/domain/services/auth_service.dart';
 import 'package:dreampos/features/products/price_labels.dart';
+import 'package:dreampos/features/products/product_editor.dart';
 import 'package:dreampos/features/products/product_logic.dart';
 import 'package:dreampos/features/products/products_repo.dart';
 import 'package:dreampos/features/products/products_screen.dart';
@@ -96,6 +98,79 @@ void main() {
     final all = await repo.listProducts(const ProductQuery(limit: 0));
     expect(all.map((p) => p.name), contains('Кефир'));
     expect(find.text('Кефир'), findsWidgets);
+    await _dispose(tester);
+  });
+
+  testWidgets('new product VAT defaults to the default_vat_percent setting', (tester) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final db = memoryDb();
+    addTearDown(db.close);
+    final owner = await AuthService(db).createUser(name: 'Owner', role: Role.owner, pin: '2580');
+    await db.setSetting('default_vat_percent', '12');
+    final repo = ProductsRepo(db);
+
+    await tester.pumpWidget(_app(db, owner));
+    await _settle(tester);
+    await tester.tap(find.text('Новый товар').first);
+    await _settle(tester);
+    final chip12 = tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, '12%'));
+    expect(chip12.selected, isTrue, reason: 'VAT preset from settings');
+    expect(tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'Без НДС')).selected, isFalse);
+    await tester.enterText(find.widgetWithText(TextFormField, 'Название *'), 'Сок');
+    await tester.enterText(find.widgetWithText(TextFormField, 'Розничная цена *'), '190000');
+    expect(find.text('190 000'), findsOneWidget, reason: 'MoneyField groups thousands while typing');
+    await tester.tap(find.text('Создать товар'));
+    await _settle(tester);
+    final p = (await repo.listProducts(const ProductQuery(limit: 0))).singleWhere((p) => p.name == 'Сок');
+    expect(p.vatPercent, 12);
+    expect(p.price, Money.parse('190000'));
+    await _dispose(tester);
+  });
+
+  testWidgets('default_vat_percent: custom rate fills «Другой»; existing products keep their VAT',
+      (tester) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final db = memoryDb();
+    addTearDown(db.close);
+    final owner = await AuthService(db).createUser(name: 'Owner', role: Role.owner, pin: '2580');
+    await db.setSetting('default_vat_percent', '7,5');
+    final repo = ProductsRepo(db);
+    await repo.saveProduct(ProductDraft(name: 'Хлеб', price: 3000), userId: owner.id);
+    final bread = await db.select(db.products).getSingle();
+    expect(bread.vatPercent, 0);
+
+    Widget host(Widget editor) => ProviderScope(
+          overrides: [
+            databaseProvider.overrideWithValue(db),
+            sessionProvider.overrideWith(() => _TestSession(owner)),
+          ],
+          child: MaterialApp(home: Scaffold(body: editor)),
+        );
+
+    // New product: non-preset default goes to the custom field.
+    await tester.pumpWidget(host(const ProductEditor()));
+    await _settle(tester);
+    expect(find.widgetWithText(TextFormField, '7,5'), findsOneWidget);
+    for (final v in ['Без НДС', '12%', '15%', '20%']) {
+      expect(tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, v)).selected, isFalse, reason: v);
+    }
+    await _dispose(tester);
+
+    // Editing an existing product never applies the default.
+    await tester.pumpWidget(host(ProductEditor(product: bread)));
+    await _settle(tester);
+    expect(tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'Без НДС')).selected, isTrue);
+    expect(find.widgetWithText(TextFormField, '7,5'), findsNothing);
+
+    // A copy keeps the source's VAT too.
+    await _dispose(tester);
+    await tester.pumpWidget(host(ProductEditor(copyOf: bread)));
+    await _settle(tester);
+    expect(tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'Без НДС')).selected, isTrue);
     await _dispose(tester);
   });
 

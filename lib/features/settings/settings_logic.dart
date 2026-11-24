@@ -223,10 +223,11 @@ String cashRoundingLabel(String v, CurrencyConfig c) {
 
 /// Reference implementation for the POS: rounds a cash total to the nearest
 /// [step] minor units (half up). step <= 0 means no rounding.
+/// Mirrors the domain rule (D-015): round DOWN in the customer's favour,
+/// never below one step.
 int roundCash(int amount, int step) {
-  if (step <= 0) return amount;
-  final r = amount % step;
-  return r * 2 >= step ? amount - r + step : amount - r;
+  if (step <= 0 || amount < step) return amount;
+  return amount - amount % step;
 }
 
 // ------------------------------------------------------------------ loyalty

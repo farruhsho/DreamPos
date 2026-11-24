@@ -7,6 +7,7 @@ import 'package:dreampos/domain/services/auth_service.dart';
 import 'package:dreampos/features/pos/cart_controller.dart';
 import 'package:dreampos/features/pos/pos_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -194,6 +195,98 @@ void main() {
     expect(sale.total, 90000);
     expect(sale.cashierId, cashier.id);
 
+    await tester.tap(find.text('Новая продажа (Enter)'));
+    await _settle(tester);
+    await tearDownWidgets(tester, f);
+  });
+
+  Future<void> sellOne(WidgetTester tester, String name) async {
+    await tester.tap(find.text(name).first);
+    await _settle(tester);
+    await tester.tap(find.byKey(const Key('pos-pay')));
+    await _settle(tester);
+    await tester.tap(find.byKey(const Key('pay-confirm')));
+    await _settle(tester);
+    expect(find.byKey(const Key('success-change')), findsOneWidget);
+  }
+
+  Future<void> typeKeys(WidgetTester tester, String s) async {
+    for (final ch in s.split('')) {
+      await tester.sendKeyEvent(LogicalKeyboardKey(ch.codeUnitAt(0)), character: ch);
+    }
+  }
+
+  testWidgets('scan while the sale-success dialog is open starts the next sale', (tester) async {
+    final f = (await tester.runAsync(Fixture.create))!;
+    final p = (await tester.runAsync(() async {
+      final p = await f.product('Хлеб белый', price: 4000, stock: 10);
+      await (f.db.update(f.db.products)..where((t) => t.id.equals(p.id)))
+          .write(const ProductsCompanion(barcode: Value('4780000000011')));
+      return p;
+    }))!;
+    final (container, _) = await pumpPos(tester, f);
+    await sellOne(tester, 'Хлеб белый');
+
+    // scanner: digits + Enter arrive while the dialog is still open
+    await typeKeys(tester, '4780000000011');
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await _settle(tester);
+    expect(find.byKey(const Key('success-change')), findsNothing);
+    expect(container.read(cartProvider).lines.single.productId, p.id);
+    expect(tester.widget<TextField>(find.byKey(const Key('pos-search'))).controller!.text, isEmpty);
+    await tearDownWidgets(tester, f);
+  });
+
+  testWidgets('Enter alone closes the success dialog; typed digits go to the search field',
+      (tester) async {
+    final f = (await tester.runAsync(Fixture.create))!;
+    await tester.runAsync(() => f.product('Вода', price: 3000));
+    final (container, _) = await pumpPos(tester, f);
+
+    await sellOne(tester, 'Вода');
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await _settle(tester);
+    expect(find.byKey(const Key('success-change')), findsNothing);
+    expect(container.read(cartProvider).isEmpty, isTrue);
+
+    await sellOne(tester, 'Вода');
+    await typeKeys(tester, '478');
+    await tester.tap(find.text('Новая продажа (Enter)'));
+    await _settle(tester);
+    expect(find.byKey(const Key('success-change')), findsNothing);
+    final search = find.byKey(const Key('pos-search'));
+    expect(tester.widget<TextField>(search).controller!.text, '478');
+    expect(tester.widget<TextField>(search).focusNode!.hasFocus, isTrue);
+    expect(container.read(cartProvider).isEmpty, isTrue);
+    await tearDownWidgets(tester, f);
+  });
+
+  testWidgets('register bound to the device is used for the shift and the sale', (tester) async {
+    final (f, regId) = (await tester.runAsync(() async {
+      final db = memoryDb();
+      final fx = Fixture(db);
+      fx.owner = await AuthService(db).createUser(name: 'Owner', role: Role.owner, pin: '2580');
+      await fx.product('Вода', price: 3000);
+      final id = newId();
+      await db.into(db.registers).insert(RegistersCompanion.insert(id: id, name: 'Касса 1'));
+      return (fx, id);
+    }))!;
+    SharedPreferences.setMockInitialValues({'register_id': regId});
+    final (container, _) = await pumpPos(tester, f);
+
+    await tester.tap(find.byKey(const Key('pos-open-shift')));
+    await _settle(tester);
+    await tester.tap(find.text('Открыть смену').last);
+    await _settle(tester);
+    final shift = (await tester.runAsync(() => container.read(shiftServiceProvider).currentShift()))!;
+    expect(shift.registerId, regId);
+
+    // let the "shift opened" toast disappear (it covers the pay button)
+    await tester.pump(const Duration(seconds: 6));
+    await _settle(tester);
+    await sellOne(tester, 'Вода');
+    final sale = (await tester.runAsync(() => f.db.select(f.db.sales).getSingle()))!;
+    expect(sale.registerId, regId);
     await tester.tap(find.text('Новая продажа (Enter)'));
     await _settle(tester);
     await tearDownWidgets(tester, f);

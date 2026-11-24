@@ -42,7 +42,7 @@ Future<Uint8List> buildPoPdf({
                   style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
                 ),
                 pw.Text(
-                  'от ${formatDate(order.createdAt)} · ${poStatusLabels[order.status] ?? order.status}',
+                  'от ${formatDate(order.createdAt)} · ${poStatusLabels[poDisplayStatusOf(order, items)] ?? order.status}',
                   style: small,
                 ),
                 if (order.expectedAt != null)

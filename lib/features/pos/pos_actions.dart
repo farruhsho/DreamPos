@@ -399,6 +399,13 @@ class PosActions {
           st = _state;
         }
       }
+      final registerId = await resolveDeviceRegisterId(_db);
+      // what checkout charges when the whole receipt is paid in cash
+      // (setting `cash_rounding`, D-015)
+      final cashQuote = await ref.read(saleServiceProvider).quote(st.toRequest(
+          cashierId: s.user.id,
+          applyCashRounding: true,
+          payments: [PaymentInput('cash', quote.total)]));
       final customer = st.customerId == null
           ? null
           : await (_db.select(_db.customers)..where((c) => c.id.equals(st.customerId!)))
@@ -412,13 +419,20 @@ class PosActions {
           total: quote.total,
           cashierId: s.user.id,
           shiftId: shift?.id,
+          registerId: registerId,
           customer: customer,
+          cashTotal: cashQuote.total,
         ),
       );
       if (res == null) return _done();
       _cart.clear();
-      if (context.mounted) await showSaleSuccess(context, res);
+      final typed = context.mounted ? await showSaleSuccess(context, res) : null;
       onSold?.call();
+      // a barcode scanned while the success dialog was open: hand it to the
+      // scanner field of the POS screen (it adds the product to the new sale)
+      if (typed != null) {
+        ref.read(posScanForwardProvider.notifier).forward(typed.text, submit: typed.submit);
+      }
     } catch (e) {
       _err(e);
     }

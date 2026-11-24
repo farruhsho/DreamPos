@@ -597,6 +597,14 @@ String movementTypeLabel(String type) => switch (type) {
 /// VAT presets common in the region (UZ 12%, KZ 12%, TJ 15%, RU 20%).
 const vatPresets = <double>[0, 12, 15, 20];
 
+/// VAT % for a new product from the raw `default_vat_percent` setting
+/// ("12", "12,5", "12%"). Missing or invalid (outside 0–100) → 0.
+double defaultVatFromSetting(String? raw) {
+  final x = parseDecimal(raw?.replaceAll('%', ''));
+  if (x == null || x.isNaN || x < 0 || x > 100) return 0;
+  return x;
+}
+
 /// Palette for categories (ARGB).
 const categoryPalette = <int>[
   0xFF4F46E5, 0xFF0EA5E9, 0xFF14B8A6, 0xFF22C55E, 0xFF84CC16, 0xFFEAB308,

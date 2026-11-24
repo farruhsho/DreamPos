@@ -92,4 +92,10 @@ void main() {
     expect(allocateProportionally(0, [5, 5]), [0, 0]);
     expect(allocateProportionally(7, [0, 0]), [0, 0]);
   });
+
+  test('cash rounding rounds down but never below one step', () {
+    expect(PricingEngine.price(lines: [line('1', 12500)], cashRoundingStep: 1000).total, 12000);
+    expect(PricingEngine.price(lines: [line('1', 500)], cashRoundingStep: 1000).total, 500);
+    expect(PricingEngine.price(lines: [line('1', 12000)], cashRoundingStep: 1000).roundingDiscount, 0);
+  });
 }

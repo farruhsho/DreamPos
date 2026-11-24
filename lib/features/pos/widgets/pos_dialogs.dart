@@ -18,102 +18,153 @@ import '../pos_providers.dart';
 
 /// Asks for an exact quantity (weight for kg). Returns null when cancelled.
 Future<double?> askQty(BuildContext context, {required String title, required String unit, double? initial}) {
-  final ctl = TextEditingController(text: initial == null ? '' : Qty.format(initial).replaceAll(' ', ''));
-  ctl.selection = TextSelection(baseOffset: 0, extentOffset: ctl.text.length);
-  final key = GlobalKey<FormState>();
   return showDialog<double>(
     context: context,
-    builder: (c) {
-      void submit() {
-        if (!key.currentState!.validate()) return;
-        Navigator.pop(c, Qty.round(QtyField.parse(ctl.text)!));
-      }
+    builder: (_) => _QtyDialog(title: title, unit: unit, initial: initial),
+  );
+}
 
-      return AlertDialog(
-        title: Text(title),
-        content: Form(
-          key: key,
-          child: SizedBox(
-            width: 320,
-            child: TextFormField(
-              controller: ctl,
-              autofocus: true,
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
-              decoration: InputDecoration(
-                labelText: Qty.isFractional(unit) ? 'Количество / вес' : 'Количество',
-                suffixText: Qty.unitLabel(unit),
-                helperText: Qty.isFractional(unit) ? 'Например: 0,75' : null,
-              ),
-              validator: (v) => validateQty(QtyField.parse(v ?? ''), unit),
-              onFieldSubmitted: (_) => submit(),
+/// Stateful so that the text controller is disposed with the dialog.
+class _QtyDialog extends StatefulWidget {
+  const _QtyDialog({required this.title, required this.unit, this.initial});
+  final String title;
+  final String unit;
+  final double? initial;
+
+  @override
+  State<_QtyDialog> createState() => _QtyDialogState();
+}
+
+class _QtyDialogState extends State<_QtyDialog> {
+  late final _ctl = TextEditingController(
+      text: widget.initial == null ? '' : Qty.format(widget.initial!).replaceAll(' ', ''));
+  final _key = GlobalKey<FormState>();
+
+  @override
+  void initState() {
+    super.initState();
+    _ctl.selection = TextSelection(baseOffset: 0, extentOffset: _ctl.text.length);
+  }
+
+  @override
+  void dispose() {
+    _ctl.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (!_key.currentState!.validate()) return;
+    Navigator.pop(context, Qty.round(QtyField.parse(_ctl.text)!));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final unit = widget.unit;
+    return AlertDialog(
+      title: Text(widget.title),
+      content: Form(
+        key: _key,
+        child: SizedBox(
+          width: 320,
+          child: TextFormField(
+            controller: _ctl,
+            autofocus: true,
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
+            decoration: InputDecoration(
+              labelText: Qty.isFractional(unit) ? 'Количество / вес' : 'Количество',
+              suffixText: Qty.unitLabel(unit),
+              helperText: Qty.isFractional(unit) ? 'Например: 0,75' : null,
             ),
+            validator: (v) => validateQty(QtyField.parse(v ?? ''), unit),
+            onFieldSubmitted: (_) => _submit(),
           ),
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Отмена')),
-          FilledButton(onPressed: submit, child: const Text('OK')),
-        ],
-      );
-    },
-  );
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')),
+        FilledButton(onPressed: _submit, child: const Text('OK')),
+      ],
+    );
+  }
 }
 
 // ------------------------------------------------------------------ price
 
 Future<int?> askPrice(BuildContext context, CartLine line) {
-  final ctl = TextEditingController(text: Money.toInput(line.unitPrice));
-  ctl.selection = TextSelection(baseOffset: 0, extentOffset: ctl.text.length);
-  final key = GlobalKey<FormState>();
-  return showDialog<int>(
-    context: context,
-    builder: (c) {
-      void submit() {
-        if (!key.currentState!.validate()) return;
-        Navigator.pop(c, Money.parse(ctl.text));
-      }
+  return showDialog<int>(context: context, builder: (_) => _PriceDialog(line: line));
+}
 
-      return AlertDialog(
-        title: const Text('Цена продажи'),
-        content: Form(
-          key: key,
-          child: SizedBox(
-            width: 340,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(line.name, style: Theme.of(c).textTheme.titleSmall),
-                const SizedBox(height: Gap.xs),
-                Text(
-                  'Цена по прайсу: ${Money.format(line.basePrice)}',
-                  style: Theme.of(c).textTheme.bodySmall,
-                ),
-                const SizedBox(height: Gap.m),
-                MoneyField(
-                  label: 'Новая цена',
-                  controller: ctl,
-                  autofocus: true,
-                  required: true,
-                  onSubmitted: (_) => submit(),
-                ),
-              ],
-            ),
+class _PriceDialog extends StatefulWidget {
+  const _PriceDialog({required this.line});
+  final CartLine line;
+
+  @override
+  State<_PriceDialog> createState() => _PriceDialogState();
+}
+
+class _PriceDialogState extends State<_PriceDialog> {
+  late final _ctl = TextEditingController(text: Money.toInput(widget.line.unitPrice));
+  final _key = GlobalKey<FormState>();
+
+  @override
+  void initState() {
+    super.initState();
+    _ctl.selection = TextSelection(baseOffset: 0, extentOffset: _ctl.text.length);
+  }
+
+  @override
+  void dispose() {
+    _ctl.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (!_key.currentState!.validate()) return;
+    Navigator.pop(context, Money.parse(_ctl.text));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final line = widget.line;
+    final t = Theme.of(context);
+    return AlertDialog(
+      title: const Text('Цена продажи'),
+      content: Form(
+        key: _key,
+        child: SizedBox(
+          width: 340,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(line.name, style: t.textTheme.titleSmall),
+              const SizedBox(height: Gap.xs),
+              Text('Цена по прайсу: ${Money.format(line.basePrice)}', style: t.textTheme.bodySmall),
+              const SizedBox(height: Gap.m),
+              MoneyField(
+                label: 'Новая цена',
+                controller: _ctl,
+                autofocus: true,
+                required: true,
+                onSubmitted: (_) => _submit(),
+              ),
+            ],
           ),
         ),
-        actions: [
-          if (line.priceEdited)
-            TextButton(
-              onPressed: () => Navigator.pop(c, line.basePrice),
-              child: const Text('Вернуть цену прайса'),
-            ),
-          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Отмена')),
-          FilledButton(onPressed: submit, child: const Text('Применить')),
-        ],
-      );
-    },
-  );
+      ),
+      actions: [
+        if (line.priceEdited)
+          TextButton(
+            onPressed: () => Navigator.pop(context, line.basePrice),
+            child: const Text('Вернуть цену прайса'),
+          ),
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')),
+        FilledButton(onPressed: _submit, child: const Text('Применить')),
+      ],
+    );
+  }
 }
 
 // ------------------------------------------------------------------ discount
@@ -417,7 +468,11 @@ class _OpenShiftDialogState extends ConsumerState<_OpenShiftDialog> {
     if (s == null) return;
     setState(() => _busy = true);
     try {
-      await ref.read(shiftServiceProvider).open(userId: s.user.id, openingCash: _cash);
+      final db = ref.read(databaseProvider);
+      final registerId = await resolveDeviceRegisterId(db);
+      await ref
+          .read(shiftServiceProvider)
+          .open(userId: s.user.id, openingCash: _cash, registerId: registerId);
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {

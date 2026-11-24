@@ -225,7 +225,10 @@ class PricingEngine {
     if (cashRoundingStep > 1) {
       final finalTotal = net() - orderDiscount;
       final r = finalTotal % cashRoundingStep;
-      if (r > 0 && orderDiscount + r <= eligibleNet) rounding = r;
+      // never round a total below one step down to zero (would make it free)
+      if (r > 0 && finalTotal >= cashRoundingStep && orderDiscount + r <= eligibleNet) {
+        rounding = r;
+      }
       orderDiscount += rounding;
     }
     if (orderDiscount > 0 && eligibleNet > 0) {

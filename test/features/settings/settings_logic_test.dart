@@ -104,9 +104,10 @@ void main() {
   });
 
   test('cash rounding', () {
-    expect(roundCash(12370, 100), 12400);
+    expect(roundCash(12370, 100), 12300);
     expect(roundCash(12349, 100), 12300);
-    expect(roundCash(12350, 100), 12400);
+    expect(roundCash(12350, 100), 12300);
+    expect(roundCash(500, 1000), 500);
     expect(roundCash(12370, 0), 12370);
     expect(roundCash(12370, 1000), 12000);
     expect(cashRoundingLabel('none', uzs), 'Без округления');

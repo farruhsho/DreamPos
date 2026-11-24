@@ -18,11 +18,14 @@ List<int> banknotesMinor(CurrencyConfig c) =>
 
 /// Suggested cash amounts strictly greater than [due]: the amount rounded up
 /// to each banknote, plus single banknotes that cover it. Sorted, unique.
-List<int> quickTenders(int due, CurrencyConfig c, {int max = 4}) {
+/// [notes] (minor units) overrides the built-in denominations, e.g. with the
+/// `pos_banknotes` setting.
+List<int> quickTenders(int due, CurrencyConfig c, {int max = 4, List<int>? notes}) {
   if (due <= 0) return const [];
-  final notes = banknotesMinor(c);
+  final denominations = (notes == null || notes.isEmpty) ? banknotesMinor(c) : notes;
   final out = <int>{};
-  for (final n in notes) {
+  for (final n in denominations) {
+    if (n <= 0) continue;
     final up = ((due + n - 1) ~/ n) * n;
     if (up > due) out.add(up);
   }

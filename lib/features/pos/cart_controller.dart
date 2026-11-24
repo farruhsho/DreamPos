@@ -277,6 +277,8 @@ class CartState {
     String? shiftId,
     List<PaymentInput> payments = const [],
     DateTime? debtDueDate,
+    String? registerId,
+    bool applyCashRounding = false,
   }) =>
       CheckoutRequest(
         lines: [
@@ -291,6 +293,7 @@ class CartState {
         payments: payments,
         cashierId: cashierId,
         shiftId: shiftId,
+        registerId: registerId,
         sellerId: sellerId,
         customerId: customerId,
         promoCode: (promoCode ?? '').trim().isEmpty ? null : promoCode!.trim(),
@@ -299,6 +302,7 @@ class CartState {
         note: (note ?? '').trim().isEmpty ? null : note!.trim(),
         debtDueDate: debtDueDate,
         discountApprovedBy: hasManualDiscounts ? approverId : null,
+        applyCashRounding: applyCashRounding,
       );
 
   Map<String, dynamic> toJson() => {

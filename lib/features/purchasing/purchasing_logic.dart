@@ -18,9 +18,22 @@ import '../../domain/services/stock_service.dart';
 const poStatusLabels = <String, String>{
   'draft': 'Черновик',
   'ordered': 'Заказан',
+  poPartialStatus: 'Частично получен',
   'received': 'Получен',
   'cancelled': 'Отменён',
 };
+
+/// Display-only status for an `ordered` PO with some lines already received.
+/// Never stored: the DB keeps `ordered` until everything arrives.
+const poPartialStatus = 'partial';
+
+/// Computed status shown in the UI: `ordered` + any received qty → `partial`.
+String poDisplayStatus(String status, {required bool anyReceived}) =>
+    status == 'ordered' && anyReceived ? poPartialStatus : status;
+
+/// [poDisplayStatus] for an order and its lines.
+String poDisplayStatusOf(PurchaseOrder o, Iterable<PurchaseOrderItem> items) =>
+    poDisplayStatus(o.status, anyReceived: items.any((i) => i.deletedAt == null && i.receivedQty > 0));
 
 const paymentMethodLabels = <String, String>{'cash': 'Наличные', 'card': 'Карта', 'transfer': 'Перечисление'};
 
@@ -61,6 +74,29 @@ final purOrdersProvider = StreamProvider<List<PurchaseOrder>>((ref) {
 final purOrderProvider = StreamProvider.family<PurchaseOrder?, String>((ref, id) {
   final db = ref.watch(databaseProvider);
   return (db.select(db.purchaseOrders)..where((o) => o.id.equals(id))).watchSingleOrNull();
+});
+
+/// Ids of `ordered` POs that already have some lines received (→ «Частично получен»).
+final purPartlyReceivedOrderIdsProvider = StreamProvider<Set<String>>((ref) {
+  final db = ref.watch(databaseProvider);
+  return db
+      .customSelect(
+        'SELECT DISTINCT i.order_id AS oid '
+        'FROM purchase_order_items i JOIN purchase_orders o ON o.id = i.order_id '
+        "WHERE o.status = 'ordered' AND i.received_qty > 0 AND i.deleted_at IS NULL",
+        readsFrom: {db.purchaseOrderItems, db.purchaseOrders},
+      )
+      .watch()
+      .map((rows) => {for (final r in rows) r.read<String>('oid')});
+});
+
+/// Actual received value of an order at invoice cost (Σ receipt qty × cost).
+final purOrderReceivedValueProvider = StreamProvider.family<int, String>((ref, id) {
+  final db = ref.watch(databaseProvider);
+  return (db.select(db.stockMovements)
+        ..where((m) => m.refType.equals('purchase') & m.refId.equals(id) & m.type.equals('receipt') & m.deletedAt.isNull()))
+      .watch()
+      .map((rows) => rows.fold<int>(0, (s, m) => s + (m.qty * m.unitCost).round()));
 });
 
 final purOrderItemsProvider = StreamProvider.family<List<PurchaseOrderItem>, String>((ref, id) {
@@ -560,7 +596,7 @@ class PurchasingRepo {
   Future<int> receivedValue(String orderId) async {
     final rows = await (db.select(
       db.stockMovements,
-    )..where((m) => m.refType.equals('purchase') & m.refId.equals(orderId) & m.type.equals('receipt'))).get();
+    )..where((m) => m.refType.equals('purchase') & m.refId.equals(orderId) & m.type.equals('receipt') & m.deletedAt.isNull())).get();
     return rows.fold<int>(0, (s, m) => s + (m.qty * m.unitCost).round());
   }
 

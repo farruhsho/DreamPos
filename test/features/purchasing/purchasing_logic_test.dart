@@ -1,10 +1,12 @@
 import 'package:drift/drift.dart' show Value;
 import 'package:dreampos/core/db/database.dart';
+import 'package:dreampos/core/providers.dart';
 import 'package:dreampos/domain/errors.dart';
 import 'package:dreampos/domain/services/sale_service.dart';
 import 'package:dreampos/domain/services/shift_service.dart';
 import 'package:dreampos/domain/services/stock_service.dart';
 import 'package:dreampos/features/purchasing/purchasing_logic.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../helpers.dart';
@@ -28,6 +30,16 @@ Product _p({double stock = 0, double min = 0, String unit = 'pcs', int cost = 10
     );
 
 void main() {
+  test('poDisplayStatus: ordered with some received lines is «Частично получен»', () {
+    expect(poDisplayStatus('ordered', anyReceived: true), poPartialStatus);
+    expect(poStatusLabels[poPartialStatus], 'Частично получен');
+    expect(poDisplayStatus('ordered', anyReceived: false), 'ordered');
+    expect(poDisplayStatus('received', anyReceived: true), 'received');
+    expect(poStatusLabels['received'], 'Получен');
+    expect(poDisplayStatus('draft', anyReceived: false), 'draft');
+    expect(poDisplayStatus('cancelled', anyReceived: false), 'cancelled');
+  });
+
   group('computeReorder (pure math)', () {
     test('sales velocity drives the suggestion', () {
       // 60 sold in 30 days -> 2/day; 14 days -> 28; stock 5 -> 23.
@@ -149,6 +161,46 @@ void main() {
       // Closed order can't be received again.
       await expectLater(() => repo.receiveOrder(oid, [ReceiveLineInput(itemId: ia.id, qty: 1)]),
           throwsA(isA<BusinessException>()));
+    });
+
+    test('computed partial status and received value at invoice cost (providers)', () async {
+      final s = await supplier();
+      final a = await f.product('Сок', cost: 0, stock: 0);
+      final b = await f.product('Вода', cost: 0, stock: 0);
+      final oid = await repo.saveDraftOrder(supplierId: s.id, lines: [
+        PoLineInput(productId: a.id, qty: 10, unitCost: 500),
+        PoLineInput(productId: b.id, qty: 5, unitCost: 200),
+      ]);
+      await repo.markOrdered(oid);
+      final c = ProviderContainer(overrides: [databaseProvider.overrideWithValue(f.db)]);
+      addTearDown(c.dispose);
+      final subIds = c.listen(purPartlyReceivedOrderIdsProvider, (_, _) {});
+      final subVal = c.listen(purOrderReceivedValueProvider(oid), (_, _) {});
+      addTearDown(subIds.close);
+      addTearDown(subVal.close);
+      Future<PurchaseOrder> order() => (f.db.select(f.db.purchaseOrders)..where((t) => t.id.equals(oid))).getSingle();
+      Future<List<PurchaseOrderItem>> items() =>
+          (f.db.select(f.db.purchaseOrderItems)..where((i) => i.orderId.equals(oid))).get();
+
+      expect(await c.read(purPartlyReceivedOrderIdsProvider.future), isEmpty);
+      expect(poDisplayStatusOf(await order(), await items()), 'ordered');
+
+      final ia = (await items()).firstWhere((i) => i.productId == a.id);
+      final ib = (await items()).firstWhere((i) => i.productId == b.id);
+      // A arrives in full at a higher invoice price, B not yet.
+      await repo.receiveOrder(oid, [ReceiveLineInput(itemId: ia.id, qty: 10, unitCost: 550)]);
+      await pumpEventQueue();
+      expect((await order()).status, 'ordered', reason: 'schema status unchanged');
+      expect(poDisplayStatusOf(await order(), await items()), poPartialStatus);
+      expect(c.read(purPartlyReceivedOrderIdsProvider).value, {oid});
+      expect(c.read(purOrderReceivedValueProvider(oid)).value, 5500, reason: 'invoice cost, not 5000 ordered');
+      expect((await order()).total, 6000, reason: 'ordered total stays');
+
+      await repo.receiveOrder(oid, [ReceiveLineInput(itemId: ib.id, qty: 5)]);
+      await pumpEventQueue();
+      expect(poDisplayStatusOf(await order(), await items()), 'received');
+      expect(c.read(purPartlyReceivedOrderIdsProvider).value, isEmpty);
+      expect(c.read(purOrderReceivedValueProvider(oid)).value, 6500);
     });
 
     test('cancelling a partially received order closes it instead', () async {

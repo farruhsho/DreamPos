@@ -193,7 +193,7 @@ class _SalesSectionState extends ConsumerState<SalesSection> with SettingsFormMi
                     ? 'Итог к оплате наличными не округляется.'
                     : 'Пример: ${Money.format(_roundingSample, c: _cur)} → '
                           '${Money.format(roundCash(_roundingSample, int.tryParse(rounding) ?? 0), c: _cur)}. '
-                          'Применяется только к наличной оплате; безналичные платежи не округляются.',
+                          'Округляется вниз, в пользу покупателя, только при оплате наличными.',
                 color: AppColors.info,
               ),
             ],

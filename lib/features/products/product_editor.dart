@@ -8,6 +8,7 @@ import '../../core/permissions.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
+import '../settings/settings_logic.dart' show SettingKeys;
 import 'categories_dialog.dart';
 import 'product_logic.dart';
 import 'product_widgets.dart';
@@ -65,6 +66,9 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
   String? _skuHint;
   bool _dirty = false;
   bool _saving = false;
+  /// VAT chosen by the user; until then a brand-new product follows the
+  /// `default_vat_percent` setting (which may arrive after initState).
+  bool _vatTouched = false;
 
   bool get _isNew => widget.product == null;
 
@@ -90,6 +94,22 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
     _warranty = TextEditingController(text: d.warrantyMonths.toString());
     _vatOther = TextEditingController(
         text: vatPresets.contains(d.vatPercent) ? '' : formatPercent(d.vatPercent).replaceAll('%', ''));
+    if (_isNew && widget.copyOf == null) {
+      var inInit = true;
+      ref.listenManual<AsyncValue<Map<String, String>>>(settingsProvider, (_, next) {
+        final s = next.value;
+        if (s == null || _vatTouched) return;
+        final v = defaultVatFromSetting(s[SettingKeys.defaultVatPercent]);
+        if (v == d.vatPercent) return;
+        void apply() {
+          d.vatPercent = v;
+          _vatOther.text = vatPresets.contains(v) ? '' : formatPercent(v).replaceAll('%', '');
+        }
+        // fireImmediately runs inside initState: no setState there.
+        inInit ? apply() : setState(apply);
+      }, fireImmediately: true);
+      inInit = false;
+    }
     if (_isNew) {
       ref.read(productsRepoProvider).suggestSku().then((s) {
         if (mounted) setState(() => _skuHint = s);
@@ -475,6 +495,7 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
               onSelected: !canPrice
                   ? null
                   : (_) => setState(() {
+                        _vatTouched = true;
                         d.vatPercent = v;
                         _vatOther.clear();
                         _dirty = true;
@@ -500,6 +521,7 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
                 return null;
               },
               onChanged: (v) {
+                _vatTouched = true;
                 if (v.trim().isEmpty) {
                   // Cleared custom value: fall back to "без НДС" rather than
                   // keeping an invisible custom rate.

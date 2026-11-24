@@ -1,10 +1,13 @@
 // Read-side providers of the POS screen (live drift streams + live quote).
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/db/database.dart';
+import '../../core/money.dart';
 import '../../core/providers.dart';
 import '../../domain/pricing.dart';
+import '../settings/settings_logic.dart';
 import 'cart_controller.dart';
 
 /// Special category filter values.
@@ -104,3 +107,45 @@ final posCanSellProvider = Provider<bool>((ref) {
   if (shift.isLoading && !shift.hasValue) return true;
   return shift.value != null;
 });
+
+/// Quick-tender denominations (minor units): the `pos_banknotes` setting when
+/// it holds valid values, otherwise the defaults of the current currency.
+List<int> posBanknotes(String? stored) {
+  final list = decodeBanknotes(stored).toSet().toList()..sort();
+  return list.isNotEmpty ? list : defaultBanknotes(Money.currency);
+}
+
+final posBanknotesProvider = Provider<List<int>>(
+    (ref) => posBanknotes(ref.watch(settingProvider(SettingKeys.posBanknotes))));
+
+/// Register bound to this device (Settings > Кассы, shared_preferences).
+/// Null when nothing is bound or the register was deleted / deactivated.
+/// Read at the moment of use, so a change in Settings applies at once.
+Future<String?> resolveDeviceRegisterId(AppDatabase db) async {
+  String? id;
+  try {
+    id = (await SharedPreferences.getInstance()).getString(deviceRegisterPrefKey);
+  } catch (_) {
+    return null;
+  }
+  if (id == null || id.isEmpty) return null;
+  final r = await (db.select(db.registers)
+        ..where((t) => t.id.equals(id!) & t.deletedAt.isNull() & t.isActive.equals(true)))
+      .getSingleOrNull();
+  return r?.id;
+}
+
+/// Text typed / scanned while a dialog (sale success) was on top of the POS.
+/// The screen puts it into the search field and submits it when [submit].
+typedef ScanForward = ({String text, bool submit});
+
+class ScanForwardNotifier extends Notifier<ScanForward?> {
+  @override
+  ScanForward? build() => null;
+
+  void forward(String text, {required bool submit}) => state = (text: text, submit: submit);
+  void consumed() => state = null;
+}
+
+final posScanForwardProvider =
+    NotifierProvider<ScanForwardNotifier, ScanForward?>(ScanForwardNotifier.new);

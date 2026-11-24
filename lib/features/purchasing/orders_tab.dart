@@ -15,10 +15,12 @@ import 'supplier_dialogs.dart';
 Color poStatusColor(String s) => switch (s) {
   'draft' => AppColors.warning,
   'ordered' => AppColors.info,
+  poPartialStatus => AppColors.brand,
   'received' => AppColors.success,
   _ => AppColors.danger,
 };
 
+/// Chip for a (display) status; pass [poDisplayStatus] for `ordered` orders.
 StatusChip poStatusChip(String s) => StatusChip(poStatusLabels[s] ?? s, color: poStatusColor(s));
 
 /// Opens the order editor. Returns the saved order id.
@@ -55,7 +57,7 @@ class OrdersTab extends ConsumerStatefulWidget {
 }
 
 class _OrdersTabState extends ConsumerState<OrdersTab> {
-  String? _status; // null = active (draft+ordered)
+  String? _status; // null = active (draft+ordered, incl. partly received); else a display status
   bool _all = false;
   String _q = '';
   String? _selected;
@@ -69,6 +71,8 @@ class _OrdersTabState extends ConsumerState<OrdersTab> {
   @override
   Widget build(BuildContext context) {
     final names = ref.watch(purSupplierNamesProvider).value ?? const {};
+    final partly = ref.watch(purPartlyReceivedOrderIdsProvider).value ?? const <String>{};
+    String shownStatus(PurchaseOrder o) => poDisplayStatus(o.status, anyReceived: partly.contains(o.id));
     return LayoutBuilder(
       builder: (context, c) {
         final wide = c.maxWidth >= 1000;
@@ -128,7 +132,7 @@ class _OrdersTabState extends ConsumerState<OrdersTab> {
                   final shown = orders.where((o) {
                     if (!_all) {
                       if (_status == null && o.status != 'draft' && o.status != 'ordered') return false;
-                      if (_status != null && o.status != _status) return false;
+                      if (_status != null && shownStatus(o) != _status) return false;
                     }
                     if (q.isEmpty) return true;
                     return '${o.number}'.contains(q) || (names[o.supplierId] ?? '').toLowerCase().contains(q);
@@ -161,7 +165,7 @@ class _OrdersTabState extends ConsumerState<OrdersTab> {
                             if (o.expectedAt != null && o.status == 'ordered') 'ожидается ${formatDate(o.expectedAt!)}',
                           ].join(' · '),
                         ),
-                        trailing: poStatusChip(o.status),
+                        trailing: poStatusChip(shownStatus(o)),
                         onTap: () => wide ? setState(() => _selected = o.id) : pushOrderPage(context, o.id),
                       );
                     },
@@ -213,7 +217,12 @@ class OrderDetail extends ConsumerWidget {
           value: ref.watch(purOrderItemsProvider(orderId)),
           data: (items) {
             final ordered = items.fold<int>(0, (s, i) => s + (i.qty * i.unitCost).round());
-            final receivedEst = items.fold<int>(0, (s, i) => s + (i.receivedQty * i.unitCost).round());
+            // Actual value at invoice cost (receipts); falls back to the
+            // ordered cost while the receipts stream is loading.
+            final receivedEst =
+                ref.watch(purOrderReceivedValueProvider(orderId)).value ??
+                items.fold<int>(0, (s, i) => s + (i.receivedQty * i.unitCost).round());
+            final shownStatus = poDisplayStatusOf(o, items);
             final hasRemaining = items.any((i) => remainingQty(i) > 0);
             final draft = o.status == 'draft';
             final canReceive = (o.status == 'ordered' || draft) && hasRemaining;
@@ -337,7 +346,7 @@ class OrderDetail extends ConsumerWidget {
                             children: [
                               Flexible(child: Text('Заказ №${o.number}', style: t.textTheme.headlineSmall)),
                               const SizedBox(width: Gap.s),
-                              poStatusChip(o.status),
+                              poStatusChip(shownStatus),
                             ],
                           ),
                           Text(sup?.name ?? '—', style: t.textTheme.titleMedium),
@@ -363,7 +372,7 @@ class OrderDetail extends ConsumerWidget {
                     runSpacing: Gap.s,
                     children: [
                       StatusChip('Сумма заказа ${Money.format(ordered)}', color: AppColors.info),
-                      StatusChip('Принято на ${Money.format(receivedEst)}', color: AppColors.success),
+                      StatusChip('Получено на сумму ${Money.format(receivedEst)}', color: AppColors.success),
                       StatusChip('Оплачено ${Money.format(o.paid)}', color: AppColors.warning),
                     ],
                   ),

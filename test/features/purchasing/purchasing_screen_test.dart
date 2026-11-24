@@ -174,9 +174,35 @@ void main() {
     expect(item!.receivedQty, 5);
     final sup = await tester.runAsync(() => f.db.select(f.db.suppliers).getSingle());
     expect(sup!.balance, 50000 + 5 * 9000);
+    // 5 of 20 received: computed status, ordered vs received sums.
+    expect(find.text('Частично получен'), findsOneWidget);
+    expect(find.textContaining('Сумма заказа'), findsOneWidget);
+    expect(find.textContaining('Получено на сумму'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pageBack();
     await _settle(tester);
+    expect(
+      find.descendant(of: find.byType(ListTile), matching: find.text('Частично получен')),
+      findsOneWidget,
+      reason: 'list chip uses the computed status',
+    );
+    // Filter chips compare the computed status.
+    final partChip = find.widgetWithText(ChoiceChip, 'Частично получен');
+    await tester.ensureVisible(partChip);
+    await tester.tap(partChip);
+    await _settle(tester);
+    expect(find.textContaining('№1 · Молочный завод'), findsOneWidget);
+    final orderedChip = find.widgetWithText(ChoiceChip, 'Заказан');
+    await tester.ensureVisible(orderedChip);
+    await tester.tap(orderedChip);
+    await _settle(tester);
+    expect(find.textContaining('№1 · Молочный завод'), findsNothing, reason: 'partial is not «Заказан»');
+    expect(find.text('Нет заказов по фильтру'), findsOneWidget);
+    final activeChip = find.widgetWithText(ChoiceChip, 'Активные');
+    await tester.ensureVisible(activeChip);
+    await tester.tap(activeChip);
+    await _settle(tester);
+    expect(find.textContaining('№1 · Молочный завод'), findsOneWidget, reason: 'partial counts as active');
 
     await _openTab(tester, 'Автозаказ');
     await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));

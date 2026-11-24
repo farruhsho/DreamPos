@@ -15,6 +15,7 @@ import '../../../core/theme.dart';
 import '../../../core/widgets/widgets.dart';
 import '../../../domain/services/sale_service.dart';
 import '../cart_controller.dart';
+import '../pos_providers.dart';
 import '../tender.dart';
 
 /// Pure payment math (unit-tested). Amounts in minor units.
@@ -65,21 +66,29 @@ class PaymentDialog extends ConsumerStatefulWidget {
     required this.total,
     required this.cashierId,
     this.shiftId,
+    this.registerId,
     this.customer,
+    this.cashTotal,
   });
 
   final CartState cart;
+  /// Total for any payment that includes non-cash methods (no rounding).
   final int total;
   final String cashierId;
   final String? shiftId;
+  /// Register bound to this device (Settings > Кассы), if any.
+  final String? registerId;
   final Customer? customer;
+  /// Total when the whole receipt is paid in cash: rounded down by the
+  /// `cash_rounding` setting (D-015). Null = quote it when the dialog opens.
+  final int? cashTotal;
 
   @override
   ConsumerState<PaymentDialog> createState() => _PaymentDialogState();
 }
 
 class _PaymentDialogState extends ConsumerState<PaymentDialog> {
-  late final _cash = TextEditingController(text: Money.toInput(widget.total));
+  late final _cash = TextEditingController(text: Money.toInput(widget.cashTotal ?? widget.total));
   final _card = TextEditingController();
   final _transfer = TextEditingController();
   final _transferRef = TextEditingController();
@@ -96,6 +105,16 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
   String? _giftError;
   bool _checkingGift = false;
   bool _showMore = false;
+  int? _quotedCashTotal;
+  int _debtDays = 14;
+  late DateTime _debtDue = _dueIn(14);
+
+  static const debtDueChoices = [7, 14, 30];
+
+  static DateTime _dueIn(int days) {
+    final n = DateTime.now();
+    return DateTime(n.year, n.month, n.day + days);
+  }
 
   @override
   void initState() {
@@ -105,7 +124,32 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
       c.addListener(_onNonCashChanged);
     }
     _cash.addListener(() => setState(() => _serverError = null));
+    if (widget.cashTotal == null) _loadCashTotal();
   }
+
+  /// Quotes the cash-only total (cash rounding) when the caller did not.
+  Future<void> _loadCashTotal() async {
+    try {
+      final q = await ref.read(saleServiceProvider).quote(widget.cart.toRequest(
+          cashierId: widget.cashierId,
+          applyCashRounding: true,
+          payments: [PaymentInput('cash', widget.total)]));
+      if (!mounted || q.total == widget.total) return;
+      setState(() => _quotedCashTotal = q.total);
+      // keep the prefilled cash in step with the (rounded) amount due
+      if (!_cashTouched && _nonCash == 0) _cash.text = Money.toInput(q.total);
+    } catch (_) {
+      // no rounding preview: checkout still rounds consistently
+    }
+  }
+
+  /// Amount due when everything is paid in cash (rounded down).
+  int get _cashTotal => widget.cashTotal ?? _quotedCashTotal ?? widget.total;
+
+  int get _nonCash => _v(_card) + _v(_transfer) + _v(_bonus) + _v(_debt) + _v(_gift);
+
+  /// Rounding applies only while the receipt is paid in cash alone.
+  bool get _cashOnly => _nonCash == 0;
 
   @override
   void dispose() {
@@ -119,7 +163,7 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
   int _v(TextEditingController c) => c.text.trim().isEmpty ? 0 : (Money.parse(c.text) ?? 0);
 
   PaymentSplit get _split => PaymentSplit(
-        total: widget.total,
+        total: _cashOnly ? _cashTotal : widget.total,
         cash: _v(_cash),
         card: _v(_card),
         transfer: _v(_transfer),
@@ -144,6 +188,58 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
     _cashFocus.requestFocus();
     _cash.selection = TextSelection(baseOffset: 0, extentOffset: _cash.text.length);
   }
+
+  void _setDebtDays(int days) => setState(() {
+        _debtDays = days;
+        _debtDue = _dueIn(days);
+      });
+
+  Future<void> _pickDebtDue() async {
+    final today = _dueIn(0);
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _debtDue,
+      firstDate: today.add(const Duration(days: 1)),
+      lastDate: today.add(const Duration(days: 730)),
+      helpText: 'Срок возврата долга',
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _debtDue = DateTime(picked.year, picked.month, picked.day);
+      final days = _debtDue.difference(today).inDays;
+      _debtDays = debtDueChoices.contains(days) ? days : 0;
+    });
+  }
+
+  /// Due date of the debt part: quick chips (+7/14/30 days) and a calendar.
+  Widget _debtDueRow(ThemeData t) => Padding(
+        key: const Key('pay-debt-due'),
+        padding: const EdgeInsets.fromLTRB(Gap.l, Gap.s, 0, 0),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Срок возврата долга', style: t.textTheme.labelLarge),
+          const SizedBox(height: Gap.xs),
+          Wrap(
+            spacing: Gap.s,
+            runSpacing: Gap.xs,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              for (final d in debtDueChoices)
+                ChoiceChip(
+                  label: Text('$d дн.'),
+                  selected: _debtDays == d,
+                  onSelected: (_) => _setDebtDays(d),
+                ),
+              ActionChip(
+                key: const Key('pay-debt-date'),
+                tooltip: 'Выбрать дату',
+                avatar: const Icon(Icons.event, size: 18),
+                label: Text('до ${formatDate(_debtDue)}'),
+                onPressed: _pickDebtDue,
+              ),
+            ],
+          ),
+        ]),
+      );
 
   /// Puts the whole remaining amount on a non-cash method.
   void _payAllBy(TextEditingController c, {int? cap}) {
@@ -255,7 +351,10 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
       final res = await ref.read(saleServiceProvider).checkout(widget.cart.toRequest(
             cashierId: widget.cashierId,
             shiftId: widget.shiftId,
+            registerId: widget.registerId,
             payments: payments,
+            applyCashRounding: s.nonCash == 0,
+            debtDueDate: s.debt > 0 ? _debtDue : null,
           ));
       if (mounted) Navigator.pop(context, res);
     } catch (e) {
@@ -277,7 +376,9 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
     final hasNonCash = s.nonCash > 0;
     final extrasError = _validateExtras();
     final canConfirm = s.error == null && extrasError == null && !_busy;
-    final tenders = quickTenders(s.cashNeeded, Money.currency);
+    final tenders =
+        quickTenders(s.cashNeeded, Money.currency, notes: ref.watch(posBanknotesProvider));
+    final rounding = hasNonCash ? 0 : widget.total - _cashTotal;
     // no keyboard hints on phones
     final compact = context.isCompact;
 
@@ -364,11 +465,16 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
                   FittedBox(
                     fit: BoxFit.scaleDown,
                     alignment: Alignment.centerLeft,
-                    child: Text(Money.format(widget.total),
+                    child: Text(Money.format(s.total),
                         key: const Key('pay-total'),
                         style: t.textTheme.displaySmall?.copyWith(
                             fontWeight: FontWeight.w800, color: t.colorScheme.onPrimaryContainer)),
                   ),
+                  if (rounding > 0)
+                    Text('Округление: −${Money.format(rounding)}',
+                        key: const Key('pay-rounding'),
+                        style: t.textTheme.bodyMedium?.copyWith(
+                            color: t.colorScheme.onPrimaryContainer, fontWeight: FontWeight.w600)),
                   if (customer != null)
                     Text('Клиент: ${customer.name}', style: t.textTheme.bodySmall),
                 ]),
@@ -493,6 +599,7 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
                           ? 'Долг ${Money.format(customer.debtBalance)} · лимит не задан'
                           : 'Долг ${Money.format(customer.debtBalance)} из ${Money.format(customer.debtLimit)} · '
                               'доступно ${Money.format(_debtAvailable!)}',
+                      extra: s.debt > 0 ? _debtDueRow(t) : null,
                     )
                   else
                     Padding(
