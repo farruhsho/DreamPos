@@ -173,6 +173,10 @@ class PricingEngine {
     bool? codeValid;
     var orderDiscount = 0;
     final netAfterLines = net();
+    // percent-based order discounts apply only to discountable lines
+    final discountableNet = priced
+        .where((p) => !p.line.noDiscount)
+        .fold(0, (s, l) => s + l.total);
     PromoRule? bestOrder;
     var bestOrderValue = 0;
     for (final p in promotions) {
@@ -190,7 +194,7 @@ class PricingEngine {
       // promo_code: value <= 100 → percent, otherwise fixed amount (minor).
       final v = (p.type == 'amount_order' || (isCode && p.value > 100))
           ? p.value.round()
-          : _pct(netAfterLines, p.value);
+          : _pct(discountableNet, p.value);
       if (v > bestOrderValue) {
         bestOrderValue = v;
         bestOrder = p;
@@ -204,7 +208,7 @@ class PricingEngine {
 
     // ---- 3. manual order discount
     if (manualOrderDiscountPercent > 0) {
-      orderDiscount += _pct(netAfterLines - orderDiscount, manualOrderDiscountPercent);
+      orderDiscount += _pct(discountableNet - orderDiscount, manualOrderDiscountPercent);
     }
     if (manualOrderDiscountAmount > 0) orderDiscount += manualOrderDiscountAmount;
 

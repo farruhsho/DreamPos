@@ -1,6 +1,8 @@
 import 'package:drift/drift.dart' show Value;
 import 'package:dreampos/core/db/database.dart';
+import 'package:dreampos/core/permissions.dart';
 import 'package:dreampos/domain/errors.dart';
+import 'package:dreampos/domain/services/auth_service.dart';
 import 'package:dreampos/domain/services/customer_service.dart';
 import 'package:dreampos/domain/services/sale_service.dart';
 import 'package:dreampos/domain/services/shift_service.dart';
@@ -211,5 +213,38 @@ void main() {
     final r = await f.reload(p);
     expect(r.stockQty, 20);
     expect(r.costPrice, 150);
+  });
+
+  test('manual discount above cashier limit needs approver', () async {
+    final cashier = await AuthService(f.db)
+        .createUser(name: 'C', role: Role.cashier, pin: '4826', maxDiscountPercent: 5);
+    final p = await f.product('Lamp', price: 10000, stock: 5);
+    CheckoutRequest r({String? approver}) => CheckoutRequest(
+          lines: [CheckoutLine(productId: p.id, qty: 1, unitPrice: 10000, manualDiscount: 1000)],
+          payments: [PaymentInput('cash', 10000)],
+          cashierId: cashier.id,
+          shiftId: f.shift.id,
+          discountApprovedBy: approver,
+        );
+    expect(() => sales.checkout(r()), throwsA(isA<BusinessException>()));
+    final res = await sales.checkout(r(approver: f.owner.id));
+    expect(res.sale.total, 9000);
+    final audit = await (f.db.select(f.db.auditLog)..where((a) => a.action.equals('discount.override'))).get();
+    expect(audit, hasLength(1));
+  });
+
+  test('automatic promotions do not count against manual limit', () async {
+    final cashier = await AuthService(f.db)
+        .createUser(name: 'C2', role: Role.cashier, pin: '7391', maxDiscountPercent: 0);
+    final c = await f.customer('Vip', discount: 20);
+    final p = await f.product('Hat', price: 10000, stock: 5);
+    final res = await sales.checkout(CheckoutRequest(
+      lines: [CheckoutLine(productId: p.id, qty: 1, unitPrice: 10000)],
+      payments: [PaymentInput('cash', 8000)],
+      cashierId: cashier.id,
+      shiftId: f.shift.id,
+      customerId: c.id,
+    ));
+    expect(res.sale.total, 8000);
   });
 }

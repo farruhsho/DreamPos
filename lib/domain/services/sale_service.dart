@@ -57,6 +57,7 @@ class CheckoutRequest {
     this.note,
     this.debtDueDate,
     this.now,
+    this.discountApprovedBy,
   });
 
   final List<CheckoutLine> lines;
@@ -72,6 +73,9 @@ class CheckoutRequest {
   final String? note;
   final DateTime? debtDueDate;
   final DateTime? now;
+  /// User id of a manager who approved manual discounts above the cashier's
+  /// limit (verified by PIN in the UI). The service re-checks the limit.
+  final String? discountApprovedBy;
 }
 
 class CheckoutResult {
@@ -133,12 +137,20 @@ class SaleService {
   /// Prices a cart exactly the way checkout will.
   Future<PricingResult> quote(CheckoutRequest r, {Map<String, Product>? productCache}) async {
     final products = productCache ?? await _loadProducts(r.lines.map((l) => l.productId));
-    double customerPct = 0;
-    if (r.customerId != null) {
-      final c = await (db.select(db.customers)..where((t) => t.id.equals(r.customerId!)))
-          .getSingleOrNull();
-      customerPct = c?.discountPercent ?? 0;
-    }
+    final promos = await activePromotions(r.now);
+    final customerPct = await _customerPct(r.customerId);
+    return _price(r, products, promos, customerPct);
+  }
+
+  Future<double> _customerPct(String? customerId) async {
+    if (customerId == null) return 0;
+    final c = await (db.select(db.customers)..where((t) => t.id.equals(customerId)))
+        .getSingleOrNull();
+    return c?.discountPercent ?? 0;
+  }
+
+  PricingResult _price(CheckoutRequest r, Map<String, Product> products, List<PromoRule> promos,
+      double customerPct, {bool includeManual = true}) {
     return PricingEngine.price(
       lines: [
         for (var i = 0; i < r.lines.length; i++)
@@ -149,14 +161,14 @@ class SaleService {
             qty: r.lines[i].qty,
             unitPrice: r.lines[i].unitPrice,
             vatPercent: products[r.lines[i].productId]?.vatPercent ?? 0,
-            manualDiscount: r.lines[i].manualDiscount,
+            manualDiscount: includeManual ? r.lines[i].manualDiscount : 0,
           ),
       ],
-      promotions: await activePromotions(r.now),
+      promotions: promos,
       customerDiscountPercent: customerPct,
       promoCode: r.promoCode,
-      manualOrderDiscountPercent: r.manualOrderDiscountPercent,
-      manualOrderDiscountAmount: r.manualOrderDiscountAmount,
+      manualOrderDiscountPercent: includeManual ? r.manualOrderDiscountPercent : 0,
+      manualOrderDiscountAmount: includeManual ? r.manualOrderDiscountAmount : 0,
     );
   }
 
@@ -203,11 +215,40 @@ class SaleService {
           throw BusinessException('Товар не найден или удалён');
         }
       }
-      final priced = await quote(r, productCache: products);
+      final promos = await activePromotions(r.now);
+      final customerPct = await _customerPct(r.customerId);
+      final priced = _price(r, products, promos, customerPct);
       if (r.promoCode != null && r.promoCode!.trim().isNotEmpty && priced.promoCodeValid != true) {
         throw BusinessException('Промокод недействителен');
       }
       final total = priced.total;
+
+      // --- manual discount limit (defense in depth; UI also checks).
+      // Manual part = total discount with manual inputs − without them.
+      final automatic = _price(r, products, promos, customerPct, includeManual: false);
+      final manualTotal = priced.discountTotal - automatic.discountTotal;
+      if (manualTotal > 0 && priced.subtotal > 0) {
+        final pct = manualTotal * 100 / priced.subtotal;
+        Future<double> limitOf(String id) async =>
+            (await (db.select(db.users)..where((u) => u.id.equals(id))).getSingleOrNull())
+                ?.maxDiscountPercent ??
+            0;
+        var limit = await limitOf(r.cashierId);
+        if (r.discountApprovedBy != null) {
+          final a = await limitOf(r.discountApprovedBy!);
+          if (a > limit) limit = a;
+        }
+        if (pct > limit + 0.01) {
+          throw BusinessException(
+              'Ручная скидка ${pct.toStringAsFixed(1)}% превышает допустимую (${limit.toStringAsFixed(0)}%). Нужно подтверждение менеджера',
+              code: 'discount_limit');
+        }
+        if (r.discountApprovedBy != null) {
+          await db.audit('discount.override',
+              userId: r.discountApprovedBy, entity: 'cashier', entityId: r.cashierId,
+              details: 'manual=${pct.toStringAsFixed(1)}%');
+        }
+      }
 
       // --- customer
       Customer? customer;
