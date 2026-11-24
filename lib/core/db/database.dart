@@ -13,6 +13,35 @@ part 'database.g.dart';
 const _uuid = Uuid();
 String newId() => _uuid.v4();
 
+/// Migration v2 → v3 back-fill: every supplier with a non-zero cached
+/// balance gets an `opening` ledger row so that `suppliers.balance` equals the
+/// last `balanceAfter`. Suppliers that already have ledger rows are skipped,
+/// which makes the function safe to run twice. Returns the number of rows
+/// inserted.
+Future<int> insertOpeningSupplierEntries(AppDatabase db) async {
+  final sups = await (db.select(db.suppliers)..where((s) => s.balance.equals(0).not())).get();
+  var n = 0;
+  for (final s in sups) {
+    final has = await (db.select(db.supplierLedger)
+          ..where((l) => l.supplierId.equals(s.id))
+          ..limit(1))
+        .getSingleOrNull();
+    if (has != null) continue;
+    final id = newId();
+    await db.into(db.supplierLedger).insert(SupplierLedgerCompanion.insert(
+          id: id,
+          supplierId: s.id,
+          kind: 'opening',
+          amount: s.balance,
+          balanceAfter: s.balance,
+          note: const Value('Начальный остаток'),
+        ));
+    await db.markDirty('supplier_ledger', id);
+    n++;
+  }
+  return n;
+}
+
 @DriftDatabase(tables: [
   Settings,
   Users,
@@ -27,6 +56,9 @@ String newId() => _uuid.v4();
   PurchaseOrders,
   PurchaseOrderItems,
   SupplierPayments,
+  GoodsReceipts,
+  GoodsReceiptItems,
+  SupplierLedger,
   Shifts,
   CashMovements,
   Sales,
@@ -54,7 +86,7 @@ class AppDatabase extends _$AppDatabase {
       );
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -65,6 +97,26 @@ class AppDatabase extends _$AppDatabase {
           }
         },
         onUpgrade: (m, from, to) async {
+          // v3: goods receipt documents + supplier ledger (D-021, D-022).
+          // drift does not wrap onUpgrade in a transaction and sets
+          // user_version only afterwards, so the step is both atomic (SQLite
+          // DDL is transactional) and idempotent (a file left half-migrated by
+          // an older build still upgrades: ADD COLUMN has no IF NOT EXISTS).
+          if (from < 3) {
+            await transaction(() async {
+              await m.createTable(goodsReceipts);
+              await m.createTable(goodsReceiptItems);
+              await m.createTable(supplierLedger);
+              final cols = await _columnNames('supplier_payments');
+              if (!cols.contains(supplierPayments.cancelledAt.name)) {
+                await m.addColumn(supplierPayments, supplierPayments.cancelledAt);
+              }
+              if (!cols.contains(supplierPayments.cancelReason.name)) {
+                await m.addColumn(supplierPayments, supplierPayments.cancelReason);
+              }
+              await insertOpeningSupplierEntries(this);
+            });
+          }
           // v2: report/lookup indexes. All index DDL is IF NOT EXISTS, so
           // re-running the full list is the simplest correct migration.
           for (final sql in _indexes) {
@@ -80,6 +132,11 @@ class AppDatabase extends _$AppDatabase {
           }
         },
       );
+
+  Future<Set<String>> _columnNames(String table) async {
+    final rows = await customSelect('PRAGMA table_info($table)').get();
+    return {for (final r in rows) r.read<String>('name')};
+  }
 
   static const _indexes = [
     'CREATE UNIQUE INDEX IF NOT EXISTS ux_products_barcode ON products(barcode) WHERE barcode IS NOT NULL AND deleted_at IS NULL',
@@ -107,6 +164,12 @@ class AppDatabase extends _$AppDatabase {
     'CREATE INDEX IF NOT EXISTS ix_return_items_return ON return_items(return_id)',
     'CREATE INDEX IF NOT EXISTS ix_sales_status_created ON sales(status, created_at)',
     'CREATE INDEX IF NOT EXISTS ix_audit_at ON audit_log(at)',
+    // v3
+    'CREATE INDEX IF NOT EXISTS ix_goods_receipts_created ON goods_receipts(created_at)',
+    'CREATE INDEX IF NOT EXISTS ix_goods_receipts_supplier ON goods_receipts(supplier_id)',
+    'CREATE INDEX IF NOT EXISTS ix_goods_receipts_order ON goods_receipts(order_id)',
+    'CREATE INDEX IF NOT EXISTS ix_goods_receipt_items_receipt ON goods_receipt_items(receipt_id)',
+    'CREATE INDEX IF NOT EXISTS ix_supplier_ledger_supplier ON supplier_ledger(supplier_id, created_at)',
   ];
 
   // ---------------------------------------------------------------- helpers

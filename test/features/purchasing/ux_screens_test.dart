@@ -3,6 +3,7 @@
 import 'package:dreampos/domain/services/stock_service.dart';
 import 'package:dreampos/features/purchasing/purchasing_logic.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../ux/harness.dart';
@@ -21,6 +22,13 @@ Future<void> _openTab(UxHarness h, String label) async {
 
 Future<void> _closeDialog(UxHarness h) async {
   final d = find.byType(Dialog);
+  if (d.evaluate().isEmpty) return;
+  Navigator.of(h.tester.element(d.last), rootNavigator: true).pop();
+  await h.settle();
+}
+
+Future<void> _closeAlert(UxHarness h) async {
+  final d = find.byType(AlertDialog);
   if (d.evaluate().isEmpty) return;
   Navigator.of(h.tester.element(d.last), rootNavigator: true).pop();
   await h.settle();
@@ -89,6 +97,24 @@ Future<void> _run(WidgetTester tester, String size) async {
         unitCost: products.first.costPrice,
       ),
     ], userId: h.owner.id);
+    // Ledger variety: a payment, a cancelled payment and a correction.
+    await repo.paySupplier(
+      supplierId: sup.id,
+      amount: 150000,
+      method: 'transfer',
+      note: 'п/п 118',
+      userId: h.owner.id,
+      allowOverpay: true,
+    );
+    final wrong = await repo.paySupplier(
+      supplierId: sup.id,
+      amount: 90000,
+      method: 'card',
+      userId: h.owner.id,
+      allowOverpay: true,
+    );
+    await repo.cancelSupplierPayment(wrong, reason: 'Ошибочная сумма', userId: h.owner.id);
+    await repo.adjustSupplierBalance(sup.id, -5000, reason: 'Скидка по акту сверки', userId: h.owner.id);
     await repo.saveDraftOrder(
       supplierId: p2,
       lines: [for (final p in products.skip(4)) PoLineInput(productId: p.id, qty: 10, unitCost: p.costPrice)],
@@ -98,7 +124,29 @@ Future<void> _run(WidgetTester tester, String size) async {
   await h.shot('purchasing_suppliers');
   await tester.tap(find.text('ООО «Оптовик»').first);
   await h.settle();
-  await h.shot('purchasing_supplier_detail');
+  expect(await h.shot('purchasing_supplier_detail'), isEmpty);
+  // «Взаиморасчёты» is the first tab: cancel dialog, correction, act menu.
+  await tester.tap(find.byTooltip('Отменить оплату').first);
+  await h.settle();
+  expect(await h.shot('purchasing_ledger_cancel_payment'), isEmpty);
+  await _closeAlert(h);
+  await tester.ensureVisible(find.text('Корректировка').first);
+  await tester.tap(find.text('Корректировка').first);
+  await h.settle();
+  expect(await h.shot('purchasing_ledger_adjust'), isEmpty);
+  await _closeDialog(h);
+  await tester.ensureVisible(find.text('Акт сверки').first);
+  await tester.tap(find.text('Акт сверки').first);
+  await h.settle();
+  expect(await h.shot('purchasing_ledger_act_menu'), isEmpty);
+  await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+  await h.settle();
+  // Phones: the supplier header scrolls away with the ledger; bring it back.
+  final nested = find.byType(NestedScrollView);
+  if (nested.evaluate().isNotEmpty) {
+    await tester.fling(nested, const Offset(0, 2000), 3000);
+    await h.settle();
+  }
   await tester.tap(find.text('Оплатить').first);
   await h.settle();
   await h.shot('purchasing_supplier_payment');
@@ -109,17 +157,23 @@ Future<void> _run(WidgetTester tester, String size) async {
   await _closeDialog(h);
   await tester.tap(find.text('Оплаты').last);
   await h.settle();
-  await h.shot('purchasing_supplier_payments');
+  expect(await h.shot('purchasing_supplier_payments'), isEmpty);
   await _back(h);
 
   await _openTab(h, 'Заказы');
   await h.shot('purchasing_orders');
   await tester.tap(find.textContaining('ООО «Оптовик»').first);
   await h.settle();
-  await h.shot('purchasing_order_detail');
+  expect(await h.shot('purchasing_order_detail'), isEmpty);
+  await tester.ensureVisible(find.text('Приходы по заказу'));
+  await h.settle();
+  expect(await h.shot('purchasing_order_receipts'), isEmpty);
+  await tester.ensureVisible(find.text('Принять товар').first);
+  await h.settle();
   await tester.tap(find.text('Принять товар').first);
   await h.settle();
-  await h.shot('purchasing_receive_dialog');
+  expect(find.text('№ накладной поставщика'), findsOneWidget);
+  expect(await h.shot('purchasing_receive_dialog'), isEmpty);
   await _closeDialog(h);
   await _back(h);
   await tester.tap(find.textContaining('ИП Каримов').first);

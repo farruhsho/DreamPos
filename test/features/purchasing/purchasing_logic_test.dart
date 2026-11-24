@@ -153,9 +153,15 @@ void main() {
       expect(o.status, 'received');
       expect(o.receivedAt, isNotNull);
 
-      final moves = await (f.db.select(f.db.stockMovements)..where((m) => m.refId.equals(oid))).get();
+      final docs = await (f.db.select(f.db.goodsReceipts)..where((r) => r.orderId.equals(oid))).get();
+      expect(docs.map((d) => d.number).toList()..sort(), [1, 2], reason: 'one receipt document per receiving');
+      expect(docs.every((d) => d.supplierId == s.id && d.status == 'posted'), isTrue);
+      final moves = await (f.db.select(f.db.stockMovements)..where((m) => m.refId.isIn(docs.map((d) => d.id)))).get();
       expect(moves.length, 3);
-      expect(moves.every((m) => m.refType == 'purchase' && m.type == 'receipt'), isTrue);
+      expect(moves.every((m) => m.refType == 'receipt' && m.type == 'receipt'), isTrue);
+      final docItems = await f.db.select(f.db.goodsReceiptItems).get();
+      expect(docItems.length, 3);
+      expect(docItems.every((i) => i.orderItemId != null), isTrue);
       expect(await repo.receivedValue(oid), 6250);
 
       // Closed order can't be received again.

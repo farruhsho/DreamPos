@@ -17,7 +17,8 @@ lib/
     pricing.dart            PricingEngine (скидки/акции/НДС) — чистый Dart
     errors.dart             BusinessException
     services/               sale_service (checkout/return/void), shift_service, stock_service,
-                            customer_service (долги/бонусы), auth_service
+                            customer_service (долги/бонусы), auth_service,
+                            receipt_service (документы прихода), supplier_service (взаиморасчёты)
   features/<module>/        экраны и локальная логика модуля
 test/                       domain/ — тесты сервисов; features/<module>/ — тесты модулей
 ```
@@ -44,5 +45,6 @@ test/                       domain/ — тесты сервисов; features/<m
 - Возврат: `SaleService.returnItems()`; аннулирование: `voidSale()`.
 - Смена: `ShiftService.open/close/report/cashMovement`.
 - Склад: `StockService.receive/writeOff/setStock/completeCount`.
+- Приход (документ) / сторно: `ReceiptService.post/reverse`; баланс поставщика: `SupplierLedgerService.post/pay/cancelPayment/adjust`.
 - Долг/бонусы: `CustomerService.payDebt/adjustBonus`.
 - Печать чека: `printReceipt(db, saleId)`; текст чека: `ReceiptData.load(...).toText()`.

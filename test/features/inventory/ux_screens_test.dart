@@ -1,6 +1,7 @@
 // Visual QA screenshots for the «Склад» module. Run with:
 //   SCREENSHOTS=1 SCREENSHOTS_DIR=build/screens_inventory flutter test test/features/inventory/ux_screens_test.dart
 import 'package:dreampos/domain/services/stock_service.dart';
+import 'package:dreampos/features/inventory/inventory_logic.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -27,6 +28,19 @@ Future<void> _back(UxHarness h) async {
   if (b.evaluate().isNotEmpty) {
     await h.tester.tap(b.last);
     await h.settle();
+  }
+}
+
+/// Receipt document: dialog on desktop/tablet, page on phones.
+Future<void> _closeDocument(UxHarness h, String size) async {
+  if (size == 'phone') {
+    final close = find.byType(CloseButton);
+    if (close.evaluate().isNotEmpty) {
+      await h.tester.tap(close.last);
+      await h.settle();
+    }
+  } else {
+    await _closeDialog(h);
   }
 }
 
@@ -80,6 +94,25 @@ Future<void> _run(WidgetTester tester, String size) async {
     final svc = StockService(h.db);
     await svc.writeOff(productId: p[0].id, qty: 2, reason: 'Брак', userId: h.owner.id);
     await svc.writeOff(productId: p[1].id, qty: 1, reason: 'Истёк срок годности', userId: h.owner.id);
+    // Receipt documents: one from a supplier with an invoice, one reversed.
+    final more = await (h.db.select(h.db.products)..limit(6)).get();
+    final sup = await (h.db.select(h.db.suppliers)..limit(1)).getSingleOrNull();
+    final repo = InventoryRepo(h.db, svc);
+    await repo.postReceipt(
+      lines: [
+        for (final x in more.take(4))
+          ReceiptLine(product: x, qty: x.unit == 'kg' ? 2.5 : 12, unitCost: x.costPrice, newPrice: x == more.first ? x.price + 1000 : null),
+      ],
+      supplierId: sup?.id,
+      supplierInvoice: 'ТН-004512',
+      note: 'Поставка по графику',
+      userId: h.owner.id,
+    );
+    final wrong = await repo.postReceipt(
+      lines: [ReceiptLine(product: more[5], qty: 3, unitCost: more[5].costPrice)],
+      userId: h.owner.id,
+    );
+    await repo.reverseReceipt(wrong, reason: 'Ошибочный ввод количества', userId: h.owner.id);
   });
   await h.go('/inventory');
   await h.shot('inventory_stock');
@@ -120,6 +153,27 @@ Future<void> _run(WidgetTester tester, String size) async {
   await _scan(h, '2000000000015');
   await _scan(h, '4780000000165');
   await h.shot('inventory_receipt_lines');
+
+  // Receipt documents journal, detail and reversal dialog.
+  ScaffoldMessenger.of(tester.element(find.byType(TabBar).first)).clearSnackBars();
+  await tester.tap(find.text('Документы').first);
+  await h.settle();
+  await h.shot('inventory_receipt_documents');
+  await tester.tap(find.textContaining('ТН-004512').first);
+  await h.settle();
+  await h.shot('inventory_receipt_document');
+  await tester.tap(find.text('Сторнировать').first);
+  await h.settle();
+  await h.shot('inventory_receipt_reverse_dialog');
+  await tester.tap(find.text('Отмена').last);
+  await h.settle();
+  await _closeDocument(h, size);
+  await tester.tap(find.text('Сторнирован').first);
+  await h.settle();
+  await h.shot('inventory_receipt_document_reversed');
+  await _closeDocument(h, size);
+  await tester.tap(find.text('Новый приход').first);
+  await h.settle();
 
   await _openTab(h, 'Списание');
   await h.shot('inventory_writeoff_tab');

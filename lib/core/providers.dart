@@ -4,9 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../domain/services/auth_service.dart';
 import '../domain/services/customer_service.dart';
+import '../domain/services/receipt_service.dart';
 import '../domain/services/sale_service.dart';
 import '../domain/services/shift_service.dart';
 import '../domain/services/stock_service.dart';
+import '../domain/services/supplier_service.dart';
 import 'db/database.dart';
 import 'money.dart';
 import 'permissions.dart';
@@ -19,6 +21,12 @@ final stockServiceProvider = Provider((ref) => StockService(ref.watch(databasePr
 final shiftServiceProvider = Provider((ref) => ShiftService(ref.watch(databaseProvider)));
 final customerServiceProvider = Provider((ref) => CustomerService(ref.watch(databaseProvider)));
 final authServiceProvider = Provider((ref) => AuthService(ref.watch(databaseProvider)));
+final supplierLedgerServiceProvider = Provider((ref) => SupplierLedgerService(ref.watch(databaseProvider)));
+final receiptServiceProvider = Provider((ref) => ReceiptService(
+      ref.watch(databaseProvider),
+      ref.watch(stockServiceProvider),
+      ref.watch(supplierLedgerServiceProvider),
+    ));
 
 /// All settings as a live map.
 final settingsProvider = StreamProvider<Map<String, String>>((ref) {

@@ -180,7 +180,7 @@ class ShiftService {
       }
     }
     final supPays = await (db.select(db.supplierPayments)
-          ..where((p) => p.shiftId.equals(shiftId) & p.method.equals('cash')))
+          ..where((p) => p.shiftId.equals(shiftId) & p.method.equals('cash') & p.cancelledAt.isNull() & p.deletedAt.isNull()))
         .get();
     return ShiftReport(
       shift: shift,

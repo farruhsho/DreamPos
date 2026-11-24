@@ -77,10 +77,16 @@ void main() {
       expect(rs.balance, 1000 + 8000 + 750);
       final moves = await (f.db.select(f.db.stockMovements)..where((m) => m.refId.equals(doc))).get();
       expect(moves.length, 2);
-      expect(moves.every((m) => m.type == 'receipt' && m.refType == 'manual'), isTrue);
+      expect(moves.every((m) => m.type == 'receipt' && m.refType == 'receipt'), isTrue);
       expect(moves.first.reason, contains('Поставщик'));
+      expect(moves.first.reason, contains('Приход №1'));
+      final doc1 = (await f.db.select(f.db.goodsReceipts).get()).single;
+      expect(doc1.id, doc);
+      expect(doc1.number, 1);
+      expect(doc1.total, 8750);
+      expect(doc1.note, 'Накладная 15');
       final audit = await f.db.select(f.db.auditLog).get();
-      expect(audit.map((e) => e.action), containsAll(['stock.receipt', 'product.price']));
+      expect(audit.map((e) => e.action), containsAll(['receipt.post', 'product.price']));
     });
 
     test('is all-or-nothing on invalid lines', () async {

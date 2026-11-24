@@ -1,7 +1,7 @@
 // Warehouse (Склад) data layer: live providers, pure calculations and the
-// few document writes that have no dedicated domain service (receipt
-// documents with supplier debt, stocktake drafts). All stock changes still go
-// through StockService.
+// few document writes that have no dedicated domain service (stocktake
+// drafts). Receipt documents are posted/reversed by ReceiptService; all stock
+// changes go through StockService.
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -9,7 +9,10 @@ import '../../core/db/database.dart';
 import '../../core/money.dart';
 import '../../core/providers.dart';
 import '../../domain/errors.dart';
+import '../../domain/services/receipt_service.dart';
 import '../../domain/services/stock_service.dart';
+
+export '../../domain/services/receipt_service.dart' show PostedReceipt, ReceiptLineInput, ReceiptStatus;
 
 // ------------------------------------------------------------------ labels
 
@@ -17,6 +20,7 @@ const movementTypeLabels = <String, String>{
   'sale': 'Продажа',
   'return': 'Возврат',
   'receipt': 'Приход',
+  'receipt_reversal': 'Сторно прихода',
   'writeoff': 'Списание',
   'adjustment': 'Корректировка',
   'inventory': 'Инвентаризация',
@@ -26,6 +30,8 @@ const movementTypeLabels = <String, String>{
 String movementLabel(String type) => movementTypeLabels[type] ?? type;
 
 const writeOffReasons = <String>['Брак', 'Просрочка', 'Порча', 'Недостача', 'Личное потребление', 'Другое'];
+
+const receiptStatusLabels = <String, String>{'posted': 'Проведён', 'reversed': 'Сторнирован'};
 
 const countStatusLabels = <String, String>{'draft': 'Черновик', 'completed': 'Проведена', 'cancelled': 'Отменена'};
 
@@ -86,8 +92,150 @@ final inventoryCountItemsProvider = StreamProvider.family<List<InventoryCountIte
 });
 
 final inventoryRepoProvider = Provider(
-  (ref) => InventoryRepo(ref.watch(databaseProvider), ref.watch(stockServiceProvider)),
+  (ref) => InventoryRepo(
+    ref.watch(databaseProvider),
+    ref.watch(stockServiceProvider),
+    ref.watch(receiptServiceProvider),
+  ),
 );
+
+// ------------------------------------------------------------------ receipt documents
+
+/// Filter for [goodsReceiptsProvider]. Records compare by value, so equal
+/// filters share one provider instance.
+/// * [from] inclusive, [to] exclusive (createdAt);
+/// * [status]: `posted` | `reversed` | null (all);
+/// * [search]: document number («15», «№15») or part of the supplier invoice.
+typedef ReceiptsFilter = ({DateTime? from, DateTime? to, String? supplierId, String? status, String? search});
+
+const ReceiptsFilter allReceipts = (from: null, to: null, supplierId: null, status: null, search: null);
+
+/// One row of the receipt document list.
+class ReceiptListRow {
+  const ReceiptListRow({required this.receipt, required this.lineCount, this.orderNumber});
+  final GoodsReceipt receipt;
+  final int lineCount;
+
+  /// Purchase order number when the receipt was made against an order.
+  final int? orderNumber;
+}
+
+const receiptsLimit = 500;
+
+/// Receipt documents, newest first (max [receiptsLimit]).
+final goodsReceiptsProvider = StreamProvider.family<List<ReceiptListRow>, ReceiptsFilter>((ref, f) {
+  return watchGoodsReceipts(ref.watch(databaseProvider), f);
+});
+
+/// Query behind [goodsReceiptsProvider] (also usable without Riverpod).
+Stream<List<ReceiptListRow>> watchGoodsReceipts(AppDatabase db, ReceiptsFilter f) {
+  final where = <String>['r.deleted_at IS NULL'];
+  final vars = <Variable>[];
+  if (f.from != null) {
+    where.add('r.created_at >= ?');
+    vars.add(Variable.withDateTime(f.from!));
+  }
+  if (f.to != null) {
+    where.add('r.created_at < ?');
+    vars.add(Variable.withDateTime(f.to!));
+  }
+  if (f.supplierId != null) {
+    where.add('r.supplier_id = ?');
+    vars.add(Variable.withString(f.supplierId!));
+  }
+  if (f.status != null) {
+    where.add('r.status = ?');
+    vars.add(Variable.withString(f.status!));
+  }
+  final q = f.search?.replaceAll('№', '').trim() ?? '';
+  if (q.isNotEmpty) {
+    where.add('(CAST(r.number AS TEXT) = ? OR r.supplier_invoice LIKE ?)');
+    vars
+      ..add(Variable.withString(q))
+      ..add(Variable.withString('%$q%'));
+  }
+  return db
+      .customSelect(
+        'SELECT r.*, '
+        '(SELECT COUNT(*) FROM goods_receipt_items i WHERE i.receipt_id = r.id AND i.deleted_at IS NULL) AS line_count, '
+        'o.number AS order_number '
+        'FROM goods_receipts r LEFT JOIN purchase_orders o ON o.id = r.order_id '
+        'WHERE ${where.join(' AND ')} '
+        'ORDER BY r.number DESC LIMIT $receiptsLimit',
+        variables: vars,
+        readsFrom: {db.goodsReceipts, db.goodsReceiptItems, db.purchaseOrders},
+      )
+      .watch()
+      .map(
+        (rows) => [
+          for (final r in rows)
+            ReceiptListRow(
+              receipt: db.goodsReceipts.map(r.data),
+              lineCount: r.read<int>('line_count'),
+              orderNumber: r.readNullable<int>('order_number'),
+            ),
+        ],
+      );
+}
+
+/// One receipt document (live; null when missing).
+final goodsReceiptProvider = StreamProvider.family<GoodsReceipt?, String>((ref, id) {
+  final db = ref.watch(databaseProvider);
+  return (db.select(db.goodsReceipts)..where((r) => r.id.equals(id))).watchSingleOrNull();
+});
+
+/// Lines of a receipt document in entry order.
+final goodsReceiptItemsProvider = StreamProvider.family<List<GoodsReceiptItem>, String>((ref, receiptId) {
+  final db = ref.watch(databaseProvider);
+  return (db.select(db.goodsReceiptItems)
+        ..where((i) => i.receiptId.equals(receiptId) & i.deletedAt.isNull())
+        ..orderBy([(i) => OrderingTerm.asc(i.createdAt), (i) => OrderingTerm.asc(i.rowId)]))
+      .watch();
+});
+
+/// Receipt number by id — movements with `refType == 'receipt'` show «Приход №N».
+final goodsReceiptNumbersProvider = StreamProvider<Map<String, int>>((ref) {
+  final db = ref.watch(databaseProvider);
+  return db.select(db.goodsReceipts).watch().map((l) => {for (final r in l) r.id: r.number});
+});
+
+/// Every supplier name by id, including deleted suppliers (documents keep
+/// referencing them).
+final invSupplierNamesProvider = StreamProvider<Map<String, String>>((ref) {
+  final db = ref.watch(databaseProvider);
+  return db.select(db.suppliers).watch().map((l) => {for (final s in l) s.id: s.name});
+});
+
+/// Purchase order number by id (null when missing).
+final invOrderNumberProvider = StreamProvider.family<int?, String>((ref, id) {
+  final db = ref.watch(databaseProvider);
+  return (db.select(db.purchaseOrders)..where((o) => o.id.equals(id))).watchSingleOrNull().map((o) => o?.number);
+});
+
+/// One line of a receipt document joined with its product (may be deleted).
+class ReceiptDocLine {
+  const ReceiptDocLine(this.item, this.product);
+  final GoodsReceiptItem item;
+  final Product? product;
+
+  String get name => product?.name ?? 'Удалённый товар';
+  String get unit => product?.unit ?? 'pcs';
+  int get total => lineValue(item.qty, item.unitCost);
+
+  /// Retail price changed by this receipt.
+  bool get priceChanged => item.newPrice != null && item.newPrice != item.oldPrice;
+}
+
+List<ReceiptDocLine> receiptDocLines(List<GoodsReceiptItem> items, Map<String, Product> products) => [
+  for (final i in items) ReceiptDocLine(i, products[i.productId]),
+];
+
+/// «Приход №N» reference text for a stock movement, or null.
+String? movementReference(StockMovement m, Map<String, int> receiptNumbers) {
+  if (m.refType != 'receipt' || m.refId == null) return null;
+  final n = receiptNumbers[m.refId];
+  return n == null ? null : 'Приход №$n';
+}
 
 // ------------------------------------------------------------------ stock overview
 
@@ -189,6 +337,9 @@ class ReceiptLine {
   int? newPrice;
 
   int get total => lineValue(qty, unitCost);
+
+  ReceiptLineInput toInput() =>
+      ReceiptLineInput(productId: product.id, qty: Qty.round(qty), unitCost: unitCost, newPrice: newPrice);
 }
 
 // ------------------------------------------------------------------ count
@@ -267,19 +418,39 @@ class CountSummary {
 // ------------------------------------------------------------------ repository
 
 class InventoryRepo {
-  InventoryRepo(this.db, this.stock);
+  InventoryRepo(this.db, this.stock, [ReceiptService? receipts]) : receipts = receipts ?? ReceiptService(db, stock);
   final AppDatabase db;
   final StockService stock;
+  final ReceiptService receipts;
 
-  /// Posts a goods receipt document (no purchase order). Every line goes
-  /// through [StockService.receive]; when a supplier is given the store's
-  /// debt to that supplier grows by the document total. All-or-nothing.
-  /// Returns the document id used as `refId` of the movements.
+  /// Posts a goods receipt document (no purchase order) through
+  /// [ReceiptService.post]: numbered document, stock via StockService,
+  /// supplier debt via the supplier ledger. All-or-nothing.
+  /// Returns the document id (= `refId` of the movements); use
+  /// [postReceiptDoc] when the number is needed («Приход №N проведён»).
   Future<String> postReceipt({
     required List<ReceiptLine> lines,
     String? supplierId,
     String? userId,
     String? note,
+    String? supplierInvoice,
+    bool canEditPrices = true,
+  }) async => (await postReceiptDoc(
+    lines: lines,
+    supplierId: supplierId,
+    userId: userId,
+    note: note,
+    supplierInvoice: supplierInvoice,
+    canEditPrices: canEditPrices,
+  )).id;
+
+  /// Same as [postReceipt] but returns id, number and total of the document.
+  Future<PostedReceipt> postReceiptDoc({
+    required List<ReceiptLine> lines,
+    String? supplierId,
+    String? userId,
+    String? note,
+    String? supplierInvoice,
     bool canEditPrices = true,
   }) async {
     if (lines.isEmpty) throw BusinessException('Добавьте хотя бы одну позицию');
@@ -291,63 +462,19 @@ class InventoryRepo {
         throw BusinessException('${l.product.name}: розничная цена должна быть больше нуля');
       }
     }
-    final docId = newId();
-    final total = lines.fold<int>(0, (s, l) => s + l.total);
-    await db.transaction(() async {
-      Supplier? sup;
-      if (supplierId != null) {
-        sup = await (db.select(db.suppliers)..where((s) => s.id.equals(supplierId))).getSingleOrNull();
-        if (sup == null || sup.deletedAt != null) {
-          throw BusinessException('Поставщик не найден');
-        }
-      }
-      final reason = [
-        if (sup != null) 'Поставщик: ${sup.name}',
-        if (note != null && note.trim().isNotEmpty) note.trim(),
-      ].join('; ');
-      for (final l in lines) {
-        await stock.receive(
-          productId: l.product.id,
-          qty: Qty.round(l.qty),
-          unitCost: l.unitCost,
-          refType: 'manual',
-          refId: docId,
-          userId: userId,
-          reason: reason.isEmpty ? null : reason,
-        );
-        if (canEditPrices && l.newPrice != null) {
-          final cur = await (db.select(db.products)..where((p) => p.id.equals(l.product.id))).getSingle();
-          if (cur.price != l.newPrice) {
-            await (db.update(db.products)..where((p) => p.id.equals(cur.id))).write(
-              ProductsCompanion(price: Value(l.newPrice!), updatedAt: Value(DateTime.now())),
-            );
-            await db.markDirty('products', cur.id);
-            await db.audit(
-              'product.price',
-              userId: userId,
-              entity: 'product',
-              entityId: cur.id,
-              details: '${cur.price} → ${l.newPrice}; приход',
-            );
-          }
-        }
-      }
-      if (sup != null && total != 0) {
-        await (db.update(db.suppliers)..where((s) => s.id.equals(sup!.id))).write(
-          SuppliersCompanion(balance: Value(sup.balance + total), updatedAt: Value(DateTime.now())),
-        );
-        await db.markDirty('suppliers', sup.id);
-      }
-      await db.audit(
-        'stock.receipt',
-        userId: userId,
-        entity: 'supplier',
-        entityId: supplierId,
-        details: 'doc $docId; позиций ${lines.length}; сумма $total',
-      );
-    });
-    return docId;
+    return receipts.post(
+      lines: [for (final l in lines) l.toInput()],
+      supplierId: supplierId,
+      supplierInvoice: supplierInvoice,
+      note: note,
+      userId: userId,
+      canEditPrices: canEditPrices,
+    );
   }
+
+  /// Reverses («сторно») a posted receipt document (reason required).
+  Future<void> reverseReceipt(String receiptId, {required String reason, String? userId}) =>
+      receipts.reverse(receiptId, reason: reason, userId: userId);
 
   /// Creates a stocktake draft with an expected-qty snapshot.
   Future<String> createCount({

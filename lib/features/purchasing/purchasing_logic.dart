@@ -1,7 +1,7 @@
 // Purchasing (Закупки) data layer: suppliers, supplier payments, purchase
 // orders with partial receiving, reorder suggestions and purchase price
-// control. Stock changes go through StockService; supplier balances are
-// reference data updated inside the same transaction and audited.
+// control. Receipts are goods_receipts documents posted by ReceiptService;
+// supplier balances change only through SupplierLedgerService.
 import 'dart:math' as math;
 
 import 'package:drift/drift.dart';
@@ -11,7 +11,11 @@ import '../../core/db/database.dart';
 import '../../core/money.dart';
 import '../../core/providers.dart';
 import '../../domain/errors.dart';
+import '../../domain/services/receipt_service.dart';
 import '../../domain/services/stock_service.dart';
+import '../../domain/services/supplier_service.dart';
+
+export '../../domain/services/supplier_service.dart' show SupplierLedgerKind;
 
 // ------------------------------------------------------------------ labels
 
@@ -90,13 +94,51 @@ final purPartlyReceivedOrderIdsProvider = StreamProvider<Set<String>>((ref) {
       .map((rows) => {for (final r in rows) r.read<String>('oid')});
 });
 
-/// Actual received value of an order at invoice cost (Σ receipt qty × cost).
+/// Actual received value of an order at invoice cost: Σ totals of its
+/// POSTED receipt documents (reversed receipts do not count).
 final purOrderReceivedValueProvider = StreamProvider.family<int, String>((ref, id) {
   final db = ref.watch(databaseProvider);
-  return (db.select(db.stockMovements)
-        ..where((m) => m.refType.equals('purchase') & m.refId.equals(id) & m.type.equals('receipt') & m.deletedAt.isNull()))
+  return (db.select(db.goodsReceipts)
+        ..where((r) => r.orderId.equals(id) & r.status.equals('posted') & r.deletedAt.isNull()))
       .watch()
-      .map((rows) => rows.fold<int>(0, (s, m) => s + (m.qty * m.unitCost).round()));
+      .map((rows) => rows.fold<int>(0, (s, r) => s + r.total));
+});
+
+/// Receipt documents of a purchase order (all statuses), oldest first.
+final purOrderReceiptsProvider = StreamProvider.family<List<GoodsReceipt>, String>((ref, orderId) {
+  final db = ref.watch(databaseProvider);
+  return (db.select(db.goodsReceipts)
+        ..where((r) => r.orderId.equals(orderId) & r.deletedAt.isNull())
+        ..orderBy([(r) => OrderingTerm.asc(r.number)]))
+      .watch();
+});
+
+/// Supplier ledger («Взаиморасчёты») in chronological order; the last row's
+/// `balanceAfter` equals `suppliers.balance`.
+final purSupplierLedgerProvider = StreamProvider.family<List<SupplierLedgerEntry>, String>((ref, supplierId) {
+  final db = ref.watch(databaseProvider);
+  return (db.select(db.supplierLedger)
+        ..where((l) => l.supplierId.equals(supplierId) & l.deletedAt.isNull())
+        ..orderBy([(l) => OrderingTerm.asc(l.createdAt), (l) => OrderingTerm.asc(l.rowId)]))
+      .watch();
+});
+
+/// Receipt stock movements for the price control tab since [days] ago,
+/// excluding lines of reversed receipt documents.
+final purReceiptMovementsProvider = StreamProvider.family<List<StockMovement>, int>((ref, days) {
+  final db = ref.watch(databaseProvider);
+  final since = DateTime.now().subtract(Duration(days: days));
+  return db
+      .customSelect(
+        'SELECT m.* FROM stock_movements m '
+        "WHERE m.type = 'receipt' AND m.created_at >= ? AND m.deleted_at IS NULL "
+        "AND NOT (m.ref_type = 'receipt' AND m.ref_id IN "
+        "(SELECT id FROM goods_receipts WHERE status = 'reversed'))",
+        variables: [Variable.withDateTime(since)],
+        readsFrom: {db.stockMovements, db.goodsReceipts},
+      )
+      .watch()
+      .map((rows) => [for (final r in rows) db.stockMovements.map(r.data)]);
 });
 
 final purOrderItemsProvider = StreamProvider.family<List<PurchaseOrderItem>, String>((ref, id) {
@@ -124,8 +166,222 @@ final purSupplierOrdersProvider = StreamProvider.family<List<PurchaseOrder>, Str
 });
 
 final purchasingRepoProvider = Provider(
-  (ref) => PurchasingRepo(ref.watch(databaseProvider), ref.watch(stockServiceProvider)),
+  (ref) => PurchasingRepo(
+    ref.watch(databaseProvider),
+    ref.watch(stockServiceProvider),
+    ref.watch(receiptServiceProvider),
+    ref.watch(supplierLedgerServiceProvider),
+  ),
 );
+
+// ------------------------------------------------------------------ supplier statement
+
+const supplierLedgerKindLabels = <String, String>{
+  'opening': 'Начальный остаток',
+  'receipt': 'Приход',
+  'receipt_reversal': 'Сторно прихода',
+  'payment': 'Оплата',
+  'payment_cancel': 'Отмена оплаты',
+  'adjustment': 'Корректировка',
+};
+
+/// Supplier statement (акт сверки) for a period built from ledger rows.
+/// * [opening] — balance before [from] (last balanceAfter before it, else 0);
+///   a leading `opening` (migration back-fill) row inside the period counts
+///   here, not as turnover;
+/// * [increase] — Σ positive amounts in the period (приход, store owes more);
+/// * [decrease] — Σ |negative amounts| in the period (расход/оплаты);
+/// * [closing] — opening + increase − decrease (== last balanceAfter).
+class SupplierStatement {
+  const SupplierStatement({
+    required this.opening,
+    required this.rows,
+    required this.increase,
+    required this.decrease,
+    required this.closing,
+  });
+  final int opening;
+  final List<SupplierLedgerEntry> rows;
+  final int increase;
+  final int decrease;
+  final int closing;
+
+  /// [entries] in chronological order (as [purSupplierLedgerProvider]);
+  /// [from] inclusive, [to] exclusive; null = unbounded.
+  static SupplierStatement of(List<SupplierLedgerEntry> entries, {DateTime? from, DateTime? to}) {
+    var opening = 0;
+    final rows = <SupplierLedgerEntry>[];
+    for (final e in entries) {
+      if (from != null && e.createdAt.isBefore(from)) {
+        opening = e.balanceAfter;
+      } else if (to == null || e.createdAt.isBefore(to)) {
+        // The migration `opening` row is a starting balance, not turnover:
+        // it becomes «Сальдо на начало» of a period that contains it.
+        if (e.kind == SupplierLedgerKind.opening && rows.isEmpty) {
+          opening = e.balanceAfter;
+        } else {
+          rows.add(e);
+        }
+      }
+    }
+    var inc = 0, dec = 0;
+    for (final e in rows) {
+      if (e.amount > 0) {
+        inc += e.amount;
+      } else {
+        dec += -e.amount;
+      }
+    }
+    return SupplierStatement(opening: opening, rows: rows, increase: inc, decrease: dec, closing: opening + inc - dec);
+  }
+}
+
+/// Operation text of a ledger row: «Приход №N», «Сторно прихода №N»,
+/// «Оплата (Перечисление)», «Отмена оплаты», «Корректировка»…
+/// [receiptNumbers]: goods_receipts.id → number; [payments]: id → payment.
+String supplierLedgerOperation(
+  SupplierLedgerEntry e, {
+  Map<String, int> receiptNumbers = const {},
+  Map<String, SupplierPayment> payments = const {},
+}) {
+  final base = supplierLedgerKindLabels[e.kind] ?? e.kind;
+  switch (e.kind) {
+    case SupplierLedgerKind.receipt:
+    case SupplierLedgerKind.receiptReversal:
+      final n = e.refId == null ? null : receiptNumbers[e.refId];
+      return n == null ? base : '$base №$n';
+    case SupplierLedgerKind.payment:
+      final p = e.refId == null ? null : payments[e.refId];
+      final m = p == null ? null : paymentMethodLabels[p.method] ?? p.method;
+      return m == null ? base : '$base ($m)';
+    default:
+      return base;
+  }
+}
+
+/// Payment that a `payment` ledger row can cancel: the referenced payment
+/// when it exists and is not cancelled yet; null otherwise.
+SupplierPayment? cancellablePayment(SupplierLedgerEntry e, Map<String, SupplierPayment> payments) {
+  if (e.kind != SupplierLedgerKind.payment || e.refId == null) return null;
+  final p = payments[e.refId];
+  if (p == null || p.cancelledAt != null || p.deletedAt != null) return null;
+  return p;
+}
+
+/// Cancelling a cash payment returns cash to the drawer's expected balance
+/// (a cash-in), so it needs `Perm.cashInOut` like paying in cash does.
+bool supplierPaymentCancelAllowed(SupplierPayment p, {required bool canCash}) => p.method != 'cash' || canCash;
+
+/// Tooltip / error when [supplierPaymentCancelAllowed] is false.
+const noCashPermissionText = 'Нет права на операции с наличными';
+
+/// Period presets of the «Взаиморасчёты» section.
+enum LedgerPeriod {
+  all('Всё время'),
+  month('Этот месяц'),
+  lastMonth('Прошлый месяц'),
+  quarter('Квартал'),
+  year('Год'),
+  custom('Период…');
+
+  const LedgerPeriod(this.label);
+  final String label;
+}
+
+/// Half-open range `[from, to)` of [p] (null = unbounded). For
+/// [LedgerPeriod.custom] pass the inclusive days [first]..[last].
+({DateTime? from, DateTime? to}) ledgerPeriodRange(LedgerPeriod p, {DateTime? now, DateTime? first, DateTime? last}) {
+  final n = now ?? DateTime.now();
+  final tomorrow = DateTime(n.year, n.month, n.day + 1);
+  return switch (p) {
+    LedgerPeriod.all => (from: null, to: null),
+    LedgerPeriod.month => (from: DateTime(n.year, n.month, 1), to: tomorrow),
+    LedgerPeriod.lastMonth => (from: DateTime(n.year, n.month - 1, 1), to: DateTime(n.year, n.month, 1)),
+    LedgerPeriod.quarter => (from: DateTime(n.year, ((n.month - 1) ~/ 3) * 3 + 1, 1), to: tomorrow),
+    LedgerPeriod.year => (from: DateTime(n.year, 1, 1), to: tomorrow),
+    LedgerPeriod.custom => (
+      from: first == null ? null : DateTime(first.year, first.month, first.day),
+      to: last == null ? null : DateTime(last.year, last.month, last.day + 1),
+    ),
+  };
+}
+
+/// Human period text without a preposition: «01.11.2026 – 24.11.2026»,
+/// «по 24.11.2026», «всё время». Callers add «за период» / «Период» as their
+/// grammar needs (see [ledgerPeriodHeading]).
+String ledgerPeriodText(DateTime? from, DateTime? to, {DateTime? firstEntry}) {
+  final last = to?.subtract(const Duration(days: 1));
+  final start = from ?? firstEntry;
+  if (start == null && last == null) return ledgerAllTimeText;
+  if (start == null) return 'по ${_d(last!)}';
+  return '${_d(start)} – ${_d(last ?? DateTime.now())}';
+}
+
+const ledgerAllTimeText = 'всё время';
+
+/// Heading line of the act: «за период 01.11.2026 – 24.11.2026», «за всё время».
+String ledgerPeriodHeading(String period) => period == ledgerAllTimeText ? 'за $period' : 'за период $period';
+
+String _d(DateTime d) => '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
+String _dt(DateTime d) => '${_d(d)} ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+
+/// Conclusion line of the act: who owes whom at the end of the period.
+String statementConclusion(int closing, {required String store, required String supplier, required String at}) {
+  if (closing == 0) return 'На $at задолженность между сторонами отсутствует.';
+  if (closing > 0) return 'На $at задолженность «$store» перед «$supplier» составляет ${Money.format(closing)}.';
+  return 'На $at задолженность «$supplier» перед «$store» (аванс) составляет ${Money.format(-closing)}.';
+}
+
+/// A plain (possibly negative) number as [_csvMoney] writes it («-1250,5»).
+/// Only such cells may start with «-» without the formula escape.
+final _csvNumber = RegExp(r'^-?\d+(,\d+)?$');
+
+String _csvCell(String v) {
+  var s = v;
+  // CSV injection: text a spreadsheet would treat as a formula.
+  if (s.isNotEmpty && const ['=', '+', '-', '@', '\t', '\r'].contains(s[0]) && !_csvNumber.hasMatch(s)) {
+    s = "'$s";
+  }
+  if (s.contains(';') || s.contains('"') || s.contains('\n') || s.contains('\r')) {
+    return '"${s.replaceAll('"', '""')}"';
+  }
+  return s;
+}
+
+String _csvMoney(int minor) => Money.toInput(minor).replaceAll('.', ',');
+
+/// Reconciliation act (акт сверки) as semicolon-separated CSV (Excel, Russian
+/// locale): header, opening balance, rows, turnovers, closing balance.
+/// [operation] renders the operation text of a row.
+String supplierStatementCsv({
+  required SupplierStatement st,
+  required String supplierName,
+  required String storeName,
+  required String period,
+  required String Function(SupplierLedgerEntry) operation,
+}) {
+  final rows = <List<String>>[
+    ['Акт сверки взаиморасчётов'],
+    ['Магазин', storeName],
+    ['Поставщик', supplierName],
+    ['Период', period],
+    [],
+    ['Дата', 'Операция', 'Комментарий', 'Приход (+)', 'Расход (−)', 'Баланс'],
+    ['', 'Сальдо на начало периода', '', '', '', _csvMoney(st.opening)],
+    for (final e in st.rows)
+      [
+        _dt(e.createdAt),
+        operation(e),
+        e.note == null || e.note == operation(e) ? '' : e.note!,
+        e.amount > 0 ? _csvMoney(e.amount) : '',
+        e.amount < 0 ? _csvMoney(-e.amount) : '',
+        _csvMoney(e.balanceAfter),
+      ],
+    ['', 'Обороты за период', '', _csvMoney(st.increase), _csvMoney(st.decrease), ''],
+    ['', 'Сальдо на конец периода', '', '', '', _csvMoney(st.closing)],
+  ];
+  return rows.map((r) => r.map(_csvCell).join(';')).join('\r\n');
+}
 
 // ------------------------------------------------------------------ value types
 
@@ -259,9 +515,13 @@ Map<String, List<PricePoint>> buildPriceHistory(Iterable<StockMovement> receipts
 // ------------------------------------------------------------------ repository
 
 class PurchasingRepo {
-  PurchasingRepo(this.db, this.stock);
+  PurchasingRepo(this.db, this.stock, [ReceiptService? receipts, SupplierLedgerService? ledger])
+    : ledger = ledger ?? SupplierLedgerService(db),
+      receipts = receipts ?? ReceiptService(db, stock, ledger ?? SupplierLedgerService(db));
   final AppDatabase db;
   final StockService stock;
+  final ReceiptService receipts;
+  final SupplierLedgerService ledger;
 
   // ---- suppliers
 
@@ -316,9 +576,10 @@ class PurchasingRepo {
     });
   }
 
-  /// Records a payment to a supplier and decreases the balance.
-  /// Cash payments require an open shift ([shiftId]); paying more than the
-  /// balance requires [allowOverpay] (creates a prepayment / credit).
+  /// Records a payment to a supplier and decreases the balance
+  /// (delegates to [SupplierLedgerService.pay]). Cash payments require an
+  /// open shift ([shiftId]); paying more than the balance requires
+  /// [allowOverpay] (creates a prepayment / credit). Returns the payment id.
   Future<String> paySupplier({
     required String supplierId,
     required int amount,
@@ -328,70 +589,26 @@ class PurchasingRepo {
     String? orderId,
     String? note,
     bool allowOverpay = false,
-  }) async {
-    if (amount <= 0) throw BusinessException('Сумма оплаты должна быть больше нуля');
-    if (!paymentMethodLabels.containsKey(method)) throw BusinessException('Неизвестный способ оплаты');
-    if (method == 'cash' && shiftId == null) {
-      throw BusinessException('Для оплаты наличными из кассы откройте смену', code: 'shift');
-    }
-    final id = newId();
-    await db.transaction(() async {
-      final s = await (db.select(db.suppliers)..where((t) => t.id.equals(supplierId))).getSingleOrNull();
-      if (s == null || s.deletedAt != null) throw BusinessException('Поставщик не найден');
-      if (amount > s.balance && !allowOverpay) {
-        throw BusinessException(
-          'Сумма больше долга поставщику (${Money.format(math.max(0, s.balance))}). Подтвердите переплату.',
-          code: 'overpay',
-        );
-      }
-      PurchaseOrder? order;
-      if (orderId != null) {
-        order = await (db.select(db.purchaseOrders)..where((t) => t.id.equals(orderId))).getSingleOrNull();
-        if (order == null || order.supplierId != supplierId) {
-          throw BusinessException('Заказ не относится к этому поставщику');
-        }
-        if (order.status == 'cancelled') throw BusinessException('Заказ №${order.number} отменён');
-      }
-      if (shiftId != null && method == 'cash') {
-        final sh = await (db.select(db.shifts)..where((t) => t.id.equals(shiftId))).getSingleOrNull();
-        if (sh == null || sh.status != 'open') throw BusinessException('Смена закрыта — откройте смену');
-      }
-      final now = DateTime.now();
-      await db
-          .into(db.supplierPayments)
-          .insert(
-            SupplierPaymentsCompanion.insert(
-              id: id,
-              supplierId: supplierId,
-              amount: amount,
-              method: Value(method),
-              orderId: Value(orderId),
-              shiftId: Value(method == 'cash' ? shiftId : null),
-              userId: Value(userId),
-              note: Value(_clean(note)),
-            ),
-          );
-      await (db.update(db.suppliers)..where((t) => t.id.equals(supplierId))).write(
-        SuppliersCompanion(balance: Value(s.balance - amount), updatedAt: Value(now)),
-      );
-      if (order != null) {
-        await (db.update(db.purchaseOrders)..where((t) => t.id.equals(order!.id))).write(
-          PurchaseOrdersCompanion(paid: Value(order.paid + amount), updatedAt: Value(now)),
-        );
-        await db.markDirty('purchase_orders', order.id);
-      }
-      await db.markDirty('supplier_payments', id);
-      await db.markDirty('suppliers', supplierId);
-      await db.audit(
-        'supplier.payment',
-        userId: userId,
-        entity: 'supplier',
-        entityId: supplierId,
-        details: '$amount; $method; баланс ${s.balance} → ${s.balance - amount}',
-      );
-    });
-    return id;
-  }
+  }) => ledger.pay(
+    supplierId: supplierId,
+    amount: amount,
+    method: method,
+    shiftId: shiftId,
+    userId: userId,
+    orderId: orderId,
+    note: note,
+    allowOverpay: allowOverpay,
+  );
+
+  /// Cancels a supplier payment (reason required; cash only while its shift
+  /// is open). See [SupplierLedgerService.cancelPayment].
+  Future<void> cancelSupplierPayment(String paymentId, {required String reason, String? userId}) =>
+      ledger.cancelPayment(paymentId, reason: reason, userId: userId);
+
+  /// Manual supplier balance correction (UI: `Perm.manageSettings` only).
+  /// Returns the new balance.
+  Future<int> adjustSupplierBalance(String supplierId, int amount, {required String reason, String? userId}) =>
+      ledger.adjust(supplierId, amount, reason: reason, userId: userId);
 
   // ---- purchase orders
 
@@ -521,10 +738,22 @@ class PurchasingRepo {
     });
   }
 
-  /// Partial or full receiving. Each line is posted through
-  /// StockService.receive(refType: 'purchase'); supplier balance grows by the
-  /// received value; the order becomes `received` when nothing remains.
-  Future<ReceiveResult> receiveOrder(String orderId, List<ReceiveLineInput> lines, {String? userId}) async {
+  /// Partial or full receiving. Creates one receipt document
+  /// ([ReceiptService.post] with `orderId` and `orderItemId` per line: stock,
+  /// supplier ledger, numbering); updates receivedQty and the order status
+  /// (`received` when nothing remains) in the same transaction.
+  Future<ReceiveResult> receiveOrder(String orderId, List<ReceiveLineInput> lines, {String? userId}) async =>
+      (await receiveOrderDoc(orderId, lines, userId: userId)).result;
+
+  /// Same as [receiveOrder] but also returns the posted receipt document
+  /// (id, number) for «Приход №N проведён».
+  Future<({ReceiveResult result, PostedReceipt receipt})> receiveOrderDoc(
+    String orderId,
+    List<ReceiveLineInput> lines, {
+    String? userId,
+    String? supplierInvoice,
+    String? note,
+  }) async {
     final active = lines.where((l) => l.qty > 0).toList();
     if (active.isEmpty) throw BusinessException('Укажите количество хотя бы по одной позиции');
     return db.transaction(() async {
@@ -536,11 +765,12 @@ class PurchasingRepo {
         for (final i in await (db.select(db.purchaseOrderItems)..where((i) => i.orderId.equals(orderId))).get())
           i.id: i,
       };
-      var value = 0;
-      final now = DateTime.now();
+      final inputs = <ReceiptLineInput>[];
+      final seen = <String>{};
       for (final l in active) {
         final it = items[l.itemId];
         if (it == null) throw BusinessException('Позиция не найдена в заказе');
+        if (!seen.add(it.id)) throw BusinessException('Позиция заказа указана дважды');
         final p = await (db.select(db.products)..where((t) => t.id.equals(it.productId))).getSingle();
         final rest = remainingQty(it);
         if (Qty.round(l.qty) > rest + 1e-9) {
@@ -551,23 +781,28 @@ class PurchasingRepo {
         }
         final cost = l.unitCost ?? it.unitCost;
         if (cost < 0) throw BusinessException('«${p.name}»: цена не может быть отрицательной');
-        await stock.receive(
-          productId: it.productId,
-          qty: Qty.round(l.qty),
-          unitCost: cost,
-          refType: 'purchase',
-          refId: orderId,
-          userId: userId,
-          reason: 'Заказ поставщику №${o.number}',
+        inputs.add(
+          ReceiptLineInput(productId: it.productId, qty: Qty.round(l.qty), unitCost: cost, orderItemId: it.id),
         );
+      }
+      final doc = await receipts.post(
+        lines: inputs,
+        supplierId: o.supplierId,
+        orderId: orderId,
+        supplierInvoice: supplierInvoice,
+        note: note,
+        userId: userId,
+      );
+      final now = DateTime.now();
+      for (final l in inputs) {
+        final it = items[l.orderItemId]!;
         final newReceived = Qty.round(it.receivedQty + l.qty);
         await (db.update(db.purchaseOrderItems)..where((t) => t.id.equals(it.id))).write(
           PurchaseOrderItemsCompanion(receivedQty: Value(newReceived), updatedAt: Value(now)),
         );
         items[it.id] = it.copyWith(receivedQty: newReceived);
-        value += (l.qty * cost).round();
       }
-      final full = items.values.every((i) => remainingQty(i) <= 0);
+      final full = items.values.where((i) => i.deletedAt == null).every((i) => remainingQty(i) <= 0);
       await (db.update(db.purchaseOrders)..where((t) => t.id.equals(orderId))).write(
         PurchaseOrdersCompanion(
           status: Value(full ? 'received' : 'ordered'),
@@ -575,29 +810,27 @@ class PurchasingRepo {
           updatedAt: Value(now),
         ),
       );
-      final s = await (db.select(db.suppliers)..where((t) => t.id.equals(o.supplierId))).getSingle();
-      await (db.update(db.suppliers)..where((t) => t.id.equals(s.id))).write(
-        SuppliersCompanion(balance: Value(s.balance + value), updatedAt: Value(now)),
-      );
       await db.markDirty('purchase_orders', orderId);
-      await db.markDirty('suppliers', s.id);
       await db.audit(
         'po.receive',
         userId: userId,
         entity: 'purchase_order',
         entityId: orderId,
-        details: '№${o.number}; поз. ${active.length}; сумма $value; ${full ? 'полностью' : 'частично'}',
+        details:
+            '№${o.number}; приход №${doc.number}; поз. ${active.length}; сумма ${doc.total}; '
+            '${full ? 'полностью' : 'частично'}',
       );
-      return ReceiveResult(value: value, fullyReceived: full, lines: active.length);
+      return (result: ReceiveResult(value: doc.total, fullyReceived: full, lines: active.length), receipt: doc);
     });
   }
 
-  /// Received value of an order (Σ receivedQty × unitCost) from receipts.
+  /// Received value of an order at invoice cost: Σ totals of its posted
+  /// receipt documents (reversed ones excluded).
   Future<int> receivedValue(String orderId) async {
     final rows = await (db.select(
-      db.stockMovements,
-    )..where((m) => m.refType.equals('purchase') & m.refId.equals(orderId) & m.type.equals('receipt') & m.deletedAt.isNull())).get();
-    return rows.fold<int>(0, (s, m) => s + (m.qty * m.unitCost).round());
+      db.goodsReceipts,
+    )..where((r) => r.orderId.equals(orderId) & r.status.equals('posted') & r.deletedAt.isNull())).get();
+    return rows.fold<int>(0, (s, r) => s + r.total);
   }
 
   // ---- reorder

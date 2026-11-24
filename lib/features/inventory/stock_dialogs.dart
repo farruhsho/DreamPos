@@ -11,6 +11,7 @@ import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
 import 'inventory_logic.dart';
+import 'receipt_document.dart';
 
 String? _uid(WidgetRef ref) => ref.read(sessionProvider)?.user.id;
 
@@ -35,19 +36,26 @@ class _QuickReceiptState extends ConsumerState<_QuickReceipt> {
     if (_busy || !_key.currentState!.validate()) return;
     setState(() => _busy = true);
     final q = QtyField.parse(_qty.text)!;
+    PostedReceipt? posted;
     final ok = await runGuarded(
       context,
-      () => ref
+      () async => posted = await ref
           .read(inventoryRepoProvider)
-          .postReceipt(
+          .postReceiptDoc(
             lines: [ReceiptLine(product: widget.p, qty: q, unitCost: _cost ?? widget.p.costPrice)],
             userId: _uid(ref),
           ),
-      success: 'Оприходовано ${Qty.format(q, widget.p.unit)}',
     );
     if (!mounted) return;
     setState(() => _busy = false);
-    if (ok) Navigator.pop(context);
+    if (ok) {
+      // Toast on the page behind the dialog so «Открыть» outlives it.
+      final page = Navigator.of(context).context;
+      Navigator.pop(context);
+      if (posted != null && page.mounted) {
+        showReceiptPosted(page, posted!, details: '${widget.p.name}: ${Qty.format(q, widget.p.unit)}');
+      }
+    }
   }
 
   @override
@@ -354,6 +362,7 @@ class _ProductHistory extends ConsumerWidget {
   final Product p;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final numbers = ref.watch(goodsReceiptNumbersProvider).value ?? const <String, int>{};
     // Grows with the history up to 480px instead of always reserving it.
     return ConstrainedBox(
       constraints: const BoxConstraints(maxHeight: 480),
@@ -369,17 +378,28 @@ class _ProductHistory extends ConsumerWidget {
                 padding: const EdgeInsets.all(Gap.s),
                 itemCount: list.length,
                 separatorBuilder: (_, _) => const Divider(),
-                itemBuilder: (_, i) => MovementTile(m: list[i], unit: p.unit),
+                itemBuilder: (context, i) => _refTile(context, numbers, list[i], p.unit),
               ),
       ),
     );
   }
 }
 
+/// Movement tile with its source document («Приход №N») opening on tap.
+Widget _refTile(BuildContext context, Map<String, int> numbers, StockMovement m, String unit) {
+  final reference = movementReference(m, numbers);
+  return MovementTile(
+    m: m,
+    unit: unit,
+    reference: reference,
+    onTap: reference == null ? null : () => showReceiptDocument(context, m.refId!),
+  );
+}
+
 Color movementColor(String type) => switch (type) {
   'sale' => AppColors.info,
   'receipt' || 'return' => AppColors.success,
-  'writeoff' => AppColors.danger,
+  'writeoff' || 'receipt_reversal' => AppColors.danger,
   _ => AppColors.warning,
 };
 
@@ -391,8 +411,14 @@ class MovementTile extends StatelessWidget {
     this.productName,
     this.userName,
     this.showType = true,
+    this.reference,
+    this.onTap,
   });
   final StockMovement m;
+
+  /// Source document, e.g. «Приход №12»; shown as a link when [onTap] is set.
+  final String? reference;
+  final VoidCallback? onTap;
 
   /// Hide the type chip in single-type journals (e.g. write-offs).
   final bool showType;
@@ -410,12 +436,13 @@ class MovementTile extends StatelessWidget {
     final details = [
       if (productName != null) formatDateTime(m.createdAt),
       if (m.reason != null && m.reason!.isNotEmpty) m.reason!,
-      if (m.unitCost > 0 && m.type == 'receipt') 'цена ${Money.format(m.unitCost)}',
+      if (m.unitCost > 0 && (m.type == 'receipt' || m.type == 'receipt_reversal')) 'цена ${Money.format(m.unitCost)}',
       ?userName,
     ].join(' · ');
     final color = movementColor(m.type);
     return ListTile(
       dense: true,
+      onTap: onTap,
       title: Text(
         productName ?? formatDateTime(m.createdAt),
         maxLines: compact ? 2 : 1,
@@ -429,6 +456,17 @@ class MovementTile extends StatelessWidget {
                 text: details.isEmpty ? movementLabel(m.type) : '${movementLabel(m.type)} · ',
                 style: TextStyle(color: color, fontWeight: FontWeight.w600),
               ),
+            if (reference != null) ...[
+              TextSpan(
+                text: reference,
+                style: TextStyle(
+                  color: onTap != null ? t.colorScheme.primary : null,
+                  fontWeight: FontWeight.w600,
+                  decoration: onTap != null ? TextDecoration.underline : null,
+                ),
+              ),
+              if (details.isNotEmpty) const TextSpan(text: ' · '),
+            ],
             TextSpan(text: details),
           ],
         ),
@@ -438,7 +476,7 @@ class MovementTile extends StatelessWidget {
       // Fixed-width slot so titles line up regardless of the chip label.
       leading: showType && !compact
           ? SizedBox(
-              width: 104,
+              width: 128,
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: StatusChip(movementLabel(m.type), color: color),

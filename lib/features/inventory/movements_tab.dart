@@ -9,6 +9,7 @@ import '../../core/theme.dart';
 import '../../core/widgets/pickers.dart';
 import '../../core/widgets/widgets.dart';
 import 'inventory_logic.dart';
+import 'receipt_document.dart';
 import 'stock_dialogs.dart';
 import 'stock_tab.dart' show InvChipBar;
 
@@ -105,6 +106,7 @@ class _MovementsTabState extends ConsumerState<MovementsTab> {
     final t = Theme.of(context);
     final products = ref.watch(invProductMapProvider).value ?? const {};
     final users = ref.watch(invUserNamesProvider).value ?? const {};
+    final receiptNumbers = ref.watch(goodsReceiptNumbersProvider).value ?? const <String, int>{};
     final q = _query;
     final typeField = DropdownButtonFormField<String?>(
       initialValue: _type,
@@ -209,14 +211,17 @@ class _MovementsTabState extends ConsumerState<MovementsTab> {
                       child: ListView.separated(
                         itemCount: list.length,
                         separatorBuilder: (_, _) => const Divider(),
-                        itemBuilder: (_, i) {
+                        itemBuilder: (context, i) {
                           final m = list[i];
                           final p = products[m.productId];
+                          final reference = movementReference(m, receiptNumbers);
                           return MovementTile(
                             m: m,
                             unit: p?.unit ?? 'pcs',
                             productName: p?.name ?? 'Удалённый товар',
                             userName: users[m.userId],
+                            reference: reference,
+                            onTap: reference == null ? null : () => showReceiptDocument(context, m.refId!),
                           );
                         },
                       ),

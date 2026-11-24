@@ -9,6 +9,8 @@ import '../../core/theme.dart';
 import '../../core/widgets/pickers.dart';
 import '../../core/widgets/widgets.dart';
 import 'inventory_logic.dart';
+import 'receipt_document.dart';
+import 'receipt_documents_view.dart';
 
 class _Line {
   _Line(this.product)
@@ -33,19 +35,76 @@ class _Line {
   }
 }
 
-/// «Приход»: goods receipt document without a purchase order.
-class ReceiptTab extends ConsumerStatefulWidget {
+enum _ReceiptView { form, documents }
+
+/// «Приход»: new goods receipt (no purchase order) and the journal of
+/// receipt documents, switched by a segmented control. Both views stay alive
+/// so a half-filled receipt survives a look at the documents.
+class ReceiptTab extends StatefulWidget {
   const ReceiptTab({super.key});
   @override
-  ConsumerState<ReceiptTab> createState() => _ReceiptTabState();
+  State<ReceiptTab> createState() => _ReceiptTabState();
 }
 
-class _ReceiptTabState extends ConsumerState<ReceiptTab> {
+class _ReceiptTabState extends State<ReceiptTab> {
+  _ReceiptView _view = _ReceiptView.form;
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = context.isCompact;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: Gap.s),
+          child: Align(
+            alignment: compact ? Alignment.center : Alignment.centerLeft,
+            child: SegmentedButton<_ReceiptView>(
+              showSelectedIcon: false,
+              segments: const [
+                ButtonSegment(
+                  value: _ReceiptView.form,
+                  icon: Icon(Icons.add_box_outlined),
+                  label: Text('Новый приход'),
+                ),
+                ButtonSegment(
+                  value: _ReceiptView.documents,
+                  icon: Icon(Icons.receipt_long_outlined),
+                  label: Text('Документы'),
+                ),
+              ],
+              selected: {_view},
+              onSelectionChanged: (v) => setState(() => _view = v.first),
+            ),
+          ),
+        ),
+        const SizedBox(height: Gap.s),
+        Expanded(
+          child: IndexedStack(
+            index: _view.index,
+            sizing: StackFit.expand,
+            children: const [_ReceiptForm(), ReceiptDocumentsView()],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// New goods receipt document without a purchase order.
+class _ReceiptForm extends ConsumerStatefulWidget {
+  const _ReceiptForm();
+  @override
+  ConsumerState<_ReceiptForm> createState() => _ReceiptFormState();
+}
+
+class _ReceiptFormState extends ConsumerState<_ReceiptForm> {
   final _formKey = GlobalKey<FormState>();
   final _lines = <_Line>[];
   final _scan = TextEditingController();
   final _scanFocus = FocusNode();
   final _note = TextEditingController();
+  final _invoice = TextEditingController();
   String? _supplierId;
   bool _busy = false;
 
@@ -57,6 +116,7 @@ class _ReceiptTabState extends ConsumerState<ReceiptTab> {
     _scan.dispose();
     _scanFocus.dispose();
     _note.dispose();
+    _invoice.dispose();
     super.dispose();
   }
 
@@ -111,6 +171,7 @@ class _ReceiptTabState extends ConsumerState<ReceiptTab> {
       }
       _lines.clear();
       _note.clear();
+      _invoice.clear();
       _supplierId = null;
     });
   }
@@ -144,20 +205,25 @@ class _ReceiptTabState extends ConsumerState<ReceiptTab> {
       for (final l in _lines)
         ReceiptLine(product: l.product, qty: l.q!, unitCost: l.c!, newPrice: canPrices ? l.newPrice : null),
     ];
+    PostedReceipt? posted;
+    final invoice = _invoice.text.trim();
     final done = await runGuarded(
       context,
-      () => ref
+      () async => posted = await ref
           .read(inventoryRepoProvider)
-          .postReceipt(
+          .postReceiptDoc(
             lines: lines,
             supplierId: _supplierId,
             userId: ref.read(sessionProvider)?.user.id,
             note: _note.text,
+            supplierInvoice: invoice.isEmpty ? null : invoice,
             canEditPrices: canPrices,
           ),
-      success: 'Приход проведён: ${lines.length} поз. на ${Money.format(total)}',
     );
     if (!mounted) return;
+    if (done && posted != null) {
+      showReceiptPosted(context, posted!, details: '${lines.length} поз. на ${Money.format(posted!.total)}');
+    }
     setState(() {
       _busy = false;
       if (done) {
@@ -166,6 +232,7 @@ class _ReceiptTabState extends ConsumerState<ReceiptTab> {
         }
         _lines.clear();
         _note.clear();
+        _invoice.clear();
       }
     });
   }
@@ -239,11 +306,17 @@ class _ReceiptTabState extends ConsumerState<ReceiptTab> {
           onChanged: (v) => setState(() => _supplierId = v),
         );
         // Shorter labels on phones, where the long ones were cut off.
+        final invoice = TextFormField(
+          controller: _invoice,
+          maxLength: 60,
+          decoration: InputDecoration(
+            labelText: narrow ? '№ накладной' : '№ накладной поставщика',
+            counterText: '',
+          ),
+        );
         final note = TextField(
           controller: _note,
-          decoration: narrow
-              ? const InputDecoration(labelText: 'Комментарий', hintText: 'накладная №, дата')
-              : const InputDecoration(labelText: 'Комментарий (накладная №, дата…)'),
+          decoration: const InputDecoration(labelText: 'Комментарий'),
         );
         final scan = TextField(
           controller: _scan,
@@ -274,7 +347,13 @@ class _ReceiptTabState extends ConsumerState<ReceiptTab> {
             children: [
               sup,
               const SizedBox(height: Gap.s),
-              note,
+              Row(
+                children: [
+                  Expanded(child: invoice),
+                  const SizedBox(width: Gap.s),
+                  Expanded(child: note),
+                ],
+              ),
               const SizedBox(height: Gap.m),
               Row(
                 children: [
@@ -291,9 +370,11 @@ class _ReceiptTabState extends ConsumerState<ReceiptTab> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(child: sup),
+                Expanded(flex: 3, child: sup),
                 const SizedBox(width: Gap.m),
-                Expanded(child: note),
+                Expanded(flex: 2, child: invoice),
+                const SizedBox(width: Gap.m),
+                Expanded(flex: 3, child: note),
               ],
             ),
             const SizedBox(height: Gap.m),

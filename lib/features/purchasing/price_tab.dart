@@ -1,21 +1,11 @@
-import 'package:drift/drift.dart' hide Column;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/db/database.dart';
 import '../../core/money.dart';
-import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
 import 'purchasing_logic.dart';
-
-final _receiptsProvider = StreamProvider.family<List<StockMovement>, int>((ref, days) {
-  final db = ref.watch(databaseProvider);
-  final since = DateTime.now().subtract(Duration(days: days));
-  return (db.select(
-    db.stockMovements,
-  )..where((m) => m.type.equals('receipt') & m.createdAt.isBiggerOrEqualValue(since))).watch();
-});
 
 String _pct(double v) => '${v > 0 ? '+' : ''}${v.toStringAsFixed(1).replaceAll('.', ',')}%';
 
@@ -68,7 +58,7 @@ class _PriceControlTabState extends ConsumerState<PriceControlTab> {
         const SizedBox(height: Gap.m),
         Expanded(
           child: AsyncView(
-            value: ref.watch(_receiptsProvider(_days)),
+            value: ref.watch(purReceiptMovementsProvider(_days)),
             data: (moves) {
               final hist = buildPriceHistory(moves);
               final q = _q.toLowerCase();

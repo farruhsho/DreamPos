@@ -90,14 +90,17 @@ class Products extends Table with SyncColumns {
   TextColumn get supplierId => text().nullable()();
 }
 
-/// type: sale | return | receipt | writeoff | adjustment | inventory | transfer
+/// type: sale | return | receipt | receipt_reversal | writeoff | adjustment |
+/// inventory | transfer
 class StockMovements extends Table with SyncColumns {
   TextColumn get productId => text().references(Products, #id)();
   TextColumn get type => text()();
   RealColumn get qty => real()(); // signed delta
   RealColumn get qtyAfter => real()();
   IntColumn get unitCost => integer().withDefault(const Constant(0))();
-  TextColumn get refType => text().nullable()(); // sale | return | purchase | count | manual
+  // sale | return | receipt (goods_receipts.id) | count | manual
+  // (legacy rows may still carry 'purchase' with a purchase order id)
+  TextColumn get refType => text().nullable()();
   TextColumn get refId => text().nullable()();
   TextColumn get userId => text().nullable()();
   TextColumn get reason => text().nullable()();
@@ -178,6 +181,50 @@ class SupplierPayments extends Table with SyncColumns {
   IntColumn get amount => integer()();
   TextColumn get method => text().withDefault(const Constant('cash'))();
   TextColumn get shiftId => text().nullable()();
+  TextColumn get userId => text().nullable()();
+  TextColumn get note => text().nullable()();
+  /// Set when the payment was cancelled (a `payment_cancel` ledger entry
+  /// restores the balance). Cancelled payments are ignored by cash reports.
+  DateTimeColumn get cancelledAt => dateTime().nullable()();
+  TextColumn get cancelReason => text().nullable()();
+}
+
+/// Numbered goods receipt document («Приход №N»). status: posted | reversed
+class GoodsReceipts extends Table with SyncColumns {
+  IntColumn get number => integer()(); // db.nextNumber('receipt')
+  TextColumn get supplierId => text().nullable()();
+  TextColumn get orderId => text().nullable()(); // purchase order, if any
+  TextColumn get supplierInvoice => text().nullable()(); // № накладной поставщика
+  TextColumn get status => text().withDefault(const Constant('posted'))();
+  IntColumn get total => integer().withDefault(const Constant(0))();
+  TextColumn get userId => text().nullable()();
+  TextColumn get note => text().nullable()();
+  DateTimeColumn get reversedAt => dateTime().nullable()();
+  TextColumn get reversedBy => text().nullable()();
+  TextColumn get reverseReason => text().nullable()();
+}
+
+class GoodsReceiptItems extends Table with SyncColumns {
+  TextColumn get receiptId => text().references(GoodsReceipts, #id)();
+  TextColumn get productId => text().references(Products, #id)();
+  TextColumn get orderItemId => text().nullable()(); // purchase_order_items.id
+  RealColumn get qty => real()();
+  IntColumn get unitCost => integer()();
+  IntColumn get oldPrice => integer().nullable()(); // retail price before, if changed
+  IntColumn get newPrice => integer().nullable()(); // retail price set by this receipt
+}
+
+/// Immutable ledger of every supplier balance change.
+/// kind: opening | receipt | receipt_reversal | payment | payment_cancel | adjustment
+/// amount signed: positive = store owes supplier MORE.
+@DataClassName('SupplierLedgerEntry')
+class SupplierLedger extends Table with SyncColumns {
+  TextColumn get supplierId => text().references(Suppliers, #id)();
+  TextColumn get kind => text()();
+  IntColumn get amount => integer()();
+  IntColumn get balanceAfter => integer()();
+  TextColumn get refType => text().nullable()(); // goods_receipt | supplier_payment
+  TextColumn get refId => text().nullable()();
   TextColumn get userId => text().nullable()();
   TextColumn get note => text().nullable()();
 }

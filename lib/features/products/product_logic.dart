@@ -587,6 +587,7 @@ String movementTypeLabel(String type) => switch (type) {
       'sale' => 'Продажа',
       'return' => 'Возврат',
       'receipt' => 'Приход',
+      'receipt_reversal' => 'Сторно прихода',
       'writeoff' => 'Списание',
       'adjustment' => 'Корректировка',
       'inventory' => 'Инвентаризация',

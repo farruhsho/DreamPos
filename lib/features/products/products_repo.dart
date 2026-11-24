@@ -248,12 +248,17 @@ class ProductsRepo {
       readsFrom: {db.saleItems, db.sales, db.stockMovements},
     ).watchSingle();
     return sales.asyncMap((row) async {
-      final mx = db.stockMovements.createdAt.max();
-      final last = await (db.selectOnly(db.stockMovements)
-            ..addColumns([mx])
-            ..where(db.stockMovements.productId.equals(productId) &
-                db.stockMovements.type.equals('receipt')))
-          .map((r) => r.read(mx))
+      // Last receipt, ignoring lines of reversed receipt documents.
+      final last = await db
+          .customSelect(
+            'SELECT MAX(m.created_at) AS mx FROM stock_movements m '
+            "WHERE m.product_id = ? AND m.type = 'receipt' AND m.deleted_at IS NULL "
+            "AND NOT (m.ref_type = 'receipt' AND m.ref_id IN "
+            "(SELECT id FROM goods_receipts WHERE status = 'reversed'))",
+            variables: [Variable.withString(productId)],
+            readsFrom: {db.stockMovements, db.goodsReceipts},
+          )
+          .map((r) => r.readNullable<DateTime>('mx'))
           .getSingle();
       return ProductStats(
         soldQty: Qty.round(row.read<double>('q')),

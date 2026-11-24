@@ -3,12 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/db/database.dart';
 import '../../core/money.dart';
+import '../../core/permissions.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
 import 'orders_tab.dart';
 import 'purchasing_logic.dart';
 import 'supplier_dialogs.dart';
+import 'supplier_ledger.dart';
 
 /// «Поставщики»: directory, balances, payments and order history.
 class SuppliersTab extends ConsumerStatefulWidget {
@@ -224,107 +226,132 @@ class SupplierDetail extends ConsumerWidget {
           if (s.address != null) (Icons.place_outlined, s.address!),
           if (s.note != null) (Icons.notes, s.note!),
         ];
+        final head = <Widget>[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: Text(s.name, style: t.textTheme.headlineSmall)),
+              IconButton(
+                tooltip: 'Изменить',
+                onPressed: () => showSupplierForm(context, supplier: s),
+                icon: const Icon(Icons.edit_outlined),
+              ),
+              IconButton(
+                tooltip: 'Удалить',
+                onPressed: () => _delete(context, ref, s),
+                icon: const Icon(Icons.delete_outline, color: AppColors.danger),
+              ),
+            ],
+          ),
+          for (final (icon, text) in info)
+            Padding(
+              padding: const EdgeInsets.only(top: Gap.xs),
+              child: Row(
+                children: [
+                  Icon(icon, size: 18, color: t.colorScheme.onSurfaceVariant),
+                  const SizedBox(width: Gap.s),
+                  Expanded(child: Text(text)),
+                ],
+              ),
+            ),
+          const SizedBox(height: Gap.m),
+          Builder(
+            builder: (context) {
+              final debt = StatCard(
+                label: s.balance >= 0 ? 'Наш долг поставщику' : 'Аванс у поставщика',
+                value: Money.format(s.balance.abs()),
+                icon: Icons.account_balance_wallet_outlined,
+                color: s.balance > 0 ? AppColors.danger : AppColors.success,
+              );
+              final pay = FilledButton.icon(
+                onPressed: () => showSupplierPaymentDialog(context, s),
+                icon: const Icon(Icons.payments_outlined),
+                label: const Text('Оплатить'),
+              );
+              final order = OutlinedButton.icon(
+                onPressed: () async {
+                  final id = await showPoEditor(context, supplierId: s.id);
+                  if (id != null && context.mounted) pushOrderPage(context, id);
+                },
+                icon: const Icon(Icons.add_shopping_cart),
+                label: const Text('Новый заказ'),
+              );
+              // Phones: full-width balance card and two equal buttons
+              // instead of a ragged wrap.
+              if (context.isCompact) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    debt,
+                    const SizedBox(height: Gap.s),
+                    Row(
+                      children: [
+                        Expanded(child: pay),
+                        const SizedBox(width: Gap.s),
+                        Expanded(child: order),
+                      ],
+                    ),
+                  ],
+                );
+              }
+              return Wrap(
+                spacing: Gap.m,
+                runSpacing: Gap.m,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  SizedBox(width: 260, child: debt),
+                  pay,
+                  order,
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: Gap.m),
+        ];
+        const tabBar = TabBar(
+          isScrollable: true,
+          tabAlignment: TabAlignment.start,
+          tabs: [
+            Tab(text: 'Взаиморасчёты'),
+            Tab(text: 'Заказы'),
+            Tab(text: 'Оплаты'),
+          ],
+        );
+        final views = TabBarView(
+          children: [
+            SupplierLedgerView(supplierId: s.id),
+            _Orders(supplierId: s.id),
+            _Payments(supplierId: s.id),
+          ],
+        );
+        // Phones: the header scrolls away and the tab bar stays pinned, so
+        // the ledger gets the whole screen height.
+        if (context.isCompact) {
+          return DefaultTabController(
+            length: 3,
+            child: NestedScrollView(
+              headerSliverBuilder: (context, _) => [
+                SliverToBoxAdapter(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: head),
+                ),
+                SliverPersistentHeader(pinned: true, delegate: _PinnedTabBar(tabBar, t.scaffoldBackgroundColor)),
+              ],
+              body: Padding(
+                padding: const EdgeInsets.only(top: Gap.s),
+                child: views,
+              ),
+            ),
+          );
+        }
         return DefaultTabController(
-          length: 2,
+          length: 3,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: Text(s.name, style: t.textTheme.headlineSmall)),
-                  IconButton(
-                    tooltip: 'Изменить',
-                    onPressed: () => showSupplierForm(context, supplier: s),
-                    icon: const Icon(Icons.edit_outlined),
-                  ),
-                  IconButton(
-                    tooltip: 'Удалить',
-                    onPressed: () => _delete(context, ref, s),
-                    icon: const Icon(Icons.delete_outline, color: AppColors.danger),
-                  ),
-                ],
-              ),
-              for (final (icon, text) in info)
-                Padding(
-                  padding: const EdgeInsets.only(top: Gap.xs),
-                  child: Row(
-                    children: [
-                      Icon(icon, size: 18, color: t.colorScheme.onSurfaceVariant),
-                      const SizedBox(width: Gap.s),
-                      Expanded(child: Text(text)),
-                    ],
-                  ),
-                ),
-              const SizedBox(height: Gap.m),
-              Builder(
-                builder: (context) {
-                  final debt = StatCard(
-                    label: s.balance >= 0 ? 'Наш долг поставщику' : 'Аванс у поставщика',
-                    value: Money.format(s.balance.abs()),
-                    icon: Icons.account_balance_wallet_outlined,
-                    color: s.balance > 0 ? AppColors.danger : AppColors.success,
-                  );
-                  final pay = FilledButton.icon(
-                    onPressed: () => showSupplierPaymentDialog(context, s),
-                    icon: const Icon(Icons.payments_outlined),
-                    label: const Text('Оплатить'),
-                  );
-                  final order = OutlinedButton.icon(
-                    onPressed: () async {
-                      final id = await showPoEditor(context, supplierId: s.id);
-                      if (id != null && context.mounted) pushOrderPage(context, id);
-                    },
-                    icon: const Icon(Icons.add_shopping_cart),
-                    label: const Text('Новый заказ'),
-                  );
-                  // Phones: full-width balance card and two equal buttons
-                  // instead of a ragged wrap.
-                  if (context.isCompact) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        debt,
-                        const SizedBox(height: Gap.s),
-                        Row(
-                          children: [
-                            Expanded(child: pay),
-                            const SizedBox(width: Gap.s),
-                            Expanded(child: order),
-                          ],
-                        ),
-                      ],
-                    );
-                  }
-                  return Wrap(
-                    spacing: Gap.m,
-                    runSpacing: Gap.m,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      SizedBox(width: 260, child: debt),
-                      pay,
-                      order,
-                    ],
-                  );
-                },
-              ),
-              const SizedBox(height: Gap.m),
-              const TabBar(
-                isScrollable: true,
-                tabAlignment: TabAlignment.start,
-                tabs: [
-                  Tab(text: 'Заказы'),
-                  Tab(text: 'Оплаты'),
-                ],
-              ),
-              Expanded(
-                child: TabBarView(
-                  children: [
-                    _Orders(supplierId: s.id),
-                    _Payments(supplierId: s.id),
-                  ],
-                ),
-              ),
+              ...head,
+              tabBar,
+              const SizedBox(height: Gap.s),
+              Expanded(child: views),
             ],
           ),
         );
@@ -338,8 +365,11 @@ class _Payments extends ConsumerWidget {
   final String supplierId;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = Theme.of(context);
+    final canCash = ref.watch(sessionProvider)?.can(Perm.cashInOut) ?? false;
     return AsyncView(
       value: ref.watch(purSupplierPaymentsProvider(supplierId)),
+      onRetry: () => ref.invalidate(purSupplierPaymentsProvider(supplierId)),
       data: (list) => list.isEmpty
           ? const EmptyState(icon: Icons.payments_outlined, title: 'Оплат ещё не было')
           : ListView.separated(
@@ -347,13 +377,46 @@ class _Payments extends ConsumerWidget {
               separatorBuilder: (_, _) => const Divider(),
               itemBuilder: (_, i) {
                 final p = list[i];
+                final cancelled = p.cancelledAt != null;
+                final allowed = supplierPaymentCancelAllowed(p, canCash: canCash);
+                final muted = t.colorScheme.onSurfaceVariant;
                 return ListTile(
                   dense: true,
-                  leading: const Icon(Icons.north_east, color: AppColors.success),
-                  title: Text(Money.format(p.amount), style: const TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: Text(
-                    [formatDateTime(p.createdAt), paymentMethodLabels[p.method] ?? p.method, ?p.note].join(' · '),
+                  leading: Icon(
+                    cancelled ? Icons.block : Icons.north_east,
+                    color: cancelled ? muted : AppColors.success,
                   ),
+                  title: Wrap(
+                    spacing: Gap.s,
+                    runSpacing: 2,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text(
+                        Money.format(p.amount),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: cancelled ? muted : null,
+                          decoration: cancelled ? TextDecoration.lineThrough : null,
+                        ),
+                      ),
+                      if (cancelled) const StatusChip('Отменена', color: AppColors.danger),
+                    ],
+                  ),
+                  subtitle: Text(
+                    [
+                      [formatDateTime(p.createdAt), paymentMethodLabels[p.method] ?? p.method, ?p.note].join(' · '),
+                      if (cancelled)
+                        'Отменена ${formatDateTime(p.cancelledAt!)}'
+                            '${p.cancelReason == null ? '' : ': ${p.cancelReason}'}',
+                    ].join('\n'),
+                  ),
+                  trailing: cancelled
+                      ? null
+                      : IconButton(
+                          tooltip: allowed ? 'Отменить оплату' : noCashPermissionText,
+                          onPressed: allowed ? () => cancelSupplierPaymentFlow(context, ref, p) : null,
+                          icon: const Icon(Icons.undo, color: AppColors.danger),
+                        ),
                 );
               },
             ),
@@ -397,4 +460,21 @@ class _Orders extends ConsumerWidget {
             ),
     );
   }
+}
+
+class _PinnedTabBar extends SliverPersistentHeaderDelegate {
+  _PinnedTabBar(this.bar, this.color);
+  final TabBar bar;
+  final Color color;
+
+  @override
+  double get minExtent => bar.preferredSize.height;
+  @override
+  double get maxExtent => bar.preferredSize.height;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) => ColoredBox(color: color, child: bar);
+
+  @override
+  bool shouldRebuild(_PinnedTabBar old) => old.bar != bar || old.color != color;
 }

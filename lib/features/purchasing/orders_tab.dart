@@ -8,6 +8,9 @@ import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/pickers.dart';
 import '../../core/widgets/widgets.dart';
+import '../../domain/services/receipt_service.dart' show ReceiptStatus;
+import '../inventory/inventory_logic.dart' show receiptStatusLabels;
+import '../inventory/receipt_document.dart';
 import 'po_pdf.dart';
 import 'purchasing_logic.dart';
 import 'supplier_dialogs.dart';
@@ -394,6 +397,7 @@ class OrderDetail extends ConsumerWidget {
                     ],
                   ),
                 ),
+                if (!draft) ...[const SizedBox(height: Gap.m), OrderReceipts(orderId: o.id, canCost: canCost)],
               ],
             );
           },
@@ -417,6 +421,87 @@ class OrderDetail extends ConsumerWidget {
           .read(purchasingRepoProvider)
           .cancelOrder(o.id, userId: ref.read(sessionProvider)?.user.id, reason: reason),
       success: partial ? 'Заказ закрыт' : 'Заказ отменён',
+    );
+  }
+}
+
+/// «Приходы по заказу»: receipt documents of the order (№, дата, сумма,
+/// статус); tap opens the receipt document.
+class OrderReceipts extends ConsumerWidget {
+  const OrderReceipts({super.key, required this.orderId, this.canCost = true});
+  final String orderId;
+  final bool canCost;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = Theme.of(context);
+    final muted = t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant);
+    final async = ref.watch(purOrderReceiptsProvider(orderId));
+    return SectionCard(
+      title: 'Приходы по заказу',
+      subtitle: switch (async) {
+        AsyncData(:final value) when value.isNotEmpty =>
+          '${value.length} ${pluralRu(value.length, 'документ', 'документа', 'документов')}',
+        _ => null,
+      },
+      child: switch (async) {
+        AsyncError(:final error) => ErrorView(
+          error: error,
+          onRetry: () => ref.invalidate(purOrderReceiptsProvider(orderId)),
+        ),
+        AsyncData(:final value) when value.isEmpty => Text('Товар по заказу ещё не принимали', style: muted),
+        AsyncData(:final value) => Column(
+          children: [
+            for (var i = 0; i < value.length; i++) ...[
+              if (i > 0) const Divider(height: 1),
+              _ReceiptTile(r: value[i], canCost: canCost),
+            ],
+          ],
+        ),
+        _ => const Padding(padding: EdgeInsets.all(Gap.m), child: LoadingView()),
+      },
+    );
+  }
+}
+
+class _ReceiptTile extends StatelessWidget {
+  const _ReceiptTile({required this.r, required this.canCost});
+  final GoodsReceipt r;
+  final bool canCost;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    final reversed = r.status == ReceiptStatus.reversed;
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(
+        reversed ? Icons.undo : Icons.move_to_inbox_outlined,
+        color: reversed ? AppColors.danger : AppColors.success,
+      ),
+      title: Text('Приход №${r.number}', style: TextStyle(decoration: reversed ? TextDecoration.lineThrough : null)),
+      subtitle: Text(
+        [formatDateTime(r.createdAt), if (r.supplierInvoice != null) 'накл. ${r.supplierInvoice}'].join(' · '),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (canCost) ...[
+            Text(
+              Money.format(r.total),
+              style: t.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: reversed ? t.colorScheme.onSurfaceVariant : null,
+              ),
+            ),
+            const SizedBox(width: Gap.m),
+          ],
+          StatusChip(receiptStatusLabels[r.status] ?? r.status, color: reversed ? AppColors.danger : AppColors.success),
+        ],
+      ),
+      onTap: () => showReceiptDocument(context, r.id),
     );
   }
 }
@@ -879,6 +964,7 @@ class _ReceiveForm extends ConsumerStatefulWidget {
 class _ReceiveFormState extends ConsumerState<_ReceiveForm> {
   final _key = GlobalKey<FormState>();
   List<_RecLine>? _lines;
+  final _invoice = TextEditingController();
   bool _busy = false;
 
   @override
@@ -907,6 +993,7 @@ class _ReceiveFormState extends ConsumerState<_ReceiveForm> {
       l.qty.dispose();
       l.cost.dispose();
     }
+    _invoice.dispose();
     super.dispose();
   }
 
@@ -932,11 +1019,20 @@ class _ReceiveFormState extends ConsumerState<_ReceiveForm> {
     if (!ok || !mounted) return;
     setState(() => _busy = true);
     try {
-      final r = await ref.read(purchasingRepoProvider).receiveOrder(widget.o.id, [
-        for (final l in active) ReceiveLineInput(itemId: l.item.id, qty: l.q, unitCost: l.c),
-      ], userId: ref.read(sessionProvider)?.user.id);
+      final r = await ref
+          .read(purchasingRepoProvider)
+          .receiveOrderDoc(
+            widget.o.id,
+            [for (final l in active) ReceiveLineInput(itemId: l.item.id, qty: l.q, unitCost: l.c)],
+            userId: ref.read(sessionProvider)?.user.id,
+            supplierInvoice: _invoice.text,
+          );
       if (!mounted) return;
-      showSuccess(context, 'Принято на ${Money.format(r.value)}${r.fullyReceived ? ' — заказ получен полностью' : ''}');
+      showSuccess(
+        context,
+        'Приход №${r.receipt.number} проведён на ${Money.format(r.result.value)}'
+        '${r.result.fullyReceived ? ' — заказ получен полностью' : ''}',
+      );
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
@@ -962,6 +1058,16 @@ class _ReceiveFormState extends ConsumerState<_ReceiveForm> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            TextField(
+              controller: _invoice,
+              maxLength: 60,
+              decoration: const InputDecoration(
+                labelText: '№ накладной поставщика',
+                prefixIcon: Icon(Icons.description_outlined),
+                counterText: '',
+              ),
+            ),
+            const SizedBox(height: Gap.xs),
             Wrap(
               spacing: Gap.s,
               children: [
