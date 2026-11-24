@@ -117,10 +117,13 @@ class PinPadState extends State<PinPad> {
                     width: 76,
                     height: 64,
                     child: switch (k) {
-                      '<' => IconButton.outlined(
-                          onPressed: _back,
-                          icon: const Icon(Icons.backspace_outlined),
-                          tooltip: 'Стереть'),
+                      '<' => Tooltip(
+                          message: 'Стереть',
+                          child: OutlinedButton(
+                              onPressed: _back,
+                              style: OutlinedButton.styleFrom(padding: EdgeInsets.zero),
+                              child: const Icon(Icons.backspace_outlined)),
+                        ),
                       'ok' => FilledButton(
                           onPressed: _pin.length >= 4 && !widget.busy ? _submit : null,
                           style: FilledButton.styleFrom(padding: EdgeInsets.zero),

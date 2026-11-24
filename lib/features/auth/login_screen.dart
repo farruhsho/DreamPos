@@ -25,7 +25,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    _clock = Timer.periodic(const Duration(seconds: 20), (_) => setState(() => _now = DateTime.now()));
+    _clock = Timer.periodic(
+      const Duration(seconds: 20),
+      (_) => setState(() => _now = DateTime.now()),
+    );
   }
 
   @override
@@ -62,29 +65,76 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [t.colorScheme.primary.withValues(alpha: 0.10), t.scaffoldBackgroundColor],
+            colors: [
+              t.colorScheme.primary.withValues(alpha: 0.10),
+              t.scaffoldBackgroundColor,
+            ],
           ),
         ),
         child: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(Gap.l),
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: Gap.xxl, vertical: Gap.xl),
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  Text(store, style: t.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
-                  const SizedBox(height: Gap.xs),
-                  Text('${formatTime(_now)} · ${formatDate(_now)}',
-                      style: t.textTheme.bodyMedium?.copyWith(color: t.colorScheme.onSurfaceVariant)),
-                  const SizedBox(height: Gap.xl),
-                  Text('Введите PIN-код', style: t.textTheme.titleMedium),
-                  const SizedBox(height: Gap.m),
-                  PinPad(onCompleted: _login, error: _error, busy: _busy),
-                  if (demo) ...[
-                    const SizedBox(height: Gap.m),
-                    const StatusChip('Демо-режим', color: AppColors.warning),
-                  ],
-                ]),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 440),
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: Gap.xxl,
+                      vertical: Gap.xl,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 52,
+                          height: 52,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF4F46E5), Color(0xFF7C3AED)],
+                            ),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          alignment: Alignment.center,
+                          child: const Text(
+                            'D',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 26,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: Gap.m),
+                        Text(
+                          store,
+                          textAlign: TextAlign.center,
+                          style: t.textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: Gap.xs),
+                        Text(
+                          '${formatTime(_now)} · ${formatDate(_now)}',
+                          style: t.textTheme.bodyMedium?.copyWith(
+                            color: t.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(height: Gap.xl),
+                        Text('Введите PIN-код', style: t.textTheme.titleMedium),
+                        const SizedBox(height: Gap.m),
+                        PinPad(onCompleted: _login, error: _error, busy: _busy),
+                        if (demo) ...[
+                          const SizedBox(height: Gap.m),
+                          const StatusChip(
+                            'Демо-режим',
+                            color: AppColors.warning,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
