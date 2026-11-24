@@ -20,13 +20,12 @@ Future<User?> showUserFormDialog(BuildContext context, {User? user}) => showForm
 );
 
 /// Asks for a new PIN (with confirmation). Returns null if cancelled.
-Future<String?> showPinDialog(BuildContext context, {required String title, String? message}) =>
-    showFormDialog<String>(
-      context,
-      title: title,
-      width: 420,
-      child: _PinForm(message: message),
-    );
+Future<String?> showPinDialog(BuildContext context, {required String title, String? message}) => showFormDialog<String>(
+  context,
+  title: title,
+  width: 420,
+  child: _PinForm(message: message),
+);
 
 class UserForm extends ConsumerStatefulWidget {
   const UserForm({super.key, this.user});
@@ -51,8 +50,7 @@ class _UserFormState extends ConsumerState<UserForm> {
 
   bool get _creating => widget.user == null;
 
-  static String _pct(double v) =>
-      v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toString().replaceAll('.', ',');
+  static String _pct(double v) => v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toString().replaceAll('.', ',');
 
   static double? _parsePct(String s) => s.trim().isEmpty ? 0 : double.tryParse(s.trim().replaceAll(',', '.'));
 
@@ -133,15 +131,9 @@ class _UserFormState extends ConsumerState<UserForm> {
     final roles = Role.values.where((r) => canAssignRole(actorRole, r) || r == _role).toList();
     final ownerGuard = widget.user == null
         ? null
-        : lastOwnerGuard(
-            users,
-            userId: widget.user!.id,
-            newRole: Role.cashier,
-            newActive: widget.user!.isActive,
-          );
+        : lastOwnerGuard(users, userId: widget.user!.id, newRole: Role.cashier, newActive: widget.user!.isActive);
     final roleLocked =
-        widget.user != null &&
-        ((!canAssignRole(actorRole, _role) && _role == Role.owner) || ownerGuard != null);
+        widget.user != null && ((!canAssignRole(actorRole, _role) && _role == Role.owner) || ownerGuard != null);
 
     String? pctValidator(String? v) {
       final p = _parsePct(v ?? '');
@@ -181,17 +173,13 @@ class _UserFormState extends ConsumerState<UserForm> {
                       validator: (v) {
                         final p = (v ?? '').trim();
                         if (p.isEmpty) return null;
-                        return RegExp(r'^\+?[0-9\s\-()]{5,20}$').hasMatch(p)
-                            ? null
-                            : 'Неверный формат телефона';
+                        return RegExp(r'^\+?[0-9\s\-()]{5,20}$').hasMatch(p) ? null : 'Неверный формат телефона';
                       },
                       onFieldSubmitted: (_) => _submit(),
                     ),
                     const SizedBox(height: Gap.m),
                     Tooltip(
-                      message: roleLocked
-                          ? (ownerGuard ?? 'Изменить роль владельца может только владелец')
-                          : '',
+                      message: roleLocked ? (ownerGuard ?? 'Изменить роль владельца может только владелец') : '',
                       child: DropdownButtonFormField<Role>(
                         isExpanded: true,
                         key: const ValueKey('user_role'),
@@ -206,7 +194,7 @@ class _UserFormState extends ConsumerState<UserForm> {
                       ),
                     ),
                     const SizedBox(height: Gap.l),
-                    Text('PIN для входа', style: t.textTheme.labelLarge),
+                    Text('PIN для входа', style: t.textTheme.titleSmall?.copyWith(color: t.colorScheme.primary)),
                     if (!_creating)
                       SwitchListTile(
                         contentPadding: EdgeInsets.zero,
@@ -224,7 +212,7 @@ class _UserFormState extends ConsumerState<UserForm> {
                           Expanded(
                             child: _pinField(
                               _pin2,
-                              'Повторите PIN *',
+                              'PIN ещё раз *',
                               key: const ValueKey('user_pin2'),
                               validator: (v) => v != _pin.text ? 'PIN не совпадает' : null,
                             ),
@@ -233,14 +221,14 @@ class _UserFormState extends ConsumerState<UserForm> {
                       ),
                       Padding(
                         padding: const EdgeInsets.only(top: Gap.xs),
-                        child: Text(
-                          '4–8 цифр, уникальный для каждого сотрудника',
-                          style: t.textTheme.bodySmall,
-                        ),
+                        child: Text('4–8 цифр, уникальный для каждого сотрудника', style: t.textTheme.bodySmall),
                       ),
                     ],
                     const SizedBox(height: Gap.l),
-                    Text('Ограничения и мотивация', style: t.textTheme.labelLarge),
+                    Text(
+                      'Ограничения и мотивация',
+                      style: t.textTheme.titleSmall?.copyWith(color: t.colorScheme.primary),
+                    ),
                     const SizedBox(height: Gap.s),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -295,10 +283,7 @@ class _UserFormState extends ConsumerState<UserForm> {
                 overflowAlignment: OverflowBarAlignment.end,
                 spacing: Gap.s,
                 children: [
-                  TextButton(
-                    onPressed: _busy ? null : () => Navigator.pop(context),
-                    child: const Text('Отмена'),
-                  ),
+                  TextButton(onPressed: _busy ? null : () => Navigator.pop(context), child: const Text('Отмена')),
                   FilledButton(
                     key: const ValueKey('user_save'),
                     onPressed: _busy ? null : _submit,

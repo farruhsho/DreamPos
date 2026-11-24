@@ -169,7 +169,7 @@ class OpenShiftDashboard extends ConsumerWidget {
         );
         final stats = LayoutBuilder(
           builder: (context, c) {
-            final cols = c.maxWidth >= 900
+            final cols = c.maxWidth >= 1100
                 ? 4
                 : c.maxWidth >= 520
                 ? 2
@@ -179,13 +179,17 @@ class OpenShiftDashboard extends ConsumerWidget {
               StatCard(
                 label: 'Продажи',
                 value: Money.format(r.salesTotal),
-                hint: '${r.salesCount} чек(ов) · средний ${Money.format(f.averageCheck)}',
+                hint:
+                    '${r.salesCount} ${pluralRu(r.salesCount, 'чек', 'чека', 'чеков')} · '
+                    'средний ${Money.format(f.averageCheck)}',
                 icon: Icons.shopping_cart_outlined,
               ),
               StatCard(
                 label: 'Возвраты',
                 value: Money.format(r.returnsTotal),
-                hint: '${r.returnsCount} шт.',
+                hint: r.returnsCount == 0
+                    ? 'Возвратов не было'
+                    : '${r.returnsCount} ${pluralRu(r.returnsCount, 'возврат', 'возврата', 'возвратов')}',
                 icon: Icons.undo,
                 color: AppColors.warning,
               ),
@@ -197,9 +201,9 @@ class OpenShiftDashboard extends ConsumerWidget {
                 color: AppColors.success,
               ),
               StatCard(
-                label: 'Наличные в кассе (ожид.)',
+                label: 'Ожидается в кассе',
                 value: Money.format(f.expectedCash),
-                hint: 'Размен ${Money.format(shift.openingCash)}',
+                hint: 'Наличные · размен ${Money.format(shift.openingCash)}',
                 icon: Icons.point_of_sale,
                 color: AppColors.info,
               ),
@@ -212,7 +216,7 @@ class OpenShiftDashboard extends ConsumerWidget {
           },
         );
         final report = SectionCard(
-          title: 'X-отчёт (текущие показатели)',
+          title: 'X-отчёт',
           trailing: PrintReportButton(shiftId: shift.id),
           child: ReportSectionsView(
             data: ZReportData(
@@ -276,12 +280,7 @@ class OpenShiftDashboard extends ConsumerWidget {
 }
 
 class _ShiftHeader extends StatefulWidget {
-  const _ShiftHeader({
-    required this.shift,
-    required this.openedBy,
-    required this.canClose,
-    required this.onClose,
-  });
+  const _ShiftHeader({required this.shift, required this.openedBy, required this.canClose, required this.onClose});
   final Shift shift;
   final String openedBy;
   final bool canClose;
@@ -332,7 +331,8 @@ class _ShiftHeaderState extends State<_ShiftHeader> {
         ),
         const SizedBox(height: 2),
         Text(
-          'Открыта ${formatDateTime(shift.openedAt)} · $openedBy · идёт $h ч $m мин',
+          'Открыта ${formatDateTime(shift.openedAt)} · $openedBy · '
+          '${dur.inMinutes < 1 ? 'только что' : 'идёт ${h > 0 ? '$h ч ' : ''}$m мин'}',
           style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant),
         ),
       ],
@@ -446,10 +446,7 @@ class _CashPanel extends ConsumerWidget {
                             child: Icon(cashKindIcon(m.kind), size: 18, color: cashKindColor(m.kind)),
                           ),
                           title: Text(
-                            [
-                              cashKindLabel(m.kind),
-                              if (m.expenseCategory != null) m.expenseCategory!,
-                            ].join(' · '),
+                            [cashKindLabel(m.kind), if (m.expenseCategory != null) m.expenseCategory!].join(' · '),
                           ),
                           subtitle: Text(
                             [

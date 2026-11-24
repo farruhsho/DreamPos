@@ -255,7 +255,7 @@ class _CategoriesManagerState extends ConsumerState<_CategoriesManager> {
                           : CategoryDot(color: c.color, size: 14),
                       title: Row(children: [
                         if (canEdit) ...[CategoryDot(color: c.color, size: 14), const SizedBox(width: Gap.s)],
-                        Flexible(child: Text(c.name, overflow: TextOverflow.ellipsis)),
+                        Flexible(child: Text(c.name, maxLines: 2, overflow: TextOverflow.ellipsis)),
                       ]),
                       subtitle: Text('Товаров: ${counts[c.id] ?? 0}'),
                       trailing: !canEdit

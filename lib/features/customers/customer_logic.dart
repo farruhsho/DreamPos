@@ -11,7 +11,7 @@ import '../../core/money.dart';
 enum CustomerSegment {
   all('Все'),
   debtors('Должники'),
-  overdue('Просроченный долг'),
+  overdue('Просрочка'),
   vip('VIP'),
   sleeping('Спящие'),
   birthdays('Именинники');

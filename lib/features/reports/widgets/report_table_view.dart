@@ -25,6 +25,7 @@ class ReportTableCard extends StatefulWidget {
   final bool initialAscending;
   final int pageSize;
   final String emptyText;
+
   /// Extra widget between the title and the table (filters, legend).
   final Widget? header;
 
@@ -36,6 +37,13 @@ class _ReportTableCardState extends State<ReportTableCard> {
   late int? _sort = widget.initialSort;
   late bool _asc = widget.initialAscending;
   late int _shown = widget.pageSize;
+  final _hScroll = ScrollController();
+
+  @override
+  void dispose() {
+    _hScroll.dispose();
+    super.dispose();
+  }
 
   @override
   void didUpdateWidget(covariant ReportTableCard old) {
@@ -73,84 +81,273 @@ class _ReportTableCardState extends State<ReportTableCard> {
     return SectionCard(
       title: table.title,
       trailing: ExportMenu(table: table),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        ?widget.header,
-        if (table.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: Gap.xl),
-            child: Center(
-                child: Text(widget.emptyText,
-                    style: t.textTheme.bodyMedium
-                        ?.copyWith(color: t.colorScheme.onSurfaceVariant))),
-          )
-        else
-          LayoutBuilder(builder: (context, c) {
-            return SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minWidth: c.maxWidth),
-                child: DataTable(
-                  sortColumnIndex: _sort,
-                  sortAscending: _asc,
-                  headingRowHeight: 40,
-                  dataRowMinHeight: 36,
-                  dataRowMaxHeight: 44,
-                  columnSpacing: 20,
-                  horizontalMargin: 8,
-                  headingTextStyle: t.textTheme.labelMedium?.copyWith(
-                      fontWeight: FontWeight.w600, color: t.colorScheme.onSurfaceVariant),
-                  columns: [
-                    for (var i = 0; i < table.columns.length; i++)
-                      DataColumn(
-                        label: Text(table.columns[i].title),
-                        tooltip: table.columns[i].tooltip,
-                        numeric: table.columns[i].numeric,
-                        onSort: (col, asc) => setState(() {
-                          if (_sort == col) {
-                            _asc = !_asc;
-                          } else {
-                            _sort = col;
-                            _asc = !table.columns[col].numeric;
-                          }
-                        }),
-                      ),
-                  ],
-                  rows: [
-                    for (final r in visible) DataRow(cells: [for (final c in r) _cell(c)]),
-                    if (table.totals != null && _shown >= rows.length)
-                      DataRow(
-                        color: WidgetStatePropertyAll(
-                            t.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5)),
-                        cells: [
-                          for (final c in table.totals!)
-                            DataCell(Text(c.text,
-                                style: const TextStyle(fontWeight: FontWeight.w700))),
-                        ],
-                      ),
-                  ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ?widget.header,
+          if (table.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: Gap.xl),
+              child: Center(
+                child: Text(
+                  widget.emptyText,
+                  style: t.textTheme.bodyMedium?.copyWith(color: t.colorScheme.onSurfaceVariant),
                 ),
               ),
-            );
-          }),
-        if (rows.length > _shown)
-          Padding(
-            padding: const EdgeInsets.only(top: Gap.s),
-            child: Center(
-              child: TextButton.icon(
-                onPressed: () => setState(() => _shown += 200),
-                icon: const Icon(Icons.expand_more),
-                label: Text('Показать ещё (показано ${visible.length} из ${rows.length})'),
+            )
+          else
+            LayoutBuilder(
+              builder: (context, c) {
+                // On phones a wide table would hide every number column behind a
+                // horizontal scroll: show each row as a compact card instead.
+                if (c.maxWidth < 560 && table.columns.length > 3) {
+                  return _compactList(context, table, rows, visible);
+                }
+                // Tablets: tighter columns so wide tables fit; when they still do
+                // not, an always-visible scrollbar shows that more columns exist.
+                final narrow = c.maxWidth < 1100;
+                return Scrollbar(
+                  controller: _hScroll,
+                  thumbVisibility: true,
+                  child: SingleChildScrollView(
+                    controller: _hScroll,
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.only(bottom: Gap.s),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(minWidth: c.maxWidth),
+                      child: DataTable(
+                        sortColumnIndex: _sort,
+                        sortAscending: _asc,
+                        headingRowHeight: 40,
+                        dataRowMinHeight: 36,
+                        dataRowMaxHeight: 44,
+                        columnSpacing: narrow ? 10 : 20,
+                        horizontalMargin: narrow ? 4 : 8,
+                        headingTextStyle: t.textTheme.labelMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: t.colorScheme.onSurfaceVariant,
+                        ),
+                        columns: [
+                          for (var i = 0; i < table.columns.length; i++)
+                            DataColumn(
+                              label: Text(table.columns[i].title),
+                              tooltip: table.columns[i].tooltip,
+                              numeric: table.columns[i].numeric,
+                              onSort: (col, asc) => setState(() {
+                                if (_sort == col) {
+                                  _asc = !_asc;
+                                } else {
+                                  _sort = col;
+                                  _asc = !table.columns[col].numeric;
+                                }
+                              }),
+                            ),
+                        ],
+                        rows: [
+                          for (final r in visible) DataRow(cells: [for (final c in r) _cell(c)]),
+                          if (table.totals != null && _shown >= rows.length)
+                            DataRow(
+                              color: WidgetStatePropertyAll(
+                                t.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                              ),
+                              cells: [
+                                for (final c in table.totals!)
+                                  DataCell(
+                                    Text(
+                                      c.text,
+                                      style: const TextStyle(fontWeight: FontWeight.w700),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          if (rows.length > _shown)
+            Padding(
+              padding: const EdgeInsets.only(top: Gap.s),
+              child: Center(
+                child: TextButton.icon(
+                  onPressed: () => setState(() => _shown += 200),
+                  icon: const Icon(Icons.expand_more),
+                  label: Text('Показать ещё (показано ${visible.length} из ${rows.length})'),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _sortBy(int col) => setState(() {
+    if (_sort == col) {
+      _asc = !_asc;
+    } else {
+      _sort = col;
+      _asc = !widget.table.columns[col].numeric;
+    }
+  });
+
+  /// Column shown as the row's headline value: the sorted one if numeric,
+  /// otherwise the first numeric column.
+  int? _primaryColumn(RTable table) {
+    final s = _sort;
+    if (s != null && s > 0 && s < table.columns.length && table.columns[s].numeric) return s;
+    // Otherwise the money column that matters most (not a receipt count).
+    for (final key in const ['чистая выручка', 'выручка', 'итого', 'продажи', 'сумма']) {
+      for (var i = 1; i < table.columns.length; i++) {
+        final col = table.columns[i];
+        if (col.numeric && col.title.toLowerCase().contains(key)) return i;
+      }
+    }
+    for (var i = 1; i < table.columns.length; i++) {
+      if (table.columns[i].numeric) return i;
+    }
+    return null;
+  }
+
+  Widget _compactList(
+    BuildContext context,
+    RTable table,
+    List<List<RCell>> rows,
+    List<List<RCell>> visible,
+  ) {
+    final t = Theme.of(context);
+    final primary = _primaryColumn(table);
+    final muted = t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant);
+    final sortLabel = _sort == null || _sort! >= table.columns.length
+        ? 'Без сортировки'
+        : table.columns[_sort!].title;
+
+    Widget item(List<RCell> r, {bool total = false}) {
+      final strong = TextStyle(fontWeight: total ? FontWeight.w700 : FontWeight.w600);
+      return Container(
+        color: total ? t.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5) : null,
+        padding: const EdgeInsets.symmetric(horizontal: Gap.s, vertical: Gap.s + 2),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    r.isEmpty ? '' : r[0].text,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: strong,
+                  ),
+                ),
+                if (primary != null && primary < r.length) ...[
+                  const SizedBox(width: Gap.s),
+                  Text(
+                    r[primary].text,
+                    style: strong.copyWith(
+                      color: r[primary].colorValue == null ? null : Color(r[primary].colorValue!),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: Gap.xs),
+            Wrap(
+              spacing: Gap.m,
+              runSpacing: 2,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                for (var i = 1; i < r.length && i < table.columns.length; i++)
+                  if (i != primary && r[i].text.isNotEmpty)
+                    r[i].chipColor != null
+                        ? StatusChip(r[i].text, color: Color(r[i].chipColor!))
+                        : Text.rich(
+                            TextSpan(
+                              style: muted,
+                              children: [
+                                TextSpan(text: '${table.columns[i].title}: '),
+                                TextSpan(
+                                  text: r[i].text,
+                                  style: TextStyle(
+                                    color: r[i].colorValue == null
+                                        ? t.colorScheme.onSurface
+                                        : Color(r[i].colorValue!),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: PopupMenuButton<int>(
+            tooltip: 'Сортировка',
+            onSelected: _sortBy,
+            itemBuilder: (_) => [
+              for (var i = 0; i < table.columns.length; i++)
+                CheckedPopupMenuItem(
+                  value: i,
+                  checked: _sort == i,
+                  child: Text(table.columns[i].title),
+                ),
+            ],
+            // 44px high: a comfortable thumb target on phones.
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 44),
+              padding: const EdgeInsets.symmetric(horizontal: Gap.s),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.sort, size: 18, color: t.colorScheme.primary),
+                  const SizedBox(width: Gap.xs),
+                  Flexible(
+                    child: Text(
+                      'Сортировка: $sortLabel',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: t.textTheme.labelLarge?.copyWith(color: t.colorScheme.primary),
+                    ),
+                  ),
+                  if (_sort != null)
+                    Icon(
+                      _asc ? Icons.arrow_upward : Icons.arrow_downward,
+                      size: 16,
+                      color: t.colorScheme.primary,
+                    ),
+                ],
               ),
             ),
           ),
-      ]),
+        ),
+        const Divider(height: Gap.s),
+        for (var i = 0; i < visible.length; i++) ...[
+          if (i > 0) const Divider(height: 1),
+          item(visible[i]),
+        ],
+        if (table.totals != null && _shown >= rows.length) ...[
+          const Divider(height: 1),
+          item(table.totals!, total: true),
+        ],
+      ],
     );
   }
 
   DataCell _cell(RCell c) {
     if (c.chipColor != null) return DataCell(StatusChip(c.text, color: Color(c.chipColor!)));
-    return DataCell(Text(c.text,
-        style: c.colorValue == null ? null : TextStyle(color: Color(c.colorValue!))));
+    return DataCell(
+      Text(c.text, style: c.colorValue == null ? null : TextStyle(color: Color(c.colorValue!))),
+    );
   }
 }
 
@@ -170,20 +367,29 @@ class ExportMenu extends ConsumerWidget {
       onSelected: (v) => _run(context, v, store),
       itemBuilder: (_) => const [
         PopupMenuItem(
-            value: 'copy',
-            child: ListTile(
-                leading: Icon(Icons.copy), title: Text('Копировать CSV'), dense: true)),
+          value: 'copy',
+          child: ListTile(leading: Icon(Icons.copy), title: Text('Копировать CSV'), dense: true),
+        ),
         PopupMenuItem(
-            value: 'csv',
-            child: ListTile(
-                leading: Icon(Icons.table_view), title: Text('Сохранить CSV (Excel)'), dense: true)),
+          value: 'csv',
+          child: ListTile(
+            leading: Icon(Icons.table_view),
+            title: Text('Сохранить CSV (Excel)'),
+            dense: true,
+          ),
+        ),
         PopupMenuItem(
-            value: 'pdf',
-            child: ListTile(
-                leading: Icon(Icons.picture_as_pdf), title: Text('Сохранить PDF'), dense: true)),
+          value: 'pdf',
+          child: ListTile(
+            leading: Icon(Icons.picture_as_pdf),
+            title: Text('Сохранить PDF'),
+            dense: true,
+          ),
+        ),
         PopupMenuItem(
-            value: 'print',
-            child: ListTile(leading: Icon(Icons.print), title: Text('Печать'), dense: true)),
+          value: 'print',
+          child: ListTile(leading: Icon(Icons.print), title: Text('Печать'), dense: true),
+        ),
       ],
     );
   }
@@ -191,16 +397,21 @@ class ExportMenu extends ConsumerWidget {
   Future<void> _run(BuildContext context, String action, String? store) async {
     switch (action) {
       case 'copy':
-        await runGuarded(context, () => Clipboard.setData(ClipboardData(text: table.toCsv())),
-            success: 'Таблица скопирована — вставьте в Excel или сообщение');
+        await runGuarded(
+          context,
+          () => Clipboard.setData(ClipboardData(text: table.toCsv())),
+          success: 'Таблица скопирована — вставьте в Excel или сообщение',
+        );
       case 'csv':
         String? path;
         final ok = await runGuarded(context, () async => path = await saveCsv(table));
         if (ok && context.mounted && path != null) await showSavedDialog(context, path!);
       case 'pdf':
         String? path;
-        final ok =
-            await runGuarded(context, () async => path = await savePdf(table, storeName: store));
+        final ok = await runGuarded(
+          context,
+          () async => path = await savePdf(table, storeName: store),
+        );
         if (ok && context.mounted && path != null) await showSavedDialog(context, path!);
       case 'print':
         await runGuarded(context, () async {
@@ -212,22 +423,21 @@ class ExportMenu extends ConsumerWidget {
 }
 
 Future<void> showSavedDialog(BuildContext context, String path) => showDialog<void>(
-      context: context,
-      builder: (c) => AlertDialog(
-        icon: const Icon(Icons.check_circle, color: AppColors.success),
-        title: const Text('Файл сохранён'),
-        content: SelectableText(path),
-        actions: [
-          TextButton.icon(
-            onPressed: () {
-              Clipboard.setData(ClipboardData(text: path));
-              Navigator.pop(c);
-            },
-            icon: const Icon(Icons.copy),
-            label: const Text('Копировать путь'),
-          ),
-          FilledButton(
-              autofocus: true, onPressed: () => Navigator.pop(c), child: const Text('Готово')),
-        ],
+  context: context,
+  builder: (c) => AlertDialog(
+    icon: const Icon(Icons.check_circle, color: AppColors.success),
+    title: const Text('Файл сохранён'),
+    content: SelectableText(path),
+    actions: [
+      TextButton.icon(
+        onPressed: () {
+          Clipboard.setData(ClipboardData(text: path));
+          Navigator.pop(c);
+        },
+        icon: const Icon(Icons.copy),
+        label: const Text('Копировать путь'),
       ),
-    );
+      FilledButton(autofocus: true, onPressed: () => Navigator.pop(c), child: const Text('Готово')),
+    ],
+  ),
+);

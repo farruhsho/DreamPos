@@ -67,21 +67,22 @@ class ZReportData {
       ReportSection('Смена', [
         ReportLine('Смена №', '${s.number}'),
         ReportLine('Открыта', '${formatDateTime(s.openedAt)} · $openedByName'),
-        if (s.closedAt != null)
-          ReportLine('Закрыта', '${formatDateTime(s.closedAt!)} · ${closedByName ?? '—'}'),
+        if (s.closedAt != null) ReportLine('Закрыта', '${formatDateTime(s.closedAt!)} · ${closedByName ?? '—'}'),
       ]),
       ReportSection('Продажи', [
         ReportLine('Чеков', '${r.salesCount}'),
         ReportLine('Сумма продаж', m(r.salesTotal), bold: true),
+        for (final k in methods)
+          ReportLine('в т.ч. ${paymentMethodLabel(k).toLowerCase()}', m(r.byMethod[k]!), indent: true),
         ReportLine('Скидки', m(r.discountTotal)),
         ReportLine('Средний чек', m(figures.averageCheck)),
         if (r.voidedCount > 0) ReportLine('Аннулировано чеков', '${r.voidedCount}'),
-        for (final k in methods) ReportLine(paymentMethodLabel(k), m(r.byMethod[k]!), indent: true),
       ]),
       ReportSection('Возвраты', [
         ReportLine('Возвратов', '${r.returnsCount}'),
         ReportLine('Сумма возвратов', m(r.returnsTotal), bold: true),
-        for (final k in refunds) ReportLine(paymentMethodLabel(k), m(r.refundsByMethod[k]!), indent: true),
+        for (final k in refunds)
+          ReportLine('в т.ч. ${paymentMethodLabel(k).toLowerCase()}', m(r.refundsByMethod[k]!), indent: true),
       ]),
       ReportSection('Итог', [
         ReportLine('Выручка (за вычетом возвратов)', m(figures.netRevenue), bold: true),
@@ -93,9 +94,12 @@ class ZReportData {
         ReportLine('Наличные продажи', m(r.cashSales)),
         ReportLine('Наличные возвраты', '−${m(r.cashRefunds)}'),
         for (final k in cashKinds)
-          if ((figures.movementsByKind[k] ?? 0) > 0)
+          if ((figures.movementsByKind[k] ?? 0) > 0) ...[
             ReportLine(cashKindLabel(k), '${cashKindIsIn(k) ? '+' : '−'}${m(figures.movementsByKind[k]!)}'),
-        for (final e in figures.expensesByCategory.entries) ReportLine(e.key, m(e.value), indent: true),
+            // Expense categories belong right under the "Расход" line.
+            if (k == 'expense')
+              for (final e in figures.expensesByCategory.entries) ReportLine(e.key, m(e.value), indent: true),
+          ],
         ReportLine('Погашение долгов (нал.)', m(r.debtCollectedCash)),
         if (r.debtCollectedNonCash > 0) ReportLine('Погашение долгов (безнал.)', m(r.debtCollectedNonCash)),
         if (r.supplierCashPaid > 0) ReportLine('Оплаты поставщикам', '−${m(r.supplierCashPaid)}'),

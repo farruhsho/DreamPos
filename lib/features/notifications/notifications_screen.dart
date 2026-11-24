@@ -279,7 +279,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(Gap.l, Gap.l, Gap.l, Gap.s),
             sliver: SliverToBoxAdapter(
-              child: Wrap(spacing: Gap.s, runSpacing: Gap.s, children: [
+              child: _filterBar(context, [
                 ChoiceChip(
                   label: Text('Все (${list.length})'),
                   selected: _filter == null,
@@ -334,9 +334,51 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     );
   }
 
+  /// Filter chips: wrap on wide screens; one horizontally scrolling line on
+  /// phones (two rows of chips pushed the list down).
+  Widget _filterBar(BuildContext context, List<Widget> chips) {
+    if (!context.isCompact) return Wrap(spacing: Gap.s, runSpacing: Gap.s, children: chips);
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      clipBehavior: Clip.none,
+      child: Row(children: [
+        for (var i = 0; i < chips.length; i++) ...[
+          if (i > 0) const SizedBox(width: Gap.s),
+          chips[i],
+        ],
+      ]),
+    );
+  }
+
   Widget _tile(BuildContext context, AppNotification n) {
     final t = Theme.of(context);
     final info = kindInfo(n.kind);
+    final hasBody = n.body != null && n.body!.isNotEmpty;
+    // Phones: the menu moves to the time line, so the title gets the full
+    // width of the card instead of wrapping into 3 short lines.
+    final compact = context.isCompact;
+    final time = Text(formatTime(n.createdAt),
+        style: t.textTheme.labelSmall?.copyWith(color: t.colorScheme.onSurfaceVariant));
+    final menu = PopupMenuButton<String>(
+      tooltip: 'Действия',
+      onSelected: (v) {
+        switch (v) {
+          case 'read':
+            runGuarded(context, () => _setRead([n.id], !n.isRead));
+          case 'open':
+            _open(n);
+          case 'delete':
+            _deleteWithUndo(n);
+        }
+      },
+      itemBuilder: (_) => [
+        if (info.route != null) const PopupMenuItem(value: 'open', child: Text('Перейти')),
+        PopupMenuItem(
+            value: 'read',
+            child: Text(n.isRead ? 'Отметить непрочитанным' : 'Отметить прочитанным')),
+        const PopupMenuItem(value: 'delete', child: Text('Удалить')),
+      ],
+    );
     return Dismissible(
       key: ValueKey(n.id),
       direction: DismissDirection.endToStart,
@@ -354,16 +396,18 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         clipBehavior: Clip.antiAlias,
         child: ListTile(
           onTap: () => _open(n),
-          contentPadding: const EdgeInsets.fromLTRB(Gap.l, Gap.xs, Gap.xs, Gap.xs),
+          contentPadding: EdgeInsets.fromLTRB(compact ? Gap.m : Gap.l, Gap.xs, Gap.xs, 0),
+          horizontalTitleGap: compact ? Gap.m : null,
           leading: CircleAvatar(
             backgroundColor: info.color.withValues(alpha: 0.12),
             child: Icon(info.icon, color: info.color),
           ),
-          title: Row(children: [
+          title: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             if (!n.isRead) ...[
               Container(
                 width: 8,
                 height: 8,
+                margin: const EdgeInsets.only(top: 7),
                 decoration: BoxDecoration(color: t.colorScheme.primary, shape: BoxShape.circle),
               ),
               const SizedBox(width: Gap.s),
@@ -373,33 +417,22 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                   style: TextStyle(fontWeight: n.isRead ? FontWeight.w400 : FontWeight.w700)),
             ),
           ]),
-          subtitle: Text(
-            [if (n.body != null && n.body!.isNotEmpty) n.body!, formatTime(n.createdAt)].join('\n'),
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-          ),
-          isThreeLine: n.body != null && n.body!.isNotEmpty,
-          trailing: PopupMenuButton<String>(
-            tooltip: 'Действия',
-            onSelected: (v) {
-              switch (v) {
-                case 'read':
-                  runGuarded(context, () => _setRead([n.id], !n.isRead));
-                case 'open':
-                  _open(n);
-                case 'delete':
-                  _deleteWithUndo(n);
-              }
-            },
-            itemBuilder: (_) => [
-              if (info.route != null)
-                const PopupMenuItem(value: 'open', child: Text('Перейти')),
-              PopupMenuItem(
-                  value: 'read',
-                  child: Text(n.isRead ? 'Отметить непрочитанным' : 'Отметить прочитанным')),
-              const PopupMenuItem(value: 'delete', child: Text('Удалить')),
+          // body is capped on its own, so the time line is never cut off
+          subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            if (hasBody) Text(n.body!, maxLines: 3, overflow: TextOverflow.ellipsis),
+            if (compact)
+              Row(children: [
+                Expanded(child: time),
+                SizedBox(width: 44, height: 44, child: menu),
+              ])
+            else ...[
+              const SizedBox(height: 2),
+              time,
+              const SizedBox(height: Gap.xs),
             ],
-          ),
+          ]),
+          titleAlignment: ListTileTitleAlignment.top,
+          trailing: compact ? null : menu,
         ),
       ),
     );

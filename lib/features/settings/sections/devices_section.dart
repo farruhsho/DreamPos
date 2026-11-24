@@ -39,18 +39,26 @@ class _RegistersCard extends ConsumerWidget {
     );
     if (result == null || !context.mounted) return;
     await runGuarded(
-        context,
-        () => upsertRegister(ref.read(databaseProvider),
-            id: r?.id, name: result.$1, isActive: result.$2, userId: currentUserId(ref)),
-        success: r == null ? 'Касса «${result.$1}» добавлена' : 'Касса сохранена');
+      context,
+      () => upsertRegister(
+        ref.read(databaseProvider),
+        id: r?.id,
+        name: result.$1,
+        isActive: result.$2,
+        userId: currentUserId(ref),
+      ),
+      success: r == null ? 'Касса «${result.$1}» добавлена' : 'Касса сохранена',
+    );
   }
 
   Future<void> _delete(BuildContext context, WidgetRef ref, Register r) async {
-    final ok = await confirm(context,
-        title: 'Удалить кассу «${r.name}»?',
-        message: 'Касса исчезнет из списка. Проданные на ней чеки и отчёты сохранятся.',
-        ok: 'Удалить',
-        destructive: true);
+    final ok = await confirm(
+      context,
+      title: 'Удалить кассу «${r.name}»?',
+      message: 'Касса исчезнет из списка. Проданные на ней чеки и отчёты сохранятся.',
+      ok: 'Удалить',
+      destructive: true,
+    );
     if (!ok || !context.mounted) return;
     final bound = ref.read(deviceRegisterProvider).value == r.id;
     await runGuarded(context, () async {
@@ -67,6 +75,7 @@ class _RegistersCard extends ConsumerWidget {
     return SectionCard(
       title: 'Кассы',
       trailing: FilledButton.tonalIcon(
+        style: const ButtonStyle(visualDensity: VisualDensity.compact),
         onPressed: regs.hasValue ? () => _edit(context, ref, all) : null,
         icon: const Icon(Icons.add),
         label: const Text('Добавить'),
@@ -77,34 +86,52 @@ class _RegistersCard extends ConsumerWidget {
         data: (list) => list.isEmpty
             ? const Padding(
                 padding: EdgeInsets.symmetric(vertical: Gap.m),
-                child: Text('Касс пока нет. Добавьте кассу, если в магазине несколько кассовых мест — '
-                    'тогда в отчётах будет видно, где пробит чек.'),
+                child: Text(
+                  'Касс пока нет. Добавьте кассу, если в магазине несколько кассовых мест — '
+                  'тогда в отчётах будет видно, где пробит чек.',
+                ),
               )
-            : Column(children: [
-                for (final r in list)
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(Icons.point_of_sale,
-                        color: r.isActive ? Theme.of(context).colorScheme.primary : Theme.of(context).disabledColor),
-                    title: Text(r.name),
-                    subtitle: Wrap(spacing: Gap.s, runSpacing: Gap.xs, children: [
-                      if (!r.isActive) const StatusChip('Отключена', color: AppColors.warning),
-                      if (r.id == deviceId) const StatusChip('Этот компьютер', color: AppColors.success),
-                    ]),
-                    onTap: () => _edit(context, ref, list, r),
-                    trailing: PopupMenuButton<String>(
-                      tooltip: 'Действия',
-                      onSelected: (v) => switch (v) {
-                        'edit' => _edit(context, ref, list, r),
-                        _ => _delete(context, ref, r),
-                      },
-                      itemBuilder: (_) => const [
-                        PopupMenuItem(value: 'edit', child: Text('Изменить')),
-                        PopupMenuItem(value: 'delete', child: Text('Удалить')),
-                      ],
+            : Column(
+                children: [
+                  for (final r in list)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        Icons.point_of_sale,
+                        color: r.isActive
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context).disabledColor,
+                      ),
+                      title: Text(r.name),
+                      subtitle: r.isActive && r.id != deviceId
+                          ? null
+                          : Padding(
+                              padding: const EdgeInsets.only(top: Gap.xs),
+                              child: Wrap(
+                                spacing: Gap.s,
+                                runSpacing: Gap.xs,
+                                children: [
+                                  if (!r.isActive) const StatusChip('Отключена', color: AppColors.warning),
+                                  if (r.id == deviceId)
+                                    const StatusChip('Этот компьютер', color: AppColors.success),
+                                ],
+                              ),
+                            ),
+                      onTap: () => _edit(context, ref, list, r),
+                      trailing: PopupMenuButton<String>(
+                        tooltip: 'Действия',
+                        onSelected: (v) => switch (v) {
+                          'edit' => _edit(context, ref, list, r),
+                          _ => _delete(context, ref, r),
+                        },
+                        itemBuilder: (_) => const [
+                          PopupMenuItem(value: 'edit', child: Text('Изменить')),
+                          PopupMenuItem(value: 'delete', child: Text('Удалить')),
+                        ],
+                      ),
                     ),
-                  ),
-              ]),
+                ],
+              ),
       ),
     );
   }
@@ -122,7 +149,8 @@ class _RegisterDialog extends StatefulWidget {
 class _RegisterDialogState extends State<_RegisterDialog> {
   final _form = GlobalKey<FormState>();
   late final _name = TextEditingController(
-      text: widget.register?.name ?? 'Касса ${widget.existing.length + 1}');
+    text: widget.register?.name ?? 'Касса ${widget.existing.length + 1}',
+  );
   late bool _active = widget.register?.isActive ?? true;
 
   @override
@@ -138,35 +166,38 @@ class _RegisterDialogState extends State<_RegisterDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-        title: Text(widget.register == null ? 'Новая касса' : 'Касса'),
-        content: SizedBox(
-          width: 380,
-          child: Form(
-            key: _form,
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              TextFormField(
-                controller: _name,
-                autofocus: true,
-                decoration: const InputDecoration(labelText: 'Название', hintText: 'Касса 1, Склад, Отдел №2'),
-                validator: (v) => validateRegisterName(v, widget.existing, selfId: widget.register?.id),
-                onFieldSubmitted: (_) => _submit(),
-              ),
-              const SizedBox(height: Gap.s),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Активна'),
-                subtitle: const Text('Отключённую кассу нельзя выбрать для работы'),
-                value: _active,
-                onChanged: (v) => setState(() => _active = v),
-              ),
-            ]),
-          ),
+    title: Text(widget.register == null ? 'Новая касса' : 'Касса'),
+    content: SizedBox(
+      width: 380,
+      child: Form(
+        key: _form,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextFormField(
+              controller: _name,
+              autofocus: true,
+              decoration: const InputDecoration(labelText: 'Название', hintText: 'Касса 1, Склад, Отдел №2'),
+              validator: (v) => validateRegisterName(v, widget.existing, selfId: widget.register?.id),
+              onFieldSubmitted: (_) => _submit(),
+            ),
+            const SizedBox(height: Gap.s),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Активна'),
+              subtitle: const Text('Отключённую кассу нельзя выбрать для работы'),
+              value: _active,
+              onChanged: (v) => setState(() => _active = v),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')),
-          FilledButton(onPressed: _submit, child: const Text('Сохранить')),
-        ],
-      );
+      ),
+    ),
+    actions: [
+      TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')),
+      FilledButton(onPressed: _submit, child: const Text('Сохранить')),
+    ],
+  );
 }
 
 class _ThisDeviceCard extends ConsumerWidget {
@@ -181,40 +212,53 @@ class _ThisDeviceCard extends ConsumerWidget {
     final valid = active.any((r) => r.id == current);
     return SectionCard(
       title: 'Этот компьютер',
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Text(
-          'Выберите, какой кассой работает это устройство. Настройка хранится только на этом '
-          'компьютере и не переносится на другие.',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        const SizedBox(height: Gap.m),
-        if (device.isLoading)
-          const LinearProgressIndicator()
-        else if (active.isEmpty)
-          const InfoBanner(text: 'Сначала добавьте хотя бы одну активную кассу.')
-        else
-          DropdownButtonFormField<String>(
-            key: ValueKey('device-$current-${active.length}'),
-            initialValue: valid ? current : null,
-            decoration: const InputDecoration(labelText: 'Касса этого устройства'),
-            hint: const Text('Не выбрана'),
-            items: [
-              for (final r in active) DropdownMenuItem(value: r.id, child: Text(r.name)),
-            ],
-            onChanged: (id) => runGuarded(context, () async {
-              await ref.read(deviceRegisterProvider.notifier).set(id);
-              await ref.read(databaseProvider).audit('register.bind_device',
-                  userId: currentUserId(ref), entity: 'registers', entityId: id);
-            }, success: 'Касса для этого устройства выбрана'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Выберите, какой кассой работает это устройство. Настройка хранится только на этом '
+            'компьютере и не переносится на другие.',
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
           ),
-        if (current != null && !valid && active.isNotEmpty) ...[
-          const SizedBox(height: Gap.s),
-          const InfoBanner(
+          const SizedBox(height: Gap.m),
+          if (device.isLoading)
+            const LinearProgressIndicator()
+          else if (active.isEmpty)
+            const InfoBanner(text: 'Сначала добавьте хотя бы одну активную кассу.')
+          else
+            NarrowField(
+              maxWidth: 480,
+              child: DropdownButtonFormField<String>(
+                key: ValueKey('device-$current-${active.length}'),
+                initialValue: valid ? current : null,
+                decoration: const InputDecoration(labelText: 'Касса этого устройства'),
+                hint: const Text('Не выбрана'),
+                items: [for (final r in active) DropdownMenuItem(value: r.id, child: Text(r.name))],
+                onChanged: (id) => runGuarded(context, () async {
+                  await ref.read(deviceRegisterProvider.notifier).set(id);
+                  await ref
+                      .read(databaseProvider)
+                      .audit(
+                        'register.bind_device',
+                        userId: currentUserId(ref),
+                        entity: 'registers',
+                        entityId: id,
+                      );
+                }, success: 'Касса для этого устройства выбрана'),
+              ),
+            ),
+          if (current != null && !valid && active.isNotEmpty) ...[
+            const SizedBox(height: Gap.s),
+            const InfoBanner(
               color: AppColors.warning,
               icon: Icons.warning_amber,
-              text: 'Ранее выбранная касса удалена или отключена — выберите другую.'),
+              text: 'Ранее выбранная касса удалена или отключена — выберите другую.',
+            ),
+          ],
         ],
-      ]),
+      ),
     );
   }
 }
@@ -223,19 +267,28 @@ class _ThisDeviceCard extends ConsumerWidget {
 Future<Uint8List> buildTestReceiptPdf(Map<String, String> settings, {DateTime? now}) async {
   final widthMm = settings[SettingKeys.receiptWidthMm] == '58' ? 58.0 : 80.0;
   final font = await PdfFonts.mono();
-  final text = sampleReceiptText(settings,
-      width: receiptCharsForWidth(settings[SettingKeys.receiptWidthMm]),
-      now: now,
-      title: 'ТЕСТОВАЯ ПЕЧАТЬ');
+  final text = sampleReceiptText(
+    settings,
+    width: receiptCharsForWidth(settings[SettingKeys.receiptWidthMm]),
+    now: now,
+    title: 'ТЕСТОВАЯ ПЕЧАТЬ',
+  );
   final doc = pw.Document();
-  doc.addPage(pw.Page(
-    pageFormat: PdfPageFormat(widthMm * PdfPageFormat.mm, double.infinity, marginAll: 3 * PdfPageFormat.mm),
-    build: (_) => pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-      pw.Text(text, style: pw.TextStyle(font: font, fontSize: widthMm >= 80 ? 8 : 7)),
-      pw.Text('Не является фискальным документом',
-          style: pw.TextStyle(font: font, fontSize: 7)),
-    ]),
-  ));
+  doc.addPage(
+    pw.Page(
+      pageFormat: PdfPageFormat(widthMm * PdfPageFormat.mm, double.infinity, marginAll: 3 * PdfPageFormat.mm),
+      build: (_) => pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+            text,
+            style: pw.TextStyle(font: font, fontSize: widthMm >= 80 ? 8 : 7),
+          ),
+          pw.Text('Не является фискальным документом', style: pw.TextStyle(font: font, fontSize: 7)),
+        ],
+      ),
+    ),
+  );
   return doc.save();
 }
 
@@ -268,24 +321,27 @@ class _PrinterCardState extends ConsumerState<_PrinterCard> {
     final w = ref.watch(settingProvider(SettingKeys.receiptWidthMm)) == '58' ? '58' : '80';
     return SectionCard(
       title: 'Принтер чеков',
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Text(
-          'Чек печатается через системный диалог печати. Установите драйвер принтера и выберите '
-          'его принтером по умолчанию. Ширина ленты сейчас: $w мм (меняется в разделе «Магазин»).',
-          style: Theme.of(context).textTheme.bodyMedium,
-        ),
-        const SizedBox(height: Gap.m),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: OutlinedButton.icon(
-            onPressed: _busy ? null : _print,
-            icon: _busy
-                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.print_outlined),
-            label: const Text('Напечатать тестовый чек'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Чек печатается через системный диалог печати. Установите драйвер принтера и выберите '
+            'его принтером по умолчанию. Ширина ленты сейчас: $w мм (меняется в разделе «Магазин»).',
+            style: Theme.of(context).textTheme.bodyMedium,
           ),
-        ),
-      ]),
+          const SizedBox(height: Gap.m),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: _busy ? null : _print,
+              icon: _busy
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.print_outlined),
+              label: const Text('Напечатать тестовый чек'),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -306,21 +362,30 @@ class _ScannerTipsCard extends StatelessWidget {
     final t = Theme.of(context);
     return SectionCard(
       title: 'Сканер штрихкодов',
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        for (final (i, s) in tips.indexed)
-          Padding(
-            padding: const EdgeInsets.only(bottom: Gap.s),
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              CircleAvatar(
-                radius: 11,
-                backgroundColor: t.colorScheme.primaryContainer,
-                child: Text('${i + 1}', style: TextStyle(fontSize: 11, color: t.colorScheme.onPrimaryContainer)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final (i, s) in tips.indexed)
+            Padding(
+              padding: const EdgeInsets.only(bottom: Gap.s),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CircleAvatar(
+                    radius: 11,
+                    backgroundColor: t.colorScheme.primaryContainer,
+                    child: Text(
+                      '${i + 1}',
+                      style: TextStyle(fontSize: 11, color: t.colorScheme.onPrimaryContainer),
+                    ),
+                  ),
+                  const SizedBox(width: Gap.m),
+                  Expanded(child: Text(s)),
+                ],
               ),
-              const SizedBox(width: Gap.m),
-              Expanded(child: Text(s)),
-            ]),
-          ),
-      ]),
+            ),
+        ],
+      ),
     );
   }
 }

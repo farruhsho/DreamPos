@@ -58,9 +58,7 @@ class _MotivationTabState extends ConsumerState<MotivationTab> {
         Text(monthTitle(_month), style: t.textTheme.titleMedium),
         IconButton(
           tooltip: 'Следующий месяц',
-          onPressed: _isCurrent
-              ? null
-              : () => setState(() => _month = DateTime(_month.year, _month.month + 1)),
+          onPressed: _isCurrent ? null : () => setState(() => _month = DateTime(_month.year, _month.month + 1)),
           icon: const Icon(Icons.chevron_right),
         ),
         if (!_isCurrent)
@@ -107,29 +105,35 @@ class _MotivationTabState extends ConsumerState<MotivationTab> {
               final plan = list.fold(0, (s, r) => s + r.plan);
               return ListView(
                 children: [
-                  Wrap(
-                    spacing: Gap.m,
-                    runSpacing: Gap.m,
-                    children: [
-                      SizedBox(
-                        width: 260,
-                        child: StatCard(
-                          label: 'Чистая выручка',
-                          value: Money.format(total),
-                          icon: Icons.payments_outlined,
-                          hint: plan > 0 ? 'План ${Money.format(plan)}' : null,
-                        ),
-                      ),
-                      SizedBox(
-                        width: 260,
-                        child: StatCard(
-                          label: 'Комиссия к выплате',
-                          value: Money.format(commission),
-                          icon: Icons.savings_outlined,
-                          color: AppColors.success,
-                        ),
-                      ),
-                    ],
+                  LayoutBuilder(
+                    builder: (context, c) {
+                      // Full-width cards on phones instead of a ragged 260px column.
+                      final w = c.maxWidth < 600 ? c.maxWidth : 260.0;
+                      return Wrap(
+                        spacing: Gap.m,
+                        runSpacing: Gap.m,
+                        children: [
+                          SizedBox(
+                            width: w,
+                            child: StatCard(
+                              label: 'Чистая выручка',
+                              value: Money.format(total),
+                              icon: Icons.payments_outlined,
+                              hint: plan > 0 ? 'План ${Money.format(plan)}' : null,
+                            ),
+                          ),
+                          SizedBox(
+                            width: w,
+                            child: StatCard(
+                              label: 'Комиссия к выплате',
+                              value: Money.format(commission),
+                              icon: Icons.savings_outlined,
+                              color: AppColors.success,
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
                   const SizedBox(height: Gap.m),
                   for (final (i, r) in list.indexed) ...[
@@ -170,16 +174,27 @@ class _MotivationCard extends StatelessWidget {
     };
     final role = Role.parse(row.user.role);
     final pct = NumberFormat('#0.#', 'ru');
-    final metrics = Wrap(
-      spacing: Gap.l,
-      runSpacing: Gap.xs,
-      children: [
-        _metric(context, 'Выручка', Money.format(row.netRevenue)),
-        if (row.refunds > 0) _metric(context, 'Возвраты', '−${Money.format(row.refunds)}'),
-        _metric(context, 'Чеков', '${row.receipts}'),
-        _metric(context, 'Средний чек', Money.format(row.averageCheck)),
-        _metric(context, 'Комиссия ${pct.format(row.user.commissionPercent)}%', Money.format(row.commission)),
-      ],
+    // Fixed-width columns so the same metric lines up across all employees
+    // (a free Wrap put "Чеков" at a different x in every card).
+    final metrics = LayoutBuilder(
+      builder: (context, box) {
+        final cols = box.maxWidth < 420 ? 2 : (box.maxWidth < 760 ? 3 : 5);
+        final w = cols == 5 ? 170.0 : (box.maxWidth - Gap.l * (cols - 1)) / cols;
+        return Wrap(
+          spacing: Gap.l,
+          runSpacing: Gap.s,
+          children: [
+            for (final (k, v) in [
+              ('Выручка', Money.format(row.netRevenue)),
+              ('Возвраты', row.refunds > 0 ? '−${Money.format(row.refunds)}' : '—'),
+              ('Чеков', '${row.receipts}'),
+              ('Средний чек', row.receipts > 0 ? Money.format(row.averageCheck) : '—'),
+              ('Комиссия ${pct.format(row.user.commissionPercent)}%', Money.format(row.commission)),
+            ])
+              SizedBox(width: w, child: _metric(context, k, v)),
+          ],
+        );
+      },
     );
     return Card(
       child: Padding(
@@ -208,10 +223,17 @@ class _MotivationCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                Text(
-                  c == null ? planText(row.plan) : '${(c * 100).toStringAsFixed(0)}%',
-                  style: t.textTheme.titleMedium?.copyWith(color: color, fontWeight: FontWeight.w700),
-                ),
+                if (c == null)
+                  // No plan is a neutral fact, not a call to action.
+                  Text(
+                    planText(row.plan),
+                    style: t.textTheme.bodyMedium?.copyWith(color: t.colorScheme.onSurfaceVariant),
+                  )
+                else
+                  Text(
+                    '${(c * 100).toStringAsFixed(0)}%',
+                    style: t.textTheme.titleMedium?.copyWith(color: color, fontWeight: FontWeight.w700),
+                  ),
               ],
             ),
             if (c != null) ...[
@@ -246,8 +268,13 @@ class _MotivationCard extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(k, style: t.bodySmall),
-        Text(v, style: t.titleSmall),
+        Text(k, style: t.bodySmall, maxLines: 1, overflow: TextOverflow.ellipsis),
+        Text(
+          v,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: t.titleSmall?.copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
+        ),
       ],
     );
   }

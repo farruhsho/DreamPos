@@ -75,6 +75,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> with SingleTickerProv
     ref.watch(settingsProvider); // keeps Money.currency in sync
     return PageScaffold(
       title: 'Чеки',
+      subtitle: 'История продаж и возвраты',
       padding: EdgeInsets.zero,
       bottom: TabBar(
         controller: _tabs,
@@ -193,13 +194,17 @@ class _SalesTabState extends ConsumerState<_SalesTab> with AutomaticKeepAliveCli
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),
-        if (totals != null) _TotalsBar(totals: totals),
+        if (totals != null && totals.count > 0) _TotalsBar(totals: totals),
         if (async.isLoading && _last != null) const LinearProgressIndicator(minHeight: 2),
         Expanded(child: _listBody(async, f)),
       ],
     );
 
     if (!wide) return list;
+    // a receipt hidden by the current search/filters must not linger in the
+    // detail pane next to "nothing found"
+    final shown = async.value ?? _last;
+    final visible = _selected != null && (shown == null || shown.any((r) => r.sale.id == _selected));
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -207,7 +212,7 @@ class _SalesTabState extends ConsumerState<_SalesTab> with AutomaticKeepAliveCli
         const VerticalDivider(width: 1),
         Expanded(
           flex: 6,
-          child: _selected == null
+          child: !visible
               ? const EmptyState(
                   icon: Icons.touch_app_outlined,
                   title: 'Выберите чек',
@@ -334,16 +339,33 @@ class _TotalsBar extends StatelessWidget {
   final SalesTotals totals;
 
   @override
+  Widget build(BuildContext context) => _TotalsStrip(
+    items: [
+      ('Чеков', '${totals.count}', null),
+      ('Продажи', Money.format(totals.gross), null),
+      if (totals.refunded > 0) ('Возвраты', '−${Money.format(totals.refunded)}', AppColors.danger),
+      ('Итого', Money.format(totals.net), AppColors.success),
+      if (totals.voided > 0) ('Аннулировано', '${totals.voided}', AppColors.danger),
+    ],
+  );
+}
+
+/// Compact summary strip above a list (label over bold value).
+class _TotalsStrip extends StatelessWidget {
+  const _TotalsStrip({required this.items});
+  final List<(String, String, Color?)> items;
+
+  @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
-    Widget item(String label, String value, {Color? color}) => Column(
+    Widget item(String label, String value, Color? color) => Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(label, style: t.textTheme.labelSmall?.copyWith(color: t.colorScheme.onSurfaceVariant)),
         Text(
           value,
-          style: TextStyle(fontWeight: FontWeight.w700, color: color),
+          style: t.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700, color: color),
         ),
       ],
     );
@@ -354,17 +376,7 @@ class _TotalsBar extends StatelessWidget {
         color: t.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(10),
       ),
-      child: Wrap(
-        spacing: Gap.xl,
-        runSpacing: Gap.s,
-        children: [
-          item('Чеков', '${totals.count}'),
-          item('Продажи', Money.format(totals.gross)),
-          if (totals.refunded > 0) item('Возвраты', '−${Money.format(totals.refunded)}', color: AppColors.danger),
-          item('Итого', Money.format(totals.net), color: AppColors.success),
-          if (totals.voided > 0) item('Аннулировано', '${totals.voided}', color: AppColors.danger),
-        ],
-      ),
+      child: Wrap(spacing: Gap.xl, runSpacing: Gap.s, children: [for (final (l, v, c) in items) item(l, v, c)]),
     );
   }
 }
@@ -405,12 +417,12 @@ class _SaleTile extends StatelessWidget {
         ],
       ),
       subtitle: Text(
-        [
+        _meta([
           ?row.cashierName,
           ?row.customerName,
           '${row.itemsCount} поз.',
           if (row.methods.isNotEmpty) row.methods.map(paymentMethodLabel).join(', '),
-        ].join(' · '),
+        ]),
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
       ),
@@ -420,7 +432,7 @@ class _SaleTile extends StatelessWidget {
         children: [
           Text(
             Money.format(s.total),
-            style: TextStyle(
+            style: t.textTheme.titleSmall?.copyWith(
               fontWeight: FontWeight.w700,
               decoration: s.status == 'voided' ? TextDecoration.lineThrough : null,
               color: s.status == 'voided' ? t.colorScheme.onSurfaceVariant : null,
@@ -516,20 +528,20 @@ class _ReturnsTabState extends ConsumerState<_ReturnsTab> with AutomaticKeepAliv
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
             subtitle: Text(
-              [
+              _meta([
                 formatDateTime(r.ret.createdAt),
                 paymentMethodLabel(r.ret.refundMethod),
                 ?r.userName,
                 ?r.customerName,
                 '${r.itemsCount} поз.',
                 if ((r.ret.reason ?? '').isNotEmpty) r.ret.reason!,
-              ].join(' · '),
+              ]),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
             trailing: Text(
               '−${Money.format(r.ret.total)}',
-              style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.danger),
+              style: t.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700, color: AppColors.danger),
             ),
             onTap: () {
               if (wide) {
@@ -538,7 +550,9 @@ class _ReturnsTabState extends ConsumerState<_ReturnsTab> with AutomaticKeepAliv
                   _selectedReturn = r.ret.id;
                 });
               } else {
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => SaleDetailPage(saleId: r.ret.saleId)));
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => SaleDetailPage(saleId: r.ret.saleId, focusReturnId: r.ret.id)),
+                );
               }
             },
           );
@@ -555,7 +569,7 @@ class _ReturnsTabState extends ConsumerState<_ReturnsTab> with AutomaticKeepAliv
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               SearchField(
-                hint: 'Номер возврата или чека, клиент, причина',
+                hint: 'Номер, клиент или причина',
                 onChanged: (v) => setState(() => _filter = _filter.copyWith(query: v)),
               ),
               const SizedBox(height: Gap.s),
@@ -594,12 +608,11 @@ class _ReturnsTabState extends ConsumerState<_ReturnsTab> with AutomaticKeepAliv
             ),
           ),
         if (totals != null && totals.count > 0)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(Gap.l, Gap.xs, Gap.l, Gap.s),
-            child: Text(
-              'Возвратов: ${totals.count} · на сумму ${Money.format(totals.sum)}',
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
+          _TotalsStrip(
+            items: [
+              ('Возвратов', '${totals.count}', null),
+              ('На сумму', '−${Money.format(totals.sum)}', AppColors.danger),
+            ],
           ),
         if (async.isLoading && _last != null) const LinearProgressIndicator(minHeight: 2),
         Expanded(child: body),
@@ -615,10 +628,24 @@ class _ReturnsTabState extends ConsumerState<_ReturnsTab> with AutomaticKeepAliv
         Expanded(
           flex: 6,
           child: _selectedSale == null
-              ? const EmptyState(icon: Icons.touch_app_outlined, title: 'Выберите возврат')
-              : SaleDetailView(key: ValueKey(_selectedSale), saleId: _selectedSale!),
+              ? const EmptyState(
+                  icon: Icons.touch_app_outlined,
+                  title: 'Выберите возврат',
+                  message: 'Здесь появятся чек, состав возврата и акт для печати',
+                )
+              : SaleDetailView(
+                  key: ValueKey(_selectedReturn),
+                  saleId: _selectedSale!,
+                  focusReturnId: _selectedReturn,
+                ),
         ),
       ],
     );
   }
 }
+
+/// Joins list-row details with " · ", keeping short values like "2 поз." and
+/// each separator glued to the next value, so a wrapped line never starts
+/// with a dot or splits a number from its unit.
+String _meta(List<String> parts) =>
+    parts.map((p) => p.length <= 12 ? p.replaceAll(' ', '\u00A0') : p).join('\u00A0· ');

@@ -25,12 +25,15 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
   CustomerQuery _q = const CustomerQuery();
   String? _selectedId;
   final _searchFocus = FocusNode();
+  // Owned here so «Сбросить фильтры» also clears the visible search text.
+  final _search = TextEditingController();
 
   static const _wideBreakpoint = 900.0;
 
   @override
   void dispose() {
     _searchFocus.dispose();
+    _search.dispose();
     super.dispose();
   }
 
@@ -112,6 +115,12 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                 onOpen: (id) => _open(id, wide),
                 onCreate: canEdit ? () => _create(wide) : null,
                 searchFocus: _searchFocus,
+                searchController: _search,
+                wide: wide,
+                onReset: () {
+                  _search.clear();
+                  setState(() => _q = CustomerQuery(sort: _q.sort));
+                },
               );
               if (!wide) return list;
               final selectedExists = _selectedId != null && customers.any((c) => c.id == _selectedId);
@@ -151,6 +160,9 @@ class _ListPane extends StatelessWidget {
     required this.onOpen,
     required this.onCreate,
     required this.searchFocus,
+    required this.searchController,
+    required this.wide,
+    required this.onReset,
   });
 
   final List<Customer> all;
@@ -162,6 +174,12 @@ class _ListPane extends StatelessWidget {
   final ValueChanged<String> onOpen;
   final VoidCallback? onCreate;
   final FocusNode searchFocus;
+  final TextEditingController searchController;
+
+  /// Master pane of the master-detail layout (mouse/tablet): segment chips
+  /// wrap instead of hiding behind a horizontal strip.
+  final bool wide;
+  final VoidCallback onReset;
 
   @override
   Widget build(BuildContext context) {
@@ -225,7 +243,8 @@ class _ListPane extends StatelessWidget {
           Expanded(
             child: SearchField(
               focusNode: searchFocus,
-              hint: 'Имя, телефон или карта (Ctrl+F)',
+              controller: searchController,
+              hint: wide ? 'Имя, телефон или карта (Ctrl+F)' : 'Имя, телефон, карта',
               onChanged: (v) => onQuery(query.copyWith(search: v)),
               onSubmitted: (_) {
                 if (filtered.length == 1) onOpen(filtered.first.id);
@@ -255,31 +274,42 @@ class _ListPane extends StatelessWidget {
             ),
         ]),
       ),
-      SizedBox(
-        height: 52,
-        child: ListView(
-          scrollDirection: Axis.horizontal,
+      LayoutBuilder(builder: (context, box) {
+        final chips = <Widget>[
+          for (final s in CustomerSegment.values)
+            Tooltip(
+              message: s.hint,
+              child: ChoiceChip(
+                label: Text(s == CustomerSegment.all ? s.label : '${s.label} ${count(s)}'),
+                selected: query.segment == s,
+                onSelected: (_) => onQuery(query.copyWith(segment: s)),
+              ),
+            ),
+          if (query.tag != null)
+            InputChip(
+              label: Text('#${query.tag}'),
+              onDeleted: () => onQuery(query.copyWith(tag: () => null)),
+            ),
+        ];
+        // Phones swipe through the segments; the master pane (mouse, tablet)
+        // shows all of them — a mouse cannot scroll a horizontal strip.
+        if (!wide) {
+          return SizedBox(
+            height: 52,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: Gap.l, vertical: Gap.s),
+              itemCount: chips.length,
+              separatorBuilder: (_, _) => const SizedBox(width: Gap.xs),
+              itemBuilder: (_, i) => chips[i],
+            ),
+          );
+        }
+        return Padding(
           padding: const EdgeInsets.symmetric(horizontal: Gap.l, vertical: Gap.s),
-          children: [
-            for (final s in CustomerSegment.values) ...[
-              Tooltip(
-                message: s.hint,
-                child: ChoiceChip(
-                  label: Text(s == CustomerSegment.all ? s.label : '${s.label} ${count(s)}'),
-                  selected: query.segment == s,
-                  onSelected: (_) => onQuery(query.copyWith(segment: s)),
-                ),
-              ),
-              const SizedBox(width: Gap.xs),
-            ],
-            if (query.tag != null)
-              InputChip(
-                label: Text('#${query.tag}'),
-                onDeleted: () => onQuery(query.copyWith(tag: () => null)),
-              ),
-          ],
-        ),
-      ),
+          child: Wrap(spacing: Gap.xs, runSpacing: Gap.xs, children: chips),
+        );
+      }),
       const Divider(),
       Expanded(child: _buildList(context, now)),
     ]);
@@ -302,8 +332,8 @@ class _ListPane extends StatelessWidget {
         icon: Icons.search_off,
         title: 'Никого не найдено',
         message: query.search.isNotEmpty ? 'Измените запрос или сбросьте фильтры' : query.segment.hint,
-        action: TextButton(
-            onPressed: () => onQuery(CustomerQuery(sort: query.sort)), child: const Text('Сбросить фильтры')),
+        action: OutlinedButton.icon(
+            onPressed: onReset, icon: const Icon(Icons.filter_alt_off_outlined), label: const Text('Сбросить фильтры')),
       );
     }
     return ListView.separated(
@@ -421,7 +451,12 @@ class _CustomerTile extends StatelessWidget {
           ),
         ],
       ]),
-      subtitle: Text(line1.isEmpty ? line2 : '$line1\n$line2', maxLines: 2, overflow: TextOverflow.ellipsis),
+      // Each line ellipsizes on its own, so a long phone/card line never
+      // pushes the purchases summary out of a narrow master pane.
+      subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        if (line1.isNotEmpty) Text(line1, maxLines: 1, overflow: TextOverflow.ellipsis),
+        Text(line2, maxLines: 1, overflow: TextOverflow.ellipsis),
+      ]),
       isThreeLine: line1.isNotEmpty,
       trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
         if (c.debtBalance > 0)

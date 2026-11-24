@@ -33,16 +33,27 @@ class WriteOffTab extends ConsumerWidget {
       child: WriteOffForm(pickProduct: () => pickProduct(context, title: 'Что списываем?')),
     );
     final recent = SectionCard(title: 'Списания за 30 дней', child: const _Recent());
-    return LayoutBuilder(builder: (context, c) {
-      if (c.maxWidth >= 1000) {
-        return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Expanded(child: SingleChildScrollView(child: form)),
-          const SizedBox(width: Gap.l),
-          Expanded(child: SingleChildScrollView(child: recent)),
-        ]);
-      }
-      return ListView(children: [form, const SizedBox(height: Gap.l), recent]);
-    });
+    return LayoutBuilder(
+      builder: (context, c) {
+        if (c.maxWidth >= 1000) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: SingleChildScrollView(child: form)),
+              const SizedBox(width: Gap.l),
+              Expanded(child: SingleChildScrollView(child: recent)),
+            ],
+          );
+        }
+        return ListView(
+          children: [
+            form,
+            const SizedBox(height: Gap.l),
+            recent,
+          ],
+        );
+      },
+    );
   }
 }
 
@@ -57,25 +68,28 @@ class _Recent extends ConsumerWidget {
       value: ref.watch(_recentWriteOffsProvider),
       data: (list) {
         if (list.isEmpty) {
-          return const Padding(
-            padding: EdgeInsets.all(Gap.l),
-            child: Text('Списаний за последние 30 дней не было'),
-          );
+          return const Padding(padding: EdgeInsets.all(Gap.l), child: Text('Списаний за последние 30 дней не было'));
         }
         final total = list.fold<int>(0, (s, m) => s + lineValue(-m.qty, m.unitCost));
-        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          if (canCost)
-            Text('Всего по себестоимости: ${Money.format(total)}',
-                style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.danger)),
-          const SizedBox(height: Gap.s),
-          for (final m in list.take(100))
-            MovementTile(
-              m: m,
-              unit: products[m.productId]?.unit ?? 'pcs',
-              productName: products[m.productId]?.name ?? '—',
-              userName: users[m.userId],
-            ),
-        ]);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (canCost)
+              Text(
+                'Всего по себестоимости: ${Money.format(total)}',
+                style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.danger),
+              ),
+            const SizedBox(height: Gap.s),
+            for (final m in list.take(100))
+              MovementTile(
+                m: m,
+                unit: products[m.productId]?.unit ?? 'pcs',
+                productName: products[m.productId]?.name ?? '—',
+                userName: users[m.userId],
+                showType: false,
+              ),
+          ],
+        );
       },
     );
   }

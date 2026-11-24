@@ -202,22 +202,42 @@ class _Detail extends ConsumerWidget {
       LayoutBuilder(builder: (context, c) {
         final cols = c.maxWidth >= 560 ? 3 : 2;
         final w = (c.maxWidth - Gap.s * (cols - 1)) / cols;
+        // Narrow cards: the icon tile would eat the label ("Продано за …").
+        final showIcons = w >= 230;
         final s = stats.value;
+        // Every card carries a hint line so cards in a row have equal height.
+        String? daysAgo(DateTime? d) {
+          if (d == null) return 'приходов не было';
+          final days = DateTime.now().difference(d).inDays;
+          return days <= 0 ? 'сегодня' : '$days дн. назад';
+        }
+
         final cards = <Widget>[
-          StatCard(label: 'Цена', value: Money.format(p.price), icon: Icons.sell_outlined),
+          StatCard(
+            label: 'Цена',
+            value: Money.format(p.price),
+            hint: p.wholesalePrice != null
+                ? 'опт. ${Money.format(p.wholesalePrice!)}'
+                : 'за 1 ${Qty.unitLabel(p.unit)}',
+            icon: showIcons ? Icons.sell_outlined : null,
+          ),
           if (canCost)
             StatCard(
               label: 'Себестоимость',
               value: Money.format(p.costPrice),
               hint: 'маржа ${formatPercent(margin)}',
-              icon: Icons.account_balance_wallet_outlined,
+              icon: showIcons ? Icons.account_balance_wallet_outlined : null,
               color: margin != null && margin < 0 ? AppColors.danger : AppColors.info,
             ),
           StatCard(
             label: 'Остаток',
             value: p.trackStock ? fmtQty(p.stockQty)! : '—',
-            hint: p.minStock > 0 ? 'мин. ${fmtQty(p.minStock)}' : null,
-            icon: Icons.warehouse_outlined,
+            hint: !p.trackStock
+                ? 'без учёта'
+                : p.minStock > 0
+                    ? 'мин. ${fmtQty(p.minStock)}'
+                    : 'минимум не задан',
+            icon: showIcons ? Icons.warehouse_outlined : null,
             color: switch (stockLevel(p)) {
               StockLevel.out || StockLevel.negative => AppColors.danger,
               StockLevel.low => AppColors.warning,
@@ -225,21 +245,23 @@ class _Detail extends ConsumerWidget {
             },
           ),
           StatCard(
-            label: 'Продано за 30 дней',
+            label: 'Продано',
             value: s == null ? '…' : fmtQty(s.soldQty)!,
-            hint: s == null ? null : 'чеков: ${s.receipts}',
-            icon: Icons.shopping_bag_outlined,
+            hint: s == null ? 'за 30 дней' : 'за 30 дней · чеков: ${s.receipts}',
+            icon: showIcons ? Icons.shopping_bag_outlined : null,
           ),
           StatCard(
-            label: 'Выручка за 30 дней',
+            label: 'Выручка',
             value: s == null ? '…' : Money.format(s.revenue),
-            icon: Icons.payments_outlined,
+            hint: 'за 30 дней',
+            icon: showIcons ? Icons.payments_outlined : null,
             color: AppColors.success,
           ),
           StatCard(
             label: 'Последний приход',
-            value: s == null ? '…' : (s.lastReceiptAt == null ? 'не было' : formatDate(s.lastReceiptAt!)),
-            icon: Icons.local_shipping_outlined,
+            value: s == null ? '…' : (s.lastReceiptAt == null ? '—' : formatDate(s.lastReceiptAt!)),
+            hint: s == null ? ' ' : daysAgo(s.lastReceiptAt),
+            icon: showIcons ? Icons.local_shipping_outlined : null,
             color: AppColors.info,
           ),
         ];

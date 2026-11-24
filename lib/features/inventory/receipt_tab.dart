@@ -12,9 +12,9 @@ import 'inventory_logic.dart';
 
 class _Line {
   _Line(this.product)
-      : qty = TextEditingController(text: '1'),
-        cost = TextEditingController(text: Money.toInput(product.costPrice)),
-        price = TextEditingController();
+    : qty = TextEditingController(text: '1'),
+      cost = TextEditingController(text: Money.toInput(product.costPrice)),
+      price = TextEditingController();
   final Product product;
   final TextEditingController qty;
   final TextEditingController cost;
@@ -65,7 +65,7 @@ class _ReceiptTabState extends ConsumerState<ReceiptTab> {
       final existing = _lines.where((l) => l.product.id == p.id).firstOrNull;
       if (existing != null) {
         final q = (existing.q ?? 0) + 1;
-        existing.qty.text = Qty.format(q).replaceAll(',', '.');
+        existing.qty.text = Qty.format(q);
       } else {
         _lines.add(_Line(p));
       }
@@ -91,14 +91,19 @@ class _ReceiptTabState extends ConsumerState<ReceiptTab> {
   }
 
   void _remove(_Line l) => setState(() {
-        _lines.remove(l);
-        l.dispose();
-      });
+    _lines.remove(l);
+    l.dispose();
+  });
 
   Future<void> _clear() async {
     if (_lines.isEmpty) return;
-    final ok = await confirm(context,
-        title: 'Очистить документ?', message: 'Все позиции будут удалены из документа.', ok: 'Очистить', destructive: true);
+    final ok = await confirm(
+      context,
+      title: 'Очистить документ?',
+      message: 'Все позиции будут удалены из документа.',
+      ok: 'Очистить',
+      destructive: true,
+    );
     if (!ok) return;
     setState(() {
       for (final l in _lines) {
@@ -124,11 +129,14 @@ class _ReceiptTabState extends ConsumerState<ReceiptTab> {
     }
     final sup = suppliers.where((s) => s.id == _supplierId).firstOrNull;
     final total = _total;
-    final ok = await confirm(context,
-        title: 'Провести приход?',
-        message: 'Позиций: ${_lines.length}\nСумма: ${Money.format(total)}'
-            '${sup != null ? '\n\nДолг перед «${sup.name}» увеличится на ${Money.format(total)}' : ''}',
-        ok: 'Провести');
+    final ok = await confirm(
+      context,
+      title: 'Провести приход?',
+      message:
+          'Позиций: ${_lines.length}\nСумма: ${Money.format(total)}'
+          '${sup != null ? '\n\nДолг перед «${sup.name}» увеличится на ${Money.format(total)}' : ''}',
+      ok: 'Провести',
+    );
     if (!ok || !mounted) return;
     setState(() => _busy = true);
     final canPrices = ref.read(sessionProvider)?.can(Perm.editPrices) ?? false;
@@ -138,12 +146,15 @@ class _ReceiptTabState extends ConsumerState<ReceiptTab> {
     ];
     final done = await runGuarded(
       context,
-      () => ref.read(inventoryRepoProvider).postReceipt(
-          lines: lines,
-          supplierId: _supplierId,
-          userId: ref.read(sessionProvider)?.user.id,
-          note: _note.text,
-          canEditPrices: canPrices),
+      () => ref
+          .read(inventoryRepoProvider)
+          .postReceipt(
+            lines: lines,
+            supplierId: _supplierId,
+            userId: ref.read(sessionProvider)?.user.id,
+            note: _note.text,
+            canEditPrices: canPrices,
+          ),
       success: 'Приход проведён: ${lines.length} поз. на ${Money.format(total)}',
     );
     if (!mounted) return;
@@ -159,110 +170,217 @@ class _ReceiptTabState extends ConsumerState<ReceiptTab> {
     });
   }
 
+  /// Phones: total on its own line, then two equal full-width buttons.
+  Widget _compactFooter(ThemeData t, List<Supplier> suppliers) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Итого: ${Money.format(_total)}',
+                style: t.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              ),
+            ),
+            Text('позиций ${_lines.length}', style: t.textTheme.bodyMedium),
+          ],
+        ),
+        const SizedBox(height: Gap.s),
+        Row(
+          children: [
+            Expanded(
+              flex: 2,
+              child: OutlinedButton(onPressed: _lines.isEmpty || _busy ? null : _clear, child: const Text('Очистить')),
+            ),
+            const SizedBox(width: Gap.s),
+            Expanded(
+              flex: 3,
+              child: FilledButton.icon(
+                onPressed: _lines.isEmpty || _busy ? null : () => _post(suppliers),
+                icon: _busy
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.check),
+                label: const Text('Провести приход'),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
     final session = ref.watch(sessionProvider);
     final canPrices = session?.can(Perm.editPrices) ?? false;
     final suppliers = ref.watch(invSuppliersProvider).value ?? const <Supplier>[];
-    final header = LayoutBuilder(builder: (context, c) {
-      final narrow = c.maxWidth < 700;
-      final sup = DropdownButtonFormField<String?>(
-        key: ValueKey('sup$_supplierId${suppliers.length}'),
-        initialValue: suppliers.any((s) => s.id == _supplierId) ? _supplierId : null,
-        isExpanded: true,
-        decoration: const InputDecoration(
-            labelText: 'Поставщик', helperText: 'Если указан, сумма прихода добавится к долгу поставщику'),
-        items: [
-          const DropdownMenuItem(value: null, child: Text('Без поставщика')),
-          for (final s in suppliers) DropdownMenuItem(value: s.id, child: Text(s.name, overflow: TextOverflow.ellipsis)),
-        ],
-        onChanged: (v) => setState(() => _supplierId = v),
-      );
-      final note = TextField(
-          controller: _note, decoration: const InputDecoration(labelText: 'Комментарий (накладная №, дата…)'));
-      final scan = TextField(
-        controller: _scan,
-        focusNode: _scanFocus,
-        autofocus: true,
-        decoration: const InputDecoration(
-            labelText: 'Сканируйте штрихкод или введите артикул',
-            prefixIcon: Icon(Icons.qr_code_scanner)),
-        onSubmitted: _onScan,
-      );
-      final pick = FilledButton.tonalIcon(onPressed: _pick, icon: const Icon(Icons.add), label: const Text('Добавить товар'));
-      if (narrow) {
-        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          sup,
-          const SizedBox(height: Gap.s),
-          note,
-          const SizedBox(height: Gap.m),
-          scan,
-          const SizedBox(height: Gap.s),
-          pick,
-        ]);
-      }
-      return Column(children: [
-        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Expanded(child: sup),
-          const SizedBox(width: Gap.m),
-          Expanded(child: note),
-        ]),
-        const SizedBox(height: Gap.m),
-        Row(children: [Expanded(child: scan), const SizedBox(width: Gap.m), pick]),
-      ]);
-    });
+    final header = LayoutBuilder(
+      builder: (context, c) {
+        final narrow = c.maxWidth < 700;
+        final sup = DropdownButtonFormField<String?>(
+          key: ValueKey('sup$_supplierId${suppliers.length}'),
+          initialValue: suppliers.any((s) => s.id == _supplierId) ? _supplierId : null,
+          isExpanded: true,
+          decoration: const InputDecoration(
+            labelText: 'Поставщик',
+            helperText: 'Если указан, сумма прихода добавится к долгу поставщику',
+            helperMaxLines: 2,
+          ),
+          items: [
+            const DropdownMenuItem(value: null, child: Text('Без поставщика')),
+            for (final s in suppliers)
+              DropdownMenuItem(
+                value: s.id,
+                child: Text(s.name, overflow: TextOverflow.ellipsis),
+              ),
+          ],
+          onChanged: (v) => setState(() => _supplierId = v),
+        );
+        // Shorter labels on phones, where the long ones were cut off.
+        final note = TextField(
+          controller: _note,
+          decoration: narrow
+              ? const InputDecoration(labelText: 'Комментарий', hintText: 'накладная №, дата')
+              : const InputDecoration(labelText: 'Комментарий (накладная №, дата…)'),
+        );
+        final scan = TextField(
+          controller: _scan,
+          focusNode: _scanFocus,
+          autofocus: true,
+          decoration: InputDecoration(
+            labelText: narrow ? 'Штрихкод или артикул' : 'Сканируйте штрихкод или введите артикул',
+            prefixIcon: const Icon(Icons.qr_code_scanner),
+          ),
+          onSubmitted: _onScan,
+        );
+        final pick = FilledButton.tonalIcon(
+          onPressed: _pick,
+          icon: const Icon(Icons.add),
+          label: const Text('Добавить товар'),
+        );
+        if (narrow) {
+          // Scan field and the add button share a row (icon-only on phones) so
+          // the document lines start higher on the screen.
+          final compactPick = IconButton.filledTonal(
+            tooltip: 'Добавить товар',
+            onPressed: _pick,
+            icon: const Icon(Icons.add),
+            style: IconButton.styleFrom(minimumSize: const Size(52, 52)),
+          );
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              sup,
+              const SizedBox(height: Gap.s),
+              note,
+              const SizedBox(height: Gap.m),
+              Row(
+                children: [
+                  Expanded(child: scan),
+                  const SizedBox(width: Gap.s),
+                  compactPick,
+                ],
+              ),
+            ],
+          );
+        }
+        return Column(
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: sup),
+                const SizedBox(width: Gap.m),
+                Expanded(child: note),
+              ],
+            ),
+            const SizedBox(height: Gap.m),
+            Row(
+              children: [
+                Expanded(child: scan),
+                const SizedBox(width: Gap.m),
+                pick,
+              ],
+            ),
+          ],
+        );
+      },
+    );
 
     return Form(
       key: _formKey,
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Expanded(
-          child: ListView(children: [
-            header,
-            const SizedBox(height: Gap.l),
-            if (_lines.isEmpty)
-              const EmptyState(
-                  icon: Icons.move_to_inbox_outlined,
-                  title: 'Документ пуст',
-                  message: 'Отсканируйте товар или нажмите «Добавить товар». '
-                      'Для приёмки по заказу поставщику используйте раздел «Закупки».')
-            else
-              for (var i = 0; i < _lines.length; i++)
-                _LineRow(
-                  key: _lines[i].key,
-                  index: i + 1,
-                  line: _lines[i],
-                  canPrices: canPrices,
-                  onChanged: () => setState(() {}),
-                  onRemove: () => _remove(_lines[i]),
-                ),
-          ]),
-        ),
-        const Divider(),
-        Padding(
-          padding: const EdgeInsets.only(top: Gap.m),
-          child: Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: Gap.m,
-            runSpacing: Gap.s,
-            children: [
-              Text('Итого: ${Money.format(_total)}  ·  позиций ${_lines.length}',
-                  style: t.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-              Wrap(spacing: Gap.s, children: [
-                OutlinedButton(onPressed: _lines.isEmpty || _busy ? null : _clear, child: const Text('Очистить')),
-                FilledButton.icon(
-                  onPressed: _lines.isEmpty || _busy ? null : () => _post(suppliers),
-                  icon: _busy
-                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Icon(Icons.check),
-                  label: const Text('Провести приход'),
-                ),
-              ]),
-            ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.only(top: Gap.s),
+              children: [
+                header,
+                const SizedBox(height: Gap.l),
+                if (_lines.isEmpty)
+                  const EmptyState(
+                    icon: Icons.move_to_inbox_outlined,
+                    title: 'Документ пуст',
+                    message:
+                        'Отсканируйте товар или нажмите «Добавить товар». '
+                        'Для приёмки по заказу поставщику используйте раздел «Закупки».',
+                  )
+                else
+                  for (var i = 0; i < _lines.length; i++)
+                    _LineRow(
+                      key: _lines[i].key,
+                      index: i + 1,
+                      line: _lines[i],
+                      canPrices: canPrices,
+                      onChanged: () => setState(() {}),
+                      onRemove: () => _remove(_lines[i]),
+                    ),
+              ],
+            ),
           ),
-        ),
-      ]),
+          const Divider(),
+          Padding(
+            padding: const EdgeInsets.only(top: Gap.m),
+            child: context.isCompact
+                ? _compactFooter(t, suppliers)
+                : Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: Gap.m,
+                    runSpacing: Gap.s,
+                    children: [
+                      Text(
+                        'Итого: ${Money.format(_total)}  ·  позиций ${_lines.length}',
+                        style: t.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      Wrap(
+                        spacing: Gap.s,
+                        children: [
+                          OutlinedButton(
+                            onPressed: _lines.isEmpty || _busy ? null : _clear,
+                            child: const Text('Очистить'),
+                          ),
+                          FilledButton.icon(
+                            onPressed: _lines.isEmpty || _busy ? null : () => _post(suppliers),
+                            icon: _busy
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : const Icon(Icons.check),
+                            label: const Text('Провести приход'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -311,10 +429,11 @@ class _LineRow extends StatelessWidget {
       enabled: canPrices,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       decoration: InputDecoration(
-          labelText: 'Новая розн. цена',
-          hintText: Money.toInput(p.price),
-          suffixText: Money.currency.symbol,
-          helperText: canPrices ? null : 'Нет права менять цены'),
+        labelText: 'Новая цена',
+        hintText: Money.toInput(p.price),
+        suffixText: Money.currency.symbol,
+        helperText: canPrices ? null : 'Нет права менять цены',
+      ),
       onChanged: (_) => onChanged(),
       validator: (v) {
         if ((v ?? '').trim().isEmpty) return null;
@@ -326,45 +445,111 @@ class _LineRow extends StatelessWidget {
     final margin = line.c != null && line.c! > 0 ? ((line.newPrice ?? p.price) - line.c!) * 100 / line.c! : null;
     final total = Text(Money.format(line.total), style: const TextStyle(fontWeight: FontWeight.w700));
     final remove = IconButton(onPressed: onRemove, icon: const Icon(Icons.delete_outline), tooltip: 'Удалить строку');
-    final title = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('$index. ${p.name}', maxLines: 2, overflow: TextOverflow.ellipsis, style: t.textTheme.bodyLarge),
-      Text(
+    final title = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('$index. ${p.name}', maxLines: 2, overflow: TextOverflow.ellipsis, style: t.textTheme.bodyLarge),
+        Text(
           'Остаток ${Qty.format(p.stockQty, p.unit)} · розн. ${Money.format(p.price)}'
           '${margin != null ? ' · наценка ${margin.toStringAsFixed(0)}%' : ''}',
           style: t.textTheme.bodySmall?.copyWith(
-              color: margin != null && margin < 0 ? AppColors.danger : t.colorScheme.onSurfaceVariant)),
-    ]);
+            color: margin != null && margin < 0 ? AppColors.danger : t.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
     return Card(
       margin: const EdgeInsets.only(bottom: Gap.s),
       child: Padding(
         padding: const EdgeInsets.all(Gap.m),
-        child: LayoutBuilder(builder: (context, c) {
-          if (c.maxWidth >= 900) {
-            return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Expanded(flex: 4, child: title),
-              const SizedBox(width: Gap.m),
-              SizedBox(width: 120, child: qty),
-              const SizedBox(width: Gap.m),
-              SizedBox(width: 150, child: cost),
-              const SizedBox(width: Gap.m),
-              SizedBox(width: 160, child: price),
-              const SizedBox(width: Gap.m),
-              SizedBox(width: 130, child: Padding(padding: const EdgeInsets.only(top: 14), child: Align(alignment: Alignment.centerRight, child: total))),
-              remove,
-            ]);
-          }
-          return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Row(children: [Expanded(child: title), remove]),
-            const SizedBox(height: Gap.s),
-            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Expanded(child: qty),
-              const SizedBox(width: Gap.s),
-              Expanded(child: cost),
-            ]),
-            const SizedBox(height: Gap.s),
-            Row(children: [Expanded(child: price), const SizedBox(width: Gap.m), total]),
-          ]);
-        }),
+        child: LayoutBuilder(
+          builder: (context, c) {
+            if (c.maxWidth >= 900) {
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(flex: 4, child: title),
+                  const SizedBox(width: Gap.m),
+                  SizedBox(width: 120, child: qty),
+                  const SizedBox(width: Gap.m),
+                  SizedBox(width: 150, child: cost),
+                  const SizedBox(width: Gap.m),
+                  SizedBox(width: 160, child: price),
+                  const SizedBox(width: Gap.m),
+                  SizedBox(
+                    width: 130,
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 14),
+                      child: Align(alignment: Alignment.centerRight, child: total),
+                    ),
+                  ),
+                  remove,
+                ],
+              );
+            }
+            if (c.maxWidth >= 560) {
+              // Tablet: title on top, all inputs + line total in one row.
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(child: title),
+                      remove,
+                    ],
+                  ),
+                  const SizedBox(height: Gap.s),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(flex: 2, child: qty),
+                      const SizedBox(width: Gap.s),
+                      Expanded(flex: 3, child: cost),
+                      const SizedBox(width: Gap.s),
+                      Expanded(flex: 3, child: price),
+                      const SizedBox(width: Gap.m),
+                      SizedBox(
+                        width: 120,
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 14),
+                          child: Align(alignment: Alignment.centerRight, child: total),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(child: title),
+                    remove,
+                  ],
+                ),
+                const SizedBox(height: Gap.s),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: qty),
+                    const SizedBox(width: Gap.s),
+                    Expanded(child: cost),
+                  ],
+                ),
+                const SizedBox(height: Gap.s),
+                Row(
+                  children: [
+                    Expanded(child: price),
+                    const SizedBox(width: Gap.m),
+                    total,
+                  ],
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }

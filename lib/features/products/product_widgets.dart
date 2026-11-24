@@ -136,7 +136,13 @@ class ProductRow extends StatelessWidget {
     ]);
 
     final leading = selectionMode
-        ? Checkbox(value: checked, onChanged: (v) => onCheck(v ?? false))
+        ? Checkbox(
+            value: checked,
+            onChanged: (v) => onCheck(v ?? false),
+            // Keep the row height unchanged when selection mode toggles.
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            visualDensity: VisualDensity.compact,
+          )
         : Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: CategoryDot(color: category?.color, size: 12),
@@ -171,6 +177,7 @@ class ProductRow extends StatelessWidget {
               ]),
             );
           }
+          final cols = _TableCols.of(c.maxWidth);
           return Padding(
             padding: const EdgeInsets.symmetric(horizontal: Gap.m, vertical: Gap.s + 2),
             child: Row(children: [
@@ -184,28 +191,39 @@ class ProductRow extends StatelessWidget {
                 ]),
               ),
               SizedBox(
-                width: 120,
+                width: cols.price,
                 child: Text(Money.format(p.price),
                     textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.w700)),
               ),
               if (showCost) ...[
                 SizedBox(
-                    width: 110,
+                    width: cols.cost,
                     child: Text(Money.format(p.costPrice), textAlign: TextAlign.right, style: muted)),
                 SizedBox(
-                  width: 70,
+                  width: cols.margin,
                   child: Text(formatPercent(margin),
                       textAlign: TextAlign.right,
                       style: TextStyle(color: marginColor, fontWeight: FontWeight.w500)),
                 ),
               ],
-              SizedBox(width: 110, child: Align(alignment: Alignment.centerRight, child: StockBadge(p))),
+              SizedBox(width: cols.stock, child: Align(alignment: Alignment.centerRight, child: StockBadge(p))),
             ]),
           );
         }),
       ),
     );
   }
+}
+
+/// Numeric column widths of the wide table. On very wide panes (full-width
+/// list on a desktop) the columns grow, so the numbers are not crammed to the
+/// right edge with a large empty gap after the product name.
+class _TableCols {
+  const _TableCols(this.price, this.cost, this.margin, this.stock);
+  final double price, cost, margin, stock;
+
+  static _TableCols of(double width) =>
+      width >= 1200 ? const _TableCols(170, 160, 110, 140) : const _TableCols(120, 110, 70, 110);
 }
 
 /// Header of the wide table layout.
@@ -220,18 +238,19 @@ class ProductTableHeader extends StatelessWidget {
     final s = t.textTheme.labelMedium?.copyWith(color: t.colorScheme.onSurfaceVariant);
     return LayoutBuilder(builder: (context, c) {
       if (c.maxWidth < 680) return const SizedBox.shrink();
+      final cols = _TableCols.of(c.maxWidth);
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: Gap.m, vertical: Gap.s),
         child: Row(children: [
           SizedBox(width: 40, child: Center(child: leading)),
           const SizedBox(width: Gap.s),
           Expanded(child: Text('Товар', style: s)),
-          SizedBox(width: 120, child: Text('Цена', textAlign: TextAlign.right, style: s)),
+          SizedBox(width: cols.price, child: Text('Цена', textAlign: TextAlign.right, style: s)),
           if (showCost) ...[
-            SizedBox(width: 110, child: Text('Себест.', textAlign: TextAlign.right, style: s)),
-            SizedBox(width: 70, child: Text('Маржа', textAlign: TextAlign.right, style: s)),
+            SizedBox(width: cols.cost, child: Text('Себест.', textAlign: TextAlign.right, style: s)),
+            SizedBox(width: cols.margin, child: Text('Маржа', textAlign: TextAlign.right, style: s)),
           ],
-          SizedBox(width: 110, child: Text('Остаток', textAlign: TextAlign.right, style: s)),
+          SizedBox(width: cols.stock, child: Text('Остаток', textAlign: TextAlign.right, style: s)),
         ]),
       );
     });

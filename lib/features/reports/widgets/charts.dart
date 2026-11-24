@@ -95,7 +95,8 @@ class SimpleBarChart extends StatelessWidget {
           for (var i = 0; i < data.length; i++)
             Expanded(
               child: Text(
-                i % every == 0 || i == data.length - 1 && every == 1 ? data[i].label : '',
+                // thinned from the end so the latest bar (today) is always labelled
+                (data.length - 1 - i) % every == 0 ? data[i].label : '',
                 style: labelStyle,
                 textAlign: TextAlign.center,
                 maxLines: 1,
@@ -195,7 +196,9 @@ class HourHeatmap extends StatelessWidget {
     final labelStyle = t.textTheme.labelSmall?.copyWith(color: t.colorScheme.onSurfaceVariant);
     return LayoutBuilder(builder: (context, c) {
       const labelW = 28.0;
-      final cell = ((c.maxWidth - labelW) / hours.length).clamp(16.0, 40.0);
+      // fills the card width on desktop instead of a small block at the left
+      final cell = ((c.maxWidth - labelW) / hours.length).clamp(16.0, 160.0);
+      final cellH = cell >= 60 ? 28.0 : 22.0;
       final grid = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           const SizedBox(width: labelW),
@@ -206,14 +209,19 @@ class HourHeatmap extends StatelessWidget {
         ]),
         for (var wd = 0; wd < 7; wd++)
           Row(children: [
-            SizedBox(width: labelW, child: Text(weekdayShort[wd], style: labelStyle)),
+            SizedBox(
+                width: labelW,
+                height: cellH + 2,
+                child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(weekdayShort[wd], style: labelStyle))),
             for (final h in hours)
               Tooltip(
                 message: tooltip(wd + 1, h, values[wd][h]),
                 waitDuration: const Duration(milliseconds: 150),
                 child: Container(
                   width: cell - 2,
-                  height: 22,
+                  height: cellH,
                   margin: const EdgeInsets.all(1),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(3),
@@ -262,3 +270,12 @@ class DeltaBadge extends StatelessWidget {
     ]);
   }
 }
+
+/// Payment method colors, shared by the dashboard and the payments report.
+Color? paymentMethodColor(String method) => switch (method) {
+      'cash' => AppColors.success,
+      'card' => AppColors.info,
+      'transfer' => AppColors.brand,
+      'debt' => AppColors.warning,
+      _ => null,
+    };

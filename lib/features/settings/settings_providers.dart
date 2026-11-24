@@ -12,34 +12,40 @@ import 'backup_service.dart';
 import 'settings_logic.dart';
 
 /// Documents directory resolver (overridden in tests with a temp dir).
-final settingsDocumentsDirProvider =
-    Provider<Future<Directory> Function()>((ref) => getApplicationDocumentsDirectory);
+final settingsDocumentsDirProvider = Provider<Future<Directory> Function()>(
+  (ref) => getApplicationDocumentsDirectory,
+);
 
 /// Path of the live database file (overridden in tests).
 final settingsDbPathProvider = Provider<Future<String> Function()>((ref) => DbLocation.dbPath);
 
-final backupServiceProvider = Provider<BackupService>((ref) => BackupService(
-    ref.watch(databaseProvider), ref.watch(settingsDocumentsDirProvider),
-    dbPath: ref.watch(settingsDbPathProvider)));
+final backupServiceProvider = Provider<BackupService>(
+  (ref) => BackupService(
+    ref.watch(databaseProvider),
+    ref.watch(settingsDocumentsDirProvider),
+    dbPath: ref.watch(settingsDbPathProvider),
+  ),
+);
 
 final backupsListProvider = FutureProvider.autoDispose<List<BackupInfo>>(
-    (ref) => ref.watch(backupServiceProvider).list());
+  (ref) => ref.watch(backupServiceProvider).list(),
+);
 
 final pendingRestoreProvider = FutureProvider.autoDispose<bool>(
-    (ref) => ref.watch(backupServiceProvider).hasPendingRestore());
+  (ref) => ref.watch(backupServiceProvider).hasPendingRestore(),
+);
 
 final databasePathProvider = FutureProvider.autoDispose<String>(
-    (ref) async => (await ref.watch(backupServiceProvider).databaseFile()).path);
+  (ref) async => (await ref.watch(backupServiceProvider).databaseFile()).path,
+);
 
 /// True once any sale exists -> currency is locked.
-final hasSalesProvider =
-    StreamProvider<bool>((ref) => watchHasAnySale(ref.watch(databaseProvider)));
+final hasSalesProvider = StreamProvider<bool>((ref) => watchHasAnySale(ref.watch(databaseProvider)));
 
 final activeProductCountProvider = StreamProvider<int>((ref) {
   final db = ref.watch(databaseProvider);
   return db
-      .customSelect('SELECT COUNT(*) AS c FROM products WHERE deleted_at IS NULL',
-          readsFrom: {db.products})
+      .customSelect('SELECT COUNT(*) AS c FROM products WHERE deleted_at IS NULL', readsFrom: {db.products})
       .watchSingle()
       .map((r) => r.read<int>('c'));
 });
@@ -72,8 +78,9 @@ class DeviceRegisterNotifier extends AsyncNotifier<String?> {
   }
 }
 
-final deviceRegisterProvider =
-    AsyncNotifierProvider<DeviceRegisterNotifier, String?>(DeviceRegisterNotifier.new);
+final deviceRegisterProvider = AsyncNotifierProvider<DeviceRegisterNotifier, String?>(
+  DeviceRegisterNotifier.new,
+);
 
 class Diagnostics {
   Diagnostics(this.platform, this.dbSize, this.counts);
@@ -84,7 +91,11 @@ class Diagnostics {
 
 String platformLabel() {
   try {
-    return '${Platform.operatingSystem} ${Platform.operatingSystemVersion}';
+    // Windows reports `"Майкрософт Windows 11 Pro" 10.0 (Build 26200)`:
+    // drop the quotes and don't repeat the OS name when it is already there.
+    final v = Platform.operatingSystemVersion.replaceAll('"', '').trim();
+    final os = Platform.operatingSystem;
+    return v.toLowerCase().contains(os) ? v : '$os $v';
   } catch (_) {
     return 'unknown';
   }
@@ -96,5 +107,4 @@ final diagnosticsProvider = FutureProvider.autoDispose<Diagnostics>((ref) async 
 });
 
 /// Install date (created on first open of the settings).
-final installedAtProvider = FutureProvider<DateTime>(
-    (ref) => ensureInstalledAt(ref.watch(databaseProvider)));
+final installedAtProvider = FutureProvider<DateTime>((ref) => ensureInstalledAt(ref.watch(databaseProvider)));

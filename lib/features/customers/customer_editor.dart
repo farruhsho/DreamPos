@@ -235,6 +235,7 @@ class _CustomerEditorState extends ConsumerState<CustomerEditor> {
                       prefixIcon: const Icon(Icons.phone_outlined),
                       helperText: _dupes.isEmpty ? null : 'Уже есть: ${_dupes.map((d) => d.name).join(', ')}',
                       helperStyle: const TextStyle(color: AppColors.warning),
+                      helperMaxLines: 2,
                     ),
                     validator: (v) {
                       final d = (v ?? '').replaceAll(RegExp(r'\D'), '');
@@ -262,7 +263,13 @@ class _CustomerEditorState extends ConsumerState<CustomerEditor> {
                       labelText: 'Номер карты',
                       prefixIcon: const Icon(Icons.credit_card),
                       errorText: _cardError,
-                      suffixIcon: TextButton(onPressed: _generateCard, child: const Text('Сгенерировать')),
+                      // An icon button: a text button ate half the field and
+                      // truncated the label to «Номер кар…» on an empty field.
+                      suffixIcon: IconButton(
+                        tooltip: 'Сгенерировать номер карты',
+                        onPressed: _generateCard,
+                        icon: const Icon(Icons.autorenew),
+                      ),
                     ),
                     onChanged: (_) {
                       if (_cardError != null) setState(() => _cardError = null);
@@ -299,7 +306,8 @@ class _CustomerEditorState extends ConsumerState<CustomerEditor> {
                           labelText: 'Персональная скидка',
                           suffixText: '%',
                           prefixIcon: Icon(Icons.percent),
-                          helperText: 'Не суммируется с акциями: берётся лучшая'),
+                          helperText: 'Не суммируется с акциями: берётся лучшая',
+                          helperMaxLines: 2),
                       validator: (v) {
                         final p = _parsePercent(v ?? '');
                         if (p == null) return 'Введите число';

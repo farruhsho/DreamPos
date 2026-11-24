@@ -228,7 +228,6 @@ class _DashboardBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final wide = MediaQuery.sizeOf(context).width >= Breakpoints.medium;
     final kpis = _Kpis(now: now);
     final chart = _RevenueChart(now: now);
     final side = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -239,38 +238,79 @@ class _DashboardBody extends ConsumerWidget {
     final top = _TopProducts(now: now);
     final pays = _PaymentSplit(now: now);
     const recent = _RecentReceipts();
+    const gapV = SizedBox(height: Gap.m);
+    const gapH = SizedBox(width: Gap.m);
 
-    return ListView(padding: const EdgeInsets.all(Gap.l), children: [
-      kpis,
-      const SizedBox(height: Gap.m),
-      if (wide) ...[
-        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Expanded(flex: 2, child: chart),
-          const SizedBox(width: Gap.m),
-          Expanded(child: side),
-        ]),
-        const SizedBox(height: Gap.m),
-        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Expanded(child: top),
-          const SizedBox(width: Gap.m),
-          Expanded(child: pays),
-          const SizedBox(width: Gap.m),
-          const Expanded(child: recent),
-        ]),
-      ] else ...[
-        side,
-        const SizedBox(height: Gap.m),
-        chart,
-        const SizedBox(height: Gap.m),
-        top,
-        const SizedBox(height: Gap.m),
-        pays,
-        const SizedBox(height: Gap.m),
-        recent,
-      ],
-    ]);
+    return LayoutBuilder(builder: (context, c) {
+      // content width (without the navigation rail), not the window width
+      final w = c.maxWidth;
+      final List<Widget> sections;
+      if (w >= 1150) {
+        sections = [
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(flex: 2, child: chart),
+            gapH,
+            Expanded(child: side),
+          ]),
+          gapV,
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(child: top),
+            gapH,
+            Expanded(child: pays),
+            gapH,
+            const Expanded(child: recent),
+          ]),
+        ];
+      } else if (w >= 720) {
+        // tablet: three narrow columns would truncate product names
+        sections = [
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(flex: 3, child: chart),
+            gapH,
+            Expanded(flex: 2, child: side),
+          ]),
+          gapV,
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(child: top),
+            gapH,
+            Expanded(child: pays),
+          ]),
+          gapV,
+          recent,
+        ];
+      } else {
+        sections = [side, gapV, chart, gapV, top, gapV, pays, gapV, recent];
+      }
+      return ListView(padding: const EdgeInsets.all(Gap.l), children: [
+        Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1600),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [kpis, gapV, ...sections],
+            ),
+          ),
+        ),
+      ]);
+    });
   }
 }
+
+/// Single-column (phone) layout: cards are stacked, so header controls can
+/// keep full 48px touch targets instead of compact ones.
+bool _isPhone(BuildContext context) => MediaQuery.sizeOf(context).width < 720;
+
+/// Compact text button for [SectionCard] headers (keeps header heights even
+/// side by side); a full-size touch target on phones.
+Widget _headerLink(BuildContext context, String label, VoidCallback? onPressed) => TextButton(
+      onPressed: onPressed,
+      style: TextButton.styleFrom(
+        visualDensity: VisualDensity.compact,
+        tapTargetSize:
+            _isPhone(context) ? MaterialTapTargetSize.padded : MaterialTapTargetSize.shrinkWrap,
+      ),
+      child: Text(label),
+    );
 
 ReportPeriod _today(DateTime now) => ReportPeriod.preset(PeriodPreset.today, now: now);
 
@@ -295,7 +335,7 @@ class _Kpis extends ConsumerWidget {
       value: today,
       data: (s) {
         String? y(int? v) => v == null ? null : 'вчера к этому часу: ${Money.format(v)}';
-        return ResponsiveGrid(minTile: 160, maxColumns: 5, children: [
+        return ResponsiveGrid(minTile: 160, maxColumns: 5, stretchLast: true, children: [
           KpiTile(
             key: const ValueKey('kpi-revenue'),
             label: 'Выручка сегодня',
@@ -363,10 +403,7 @@ class _RevenueChart extends ConsumerWidget {
     final session = ref.watch(sessionProvider);
     return SectionCard(
       title: 'Выручка за 14 дней',
-      trailing: TextButton(
-        onPressed: _nav(context, session, '/reports'),
-        child: const Text('Подробнее'),
-      ),
+      trailing: _headerLink(context, 'Подробнее', _nav(context, session, '/reports')),
       child: AsyncView<List<DayPoint>>(
         value: days,
         data: (list) {
@@ -533,7 +570,14 @@ class _AlertTile extends StatelessWidget {
               backgroundColor: color.withValues(alpha: 0.12),
               child: Icon(icon, color: color),
             ),
-            title: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis),
+            // same weight as the other card titles (shift card, sections)
+            title: Text(title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context)
+                    .textTheme
+                    .titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w600)),
             subtitle: Text(subtitle),
             trailing: onTap == null ? null : const Icon(Icons.chevron_right),
           ),
@@ -564,7 +608,11 @@ class _TopProductsState extends ConsumerState<_TopProducts> {
       title: 'Топ-5 товаров',
       trailing: SegmentedButton<bool>(
         showSelectedIcon: false,
-        style: const ButtonStyle(visualDensity: VisualDensity.compact),
+        style: ButtonStyle(
+          visualDensity: VisualDensity.compact,
+          tapTargetSize:
+              _isPhone(context) ? MaterialTapTargetSize.padded : MaterialTapTargetSize.shrinkWrap,
+        ),
         segments: const [
           ButtonSegment(value: false, label: Text('Сегодня')),
           ButtonSegment(value: true, label: Text('7 дн.')),
@@ -610,20 +658,12 @@ class _PaymentSplit extends ConsumerWidget {
               ShareItem(paymentMethodLabel(r.method), r.net,
                   trailing:
                       '${Money.format(r.net)} · ${total == 0 ? 0 : (r.net * 100 / total).round()}%',
-                  color: _methodColor(r.method)),
+                  color: paymentMethodColor(r.method)),
           ]);
         },
       ),
     );
   }
-
-  Color? _methodColor(String m) => switch (m) {
-        'cash' => AppColors.success,
-        'card' => AppColors.info,
-        'transfer' => AppColors.brand,
-        'debt' => AppColors.warning,
-        _ => null,
-      };
 }
 
 class _RecentReceipts extends ConsumerWidget {
@@ -636,7 +676,7 @@ class _RecentReceipts extends ConsumerWidget {
     final t = Theme.of(context);
     return SectionCard(
       title: 'Последние чеки',
-      trailing: TextButton(onPressed: _nav(context, session, '/sales'), child: const Text('Все')),
+      trailing: _headerLink(context, 'Все чеки', _nav(context, session, '/sales')),
       child: AsyncView<List<RecentSale>>(
         value: rows,
         data: (list) {

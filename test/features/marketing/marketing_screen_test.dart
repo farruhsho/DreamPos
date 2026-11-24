@@ -75,7 +75,7 @@ void main() {
 
     await tester.tap(find.text('Рассылки'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Должники'));
+    await tester.tap(find.textContaining(RegExp(r'^Должники \d')));
     await tester.pumpAndSettle();
     expect(find.text('Должник Иван'), findsOneWidget);
     expect(find.text('Копировать телефоны (1)'), findsOneWidget);
@@ -122,7 +122,7 @@ void main() {
     for (final tab in ['Сертификаты', 'Лояльность', 'Рассылки']) {
       await openTab(tab);
     }
-    expect(find.text('Именинники'), findsOneWidget);
+    expect(find.textContaining(RegExp(r'^Именинники \d')), findsOneWidget);
     await openTab('Сертификаты');
     await tester.tap(find.text('Выпустить'));
     await tester.pumpAndSettle();

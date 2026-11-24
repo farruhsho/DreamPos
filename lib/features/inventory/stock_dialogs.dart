@@ -36,11 +36,15 @@ class _QuickReceiptState extends ConsumerState<_QuickReceipt> {
     setState(() => _busy = true);
     final q = QtyField.parse(_qty.text)!;
     final ok = await runGuarded(
-        context,
-        () => ref.read(inventoryRepoProvider).postReceipt(
+      context,
+      () => ref
+          .read(inventoryRepoProvider)
+          .postReceipt(
             lines: [ReceiptLine(product: widget.p, qty: q, unitCost: _cost ?? widget.p.costPrice)],
-            userId: _uid(ref)),
-        success: 'Оприходовано ${Qty.format(q, widget.p.unit)}');
+            userId: _uid(ref),
+          ),
+      success: 'Оприходовано ${Qty.format(q, widget.p.unit)}',
+    );
     if (!mounted) return;
     setState(() => _busy = false);
     if (ok) Navigator.pop(context);
@@ -53,25 +57,30 @@ class _QuickReceiptState extends ConsumerState<_QuickReceipt> {
       key: _key,
       child: Padding(
         padding: const EdgeInsets.all(Gap.xl),
-        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text('Текущий остаток: ${Qty.format(widget.p.stockQty, widget.p.unit)}'),
-          const SizedBox(height: Gap.m),
-          QtyField(controller: _qty, unit: widget.p.unit, autofocus: true, onSubmitted: (_) => _save()),
-          const SizedBox(height: Gap.m),
-          if (canCost)
-            MoneyField(
-              label: 'Цена закупки за ед. *',
-              initial: widget.p.costPrice,
-              required: true,
-              onChanged: (v) => _cost = v,
-              onSubmitted: (_) => _save(),
-            ),
-          const SizedBox(height: Gap.l),
-          FilledButton.icon(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Текущий остаток: ${Qty.format(widget.p.stockQty, widget.p.unit)}'),
+            const SizedBox(height: Gap.m),
+            QtyField(controller: _qty, unit: widget.p.unit, autofocus: true, onSubmitted: (_) => _save()),
+            const SizedBox(height: Gap.m),
+            if (canCost)
+              MoneyField(
+                label: 'Цена закупки за ед. *',
+                initial: widget.p.costPrice,
+                required: true,
+                onChanged: (v) => _cost = v,
+                onSubmitted: (_) => _save(),
+              ),
+            const SizedBox(height: Gap.l),
+            FilledButton.icon(
               onPressed: _busy ? null : _save,
               icon: const Icon(Icons.add_box_outlined),
-              label: const Text('Оприходовать')),
-        ]),
+              label: const Text('Оприходовать'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -123,20 +132,23 @@ class _WriteOffFormState extends ConsumerState<WriteOffForm> {
     }
     final q = _q!;
     final value = lineValue(q, p.costPrice);
-    final ok = await confirm(context,
-        title: 'Списать товар?',
-        message: '${p.name}\n${Qty.format(q, p.unit)} на сумму ${Money.format(value)} (по себестоимости)\n'
-            'Причина: $_reason',
-        ok: 'Списать',
-        destructive: true);
+    final ok = await confirm(
+      context,
+      title: 'Списать товар?',
+      message:
+          '${p.name}\n${Qty.format(q, p.unit)} на сумму ${Money.format(value)} (по себестоимости)\n'
+          'Причина: $_reason',
+      ok: 'Списать',
+      destructive: true,
+    );
     if (!ok || !mounted) return;
     setState(() => _busy = true);
     final reason = [_reason!, if (_comment.text.trim().isNotEmpty) _comment.text.trim()].join(': ');
     final done = await runGuarded(
-        context,
-        () => ref.read(stockServiceProvider).writeOff(
-            productId: p.id, qty: q, reason: reason, userId: _uid(ref)),
-        success: 'Списано ${Qty.format(q, p.unit)} «${p.name}»');
+      context,
+      () => ref.read(stockServiceProvider).writeOff(productId: p.id, qty: q, reason: reason, userId: _uid(ref)),
+      success: 'Списано ${Qty.format(q, p.unit)} «${p.name}»',
+    );
     if (!mounted) return;
     setState(() {
       _busy = false;
@@ -159,92 +171,107 @@ class _WriteOffFormState extends ConsumerState<WriteOffForm> {
     final q = _q;
     return Form(
       key: _key,
-      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        if (widget.pickProduct != null)
-          OutlinedButton.icon(
-            onPressed: _choose,
-            icon: const Icon(Icons.search),
-            label: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(live?.name ?? 'Выбрать товар…', overflow: TextOverflow.ellipsis),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (widget.pickProduct != null)
+            OutlinedButton.icon(
+              onPressed: _choose,
+              icon: const Icon(Icons.search),
+              label: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(live?.name ?? 'Выбрать товар…', overflow: TextOverflow.ellipsis),
+              ),
             ),
-          ),
-        if (live != null) ...[
-          const SizedBox(height: Gap.s),
-          Text(
+          if (live != null) ...[
+            const SizedBox(height: Gap.s),
+            Text(
               'Остаток: ${Qty.format(live.stockQty, live.unit)}'
               '${canCost ? ' · себестоимость ${Money.format(live.costPrice)}' : ''}',
-              style: t.textTheme.bodyMedium?.copyWith(color: t.colorScheme.onSurfaceVariant)),
-        ],
-        const SizedBox(height: Gap.m),
-        QtyField(
-          controller: _qty,
-          unit: live?.unit,
-          autofocus: widget.pickProduct == null,
-          onSubmitted: (_) => _save(),
-        ),
-        const SizedBox(height: Gap.m),
-        Text('Причина', style: t.textTheme.labelLarge),
-        const SizedBox(height: Gap.s),
-        Wrap(spacing: Gap.s, runSpacing: Gap.s, children: [
-          for (final r in writeOffReasons)
-            ChoiceChip(
-              label: Text(r),
-              selected: _reason == r,
-              onSelected: (_) => setState(() => _reason = r),
+              style: t.textTheme.bodyMedium?.copyWith(color: t.colorScheme.onSurfaceVariant),
             ),
-        ]),
-        const SizedBox(height: Gap.m),
-        TextField(
-          controller: _comment,
-          decoration: InputDecoration(
-              labelText: _reason == 'Другое' ? 'Комментарий *' : 'Комментарий'),
-          onSubmitted: (_) => _save(),
-        ),
-        const SizedBox(height: Gap.l),
-        ListenableBuilder(
-          listenable: _qty,
-          builder: (_, _) {
-            final v = (live != null && q != null && q > 0) ? lineValue(q, live.costPrice) : 0;
-            return Row(children: [
-              if (canCost)
-                Expanded(
-                  child: Text('Сумма списания: ${Money.format(v)}',
-                      style: t.textTheme.titleMedium?.copyWith(color: AppColors.danger)),
-                )
-              else
-                const Spacer(),
-              FilledButton.icon(
-                style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
-                onPressed: _busy ? null : _save,
-                icon: const Icon(Icons.delete_sweep_outlined),
-                label: const Text('Списать'),
-              ),
-            ]);
-          },
-        ),
-      ]),
+          ],
+          const SizedBox(height: Gap.m),
+          QtyField(
+            controller: _qty,
+            unit: live?.unit,
+            autofocus: widget.pickProduct == null,
+            onSubmitted: (_) => _save(),
+          ),
+          const SizedBox(height: Gap.m),
+          Text('Причина', style: t.textTheme.labelLarge),
+          const SizedBox(height: Gap.s),
+          Wrap(
+            spacing: Gap.s,
+            runSpacing: Gap.s,
+            children: [
+              for (final r in writeOffReasons)
+                ChoiceChip(label: Text(r), selected: _reason == r, onSelected: (_) => setState(() => _reason = r)),
+            ],
+          ),
+          const SizedBox(height: Gap.m),
+          TextField(
+            controller: _comment,
+            decoration: InputDecoration(labelText: _reason == 'Другое' ? 'Комментарий *' : 'Комментарий'),
+            onSubmitted: (_) => _save(),
+          ),
+          const SizedBox(height: Gap.l),
+          ListenableBuilder(
+            listenable: _qty,
+            builder: (_, _) {
+              final v = (live != null && q != null && q > 0) ? lineValue(q, live.costPrice) : 0;
+              return Row(
+                children: [
+                  if (canCost)
+                    Expanded(
+                      child: Text(
+                        'Сумма списания: ${Money.format(v)}',
+                        style: t.textTheme.titleMedium?.copyWith(
+                          color: v > 0 ? AppColors.danger : t.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    )
+                  else
+                    const Spacer(),
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+                    onPressed: _busy ? null : _save,
+                    icon: const Icon(Icons.delete_sweep_outlined),
+                    label: const Text('Списать'),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
     );
   }
 }
 
-Future<void> showWriteOffDialog(BuildContext context, Product p) => showFormDialog<void>(context,
-    title: 'Списание',
-    width: 520,
-    child: Builder(
-      builder: (c) => SingleChildScrollView(
-        padding: const EdgeInsets.all(Gap.xl),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+Future<void> showWriteOffDialog(BuildContext context, Product p) => showFormDialog<void>(
+  context,
+  title: 'Списание',
+  width: 520,
+  child: Builder(
+    builder: (c) => SingleChildScrollView(
+      padding: const EdgeInsets.all(Gap.xl),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
           Text(p.name, style: Theme.of(c).textTheme.titleMedium),
           WriteOffForm(product: p, onDone: () => Navigator.pop(c)),
-        ]),
+        ],
       ),
-    ));
+    ),
+  ),
+);
 
 /// Manual correction to an absolute quantity.
 Future<void> showAdjustDialog(BuildContext context, WidgetRef ref, Product p) async {
   final key = GlobalKey<FormState>();
-  final qty = TextEditingController(text: Qty.format(p.stockQty).replaceAll(',', '.'));
+  final qty = TextEditingController(text: Qty.format(p.stockQty));
   final reason = TextEditingController();
   var busy = false;
   Future<void> submit(BuildContext c) async {
@@ -256,33 +283,40 @@ Future<void> showAdjustDialog(BuildContext context, WidgetRef ref, Product p) as
     }
     busy = true;
     final ok = await runGuarded(
-        c,
-        () => ref.read(stockServiceProvider).setStock(
-            productId: p.id, newQty: n, reason: reason.text.trim(), userId: ref.read(sessionProvider)?.user.id),
-        success: 'Остаток исправлен');
+      c,
+      () => ref
+          .read(stockServiceProvider)
+          .setStock(productId: p.id, newQty: n, reason: reason.text.trim(), userId: ref.read(sessionProvider)?.user.id),
+      success: 'Остаток исправлен',
+    );
     busy = false;
     if (ok && c.mounted) Navigator.pop(c);
   }
 
-  await showFormDialog<void>(context,
-      title: 'Корректировка остатка',
-      width: 440,
-      child: Builder(
-        builder: (c) => Form(
-          key: key,
-          child: Padding(
-            padding: const EdgeInsets.all(Gap.xl),
-            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+  await showFormDialog<void>(
+    context,
+    title: 'Корректировка остатка',
+    width: 440,
+    child: Builder(
+      builder: (c) => Form(
+        key: key,
+        child: Padding(
+          padding: const EdgeInsets.all(Gap.xl),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
               Text(p.name, style: Theme.of(c).textTheme.titleMedium),
               Text('Учётный остаток: ${Qty.format(p.stockQty, p.unit)}'),
               const SizedBox(height: Gap.m),
               QtyField(
-                  controller: qty,
-                  label: 'Фактический остаток',
-                  unit: p.unit,
-                  allowZero: true,
-                  autofocus: true,
-                  onSubmitted: (_) => submit(c)),
+                controller: qty,
+                label: 'Фактический остаток',
+                unit: p.unit,
+                allowZero: true,
+                autofocus: true,
+                onSubmitted: (_) => submit(c),
+              ),
               const SizedBox(height: Gap.m),
               TextFormField(
                 controller: reason,
@@ -291,19 +325,20 @@ Future<void> showAdjustDialog(BuildContext context, WidgetRef ref, Product p) as
                 onFieldSubmitted: (_) => submit(c),
               ),
               const SizedBox(height: Gap.s),
-              Text('Для полной проверки остатков используйте инвентаризацию.',
-                  style: Theme.of(c).textTheme.bodySmall),
+              Text('Для полной проверки остатков используйте инвентаризацию.', style: Theme.of(c).textTheme.bodySmall),
               const SizedBox(height: Gap.l),
               FilledButton(onPressed: () => submit(c), child: const Text('Сохранить')),
-            ]),
+            ],
           ),
         ),
-      ));
+      ),
+    ),
+  );
 }
 
 /// Last movements of a product.
-Future<void> showProductHistoryDialog(BuildContext context, Product p) => showFormDialog<void>(context,
-    title: 'Движения: ${p.name}', width: 640, child: _ProductHistory(p));
+Future<void> showProductHistoryDialog(BuildContext context, Product p) =>
+    showFormDialog<void>(context, title: 'Движения: ${p.name}', width: 640, child: _ProductHistory(p));
 
 final _productMovesProvider = StreamProvider.family<List<StockMovement>, String>((ref, id) {
   final db = ref.watch(databaseProvider);
@@ -319,13 +354,18 @@ class _ProductHistory extends ConsumerWidget {
   final Product p;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return SizedBox(
-      height: 480,
+    // Grows with the history up to 480px instead of always reserving it.
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 480),
       child: AsyncView(
         value: ref.watch(_productMovesProvider(p.id)),
         data: (list) => list.isEmpty
-            ? const EmptyState(icon: Icons.swap_vert, title: 'Движений пока нет')
+            ? const SizedBox(
+                height: 240,
+                child: EmptyState(icon: Icons.swap_vert, title: 'Движений пока нет'),
+              )
             : ListView.separated(
+                shrinkWrap: true,
                 padding: const EdgeInsets.all(Gap.s),
                 itemCount: list.length,
                 separatorBuilder: (_, _) => const Divider(),
@@ -337,15 +377,25 @@ class _ProductHistory extends ConsumerWidget {
 }
 
 Color movementColor(String type) => switch (type) {
-      'sale' => AppColors.info,
-      'receipt' || 'return' => AppColors.success,
-      'writeoff' => AppColors.danger,
-      _ => AppColors.warning,
-    };
+  'sale' => AppColors.info,
+  'receipt' || 'return' => AppColors.success,
+  'writeoff' => AppColors.danger,
+  _ => AppColors.warning,
+};
 
 class MovementTile extends StatelessWidget {
-  const MovementTile({super.key, required this.m, required this.unit, this.productName, this.userName});
+  const MovementTile({
+    super.key,
+    required this.m,
+    required this.unit,
+    this.productName,
+    this.userName,
+    this.showType = true,
+  });
   final StockMovement m;
+
+  /// Hide the type chip in single-type journals (e.g. write-offs).
+  final bool showType;
   final String unit;
   final String? productName;
   final String? userName;
@@ -354,22 +404,64 @@ class MovementTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = Theme.of(context);
     final sign = m.qty > 0 ? '+' : '';
+    // On phones the type moves into the subtitle so the product name keeps
+    // the width; wider layouts show a fixed-width chip column.
+    final compact = context.isCompact;
+    final details = [
+      if (productName != null) formatDateTime(m.createdAt),
+      if (m.reason != null && m.reason!.isNotEmpty) m.reason!,
+      if (m.unitCost > 0 && m.type == 'receipt') 'цена ${Money.format(m.unitCost)}',
+      ?userName,
+    ].join(' · ');
+    final color = movementColor(m.type);
     return ListTile(
       dense: true,
-      title: Text(productName ?? formatDateTime(m.createdAt), maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Text([
-        if (productName != null) formatDateTime(m.createdAt),
-        if (m.reason != null && m.reason!.isNotEmpty) m.reason!,
-        if (m.unitCost > 0 && m.type == 'receipt') 'цена ${Money.format(m.unitCost)}',
-        ?userName,
-      ].join(' · '), maxLines: 2, overflow: TextOverflow.ellipsis),
-      leading: StatusChip(movementLabel(m.type), color: movementColor(m.type)),
-      trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
-        Text('$sign${Qty.format(m.qty, unit)}',
-            style: TextStyle(
-                fontWeight: FontWeight.w700, color: m.qty >= 0 ? AppColors.success : AppColors.danger)),
-        Text('ост. ${Qty.format(m.qtyAfter)}', style: t.textTheme.bodySmall),
-      ]),
+      title: Text(
+        productName ?? formatDateTime(m.createdAt),
+        maxLines: compact ? 2 : 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: Text.rich(
+        TextSpan(
+          children: [
+            if (showType && compact)
+              TextSpan(
+                text: details.isEmpty ? movementLabel(m.type) : '${movementLabel(m.type)} · ',
+                style: TextStyle(color: color, fontWeight: FontWeight.w600),
+              ),
+            TextSpan(text: details),
+          ],
+        ),
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+      // Fixed-width slot so titles line up regardless of the chip label.
+      leading: showType && !compact
+          ? SizedBox(
+              width: 104,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: StatusChip(movementLabel(m.type), color: color),
+              ),
+            )
+          : null,
+      trailing: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(
+            '$sign${Qty.format(m.qty, unit)}',
+            style: t.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: m.qty >= 0 ? AppColors.success : AppColors.danger,
+            ),
+          ),
+          Text(
+            'остаток ${Qty.format(m.qtyAfter, unit)}',
+            style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant),
+          ),
+        ],
+      ),
     );
   }
 }

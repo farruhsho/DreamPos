@@ -28,9 +28,10 @@ class PurchasingScreen extends ConsumerWidget {
       return const PageScaffold(
         title: 'Закупки',
         body: EmptyState(
-            icon: Icons.lock_outline,
-            title: 'Нет доступа',
-            message: 'Закупки доступны кладовщику, менеджеру и владельцу'),
+          icon: Icons.lock_outline,
+          title: 'Нет доступа',
+          message: 'Закупки доступны кладовщику, менеджеру и владельцу',
+        ),
       );
     }
     return DefaultTabController(

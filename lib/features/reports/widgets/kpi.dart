@@ -39,6 +39,8 @@ class KpiTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = Theme.of(context);
     final c = color ?? t.colorScheme.primary;
+    // no base to compare with (e.g. no returns yesterday): no badge
+    final hasDelta = current != null && previous != null && previous != 0;
     final card = Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -46,19 +48,19 @@ class KpiTile extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(Gap.l),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               if (icon != null) ...[
                 Icon(icon, size: 18, color: c),
                 const SizedBox(width: Gap.s),
               ],
+              // Two lines so labels like «Сумма заказа (по себестоимости)»
+              // stay readable in narrow (phone) tiles.
               Expanded(
                 child: Text(label,
-                    maxLines: 1,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant)),
               ),
-              if (current != null && previous != null)
-                DeltaBadge(current: current!, previous: previous!, inverse: inverse),
             ]),
             const SizedBox(height: Gap.s),
             FittedBox(
@@ -67,12 +69,26 @@ class KpiTile extends StatelessWidget {
               child: Text(value,
                   style: t.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
             ),
-            if (previousLabel != null || hint != null) ...[
+            if (hasDelta || previousLabel != null || hint != null) ...[
               const SizedBox(height: 2),
-              Text(previousLabel ?? hint!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant)),
+              // badge inline with the comparison text, so it wraps under the
+              // badge instead of forming a narrow column on phones
+              Text.rich(
+                TextSpan(children: [
+                  if (hasDelta)
+                    WidgetSpan(
+                      alignment: PlaceholderAlignment.middle,
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: Gap.xs),
+                        child: DeltaBadge(current: current!, previous: previous!, inverse: inverse),
+                      ),
+                    ),
+                  if (previousLabel != null || hint != null) TextSpan(text: previousLabel ?? hint),
+                ]),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant),
+              ),
             ],
           ]),
         ),
@@ -83,6 +99,8 @@ class KpiTile extends StatelessWidget {
 }
 
 /// Lays children out in an even responsive grid (min tile width [minTile]).
+/// Tiles in one row share the height of the tallest one; with [stretchLast]
+/// an incomplete last row is widened to fill the line instead of leaving a gap.
 class ResponsiveGrid extends StatelessWidget {
   const ResponsiveGrid({
     super.key,
@@ -90,18 +108,34 @@ class ResponsiveGrid extends StatelessWidget {
     this.minTile = 200,
     this.spacing = Gap.m,
     this.maxColumns = 6,
+    this.stretchLast = false,
   });
   final List<Widget> children;
   final double minTile;
   final double spacing;
   final int maxColumns;
+  final bool stretchLast;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(builder: (context, c) {
-        final cols = math.max(1, math.min(maxColumns, ((c.maxWidth + spacing) / (minTile + spacing)).floor()));
-        final w = (c.maxWidth - spacing * (cols - 1)) / cols;
-        return Wrap(spacing: spacing, runSpacing: spacing, children: [
-          for (final ch in children) SizedBox(width: w, child: ch),
+        final cols = math.max(
+            1, math.min(maxColumns, ((c.maxWidth + spacing) / (minTile + spacing)).floor()));
+        final rows = <List<Widget>>[
+          for (var i = 0; i < children.length; i += cols)
+            children.sublist(i, math.min(i + cols, children.length)),
+        ];
+        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          for (var r = 0; r < rows.length; r++) ...[
+            if (r > 0) SizedBox(height: spacing),
+            IntrinsicHeight(
+              child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                for (var i = 0; i < (stretchLast ? rows[r].length : cols); i++) ...[
+                  if (i > 0) SizedBox(width: spacing),
+                  Expanded(child: i < rows[r].length ? rows[r][i] : const SizedBox()),
+                ],
+              ]),
+            ),
+          ],
         ]);
       });
 }

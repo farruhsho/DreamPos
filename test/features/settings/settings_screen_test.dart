@@ -23,8 +23,11 @@ void main() {
     }
   }
 
-  Future<(Fixture, ProviderContainer)> pumpScreen(WidgetTester tester,
-      {Size size = const Size(1400, 900), Role role = Role.owner}) async {
+  Future<(Fixture, ProviderContainer)> pumpScreen(
+    WidgetTester tester, {
+    Size size = const Size(1400, 900),
+    Role role = Role.owner,
+  }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -40,17 +43,23 @@ void main() {
       }
       return (f, user);
     }))!;
-    final container = ProviderContainer(overrides: [
-      databaseProvider.overrideWithValue(f.db),
-      settingsDocumentsDirProvider.overrideWithValue(() async => Directory.systemTemp),
-      settingsDbPathProvider.overrideWithValue(
-          () async => '${Directory.systemTemp.path}${Platform.pathSeparator}dreampos_settings_widget_test.sqlite'),
-    ]);
+    final container = ProviderContainer(
+      overrides: [
+        databaseProvider.overrideWithValue(f.db),
+        settingsDocumentsDirProvider.overrideWithValue(() async => Directory.systemTemp),
+        settingsDbPathProvider.overrideWithValue(
+          () async =>
+              '${Directory.systemTemp.path}${Platform.pathSeparator}dreampos_settings_widget_test.sqlite',
+        ),
+      ],
+    );
     container.read(sessionProvider.notifier).login(user);
-    await tester.pumpWidget(UncontrolledProviderScope(
-      container: container,
-      child: const MaterialApp(home: SettingsScreen()),
-    ));
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: SettingsScreen()),
+      ),
+    );
     // let drift streams deliver
     await settle(tester);
     return (f, container);
@@ -98,12 +107,14 @@ void main() {
 
     await tester.runAsync(() async {
       final p = await f.product('Milk', price: 1500, stock: 5);
-      await SaleService(f.db).checkout(CheckoutRequest(
-        lines: [CheckoutLine(productId: p.id, qty: 1, unitPrice: 1500)],
-        payments: [PaymentInput('cash', 1500)],
-        cashierId: f.owner.id,
-        shiftId: f.shift.id,
-      ));
+      await SaleService(f.db).checkout(
+        CheckoutRequest(
+          lines: [CheckoutLine(productId: p.id, qty: 1, unitPrice: 1500)],
+          payments: [PaymentInput('cash', 1500)],
+          cashierId: f.owner.id,
+          shiftId: f.shift.id,
+        ),
+      );
     });
     await settle(tester);
     expect(find.textContaining('Валюта зафиксирована'), findsOneWidget);
@@ -146,11 +157,21 @@ void main() {
     // Very tall viewport so every card of each section is laid out at 360px.
     final (f, c) = await pumpScreen(tester, size: const Size(360, 3000));
     for (final key in const [
-      'nav-store', 'nav-currency', 'nav-sales', 'nav-loyalty', 'nav-devices',
-      'nav-appearance', 'nav-backup', 'nav-data', 'nav-about',
+      'nav-store',
+      'nav-currency',
+      'nav-sales',
+      'nav-loyalty',
+      'nav-devices',
+      'nav-appearance',
+      'nav-backup',
+      'nav-data',
+      'nav-about',
     ]) {
-      await tester.scrollUntilVisible(find.byKey(ValueKey(key)), 100,
-          scrollable: find.byType(Scrollable).first);
+      await tester.scrollUntilVisible(
+        find.byKey(ValueKey(key)),
+        100,
+        scrollable: find.byType(Scrollable).first,
+      );
       await tester.tap(find.byKey(ValueKey(key)));
       await settle(tester);
       expect(tester.takeException(), isNull, reason: key);

@@ -53,12 +53,7 @@ void main() {
       expect(audit.map((a) => a.action), contains('user.role'));
       // and now o2 is the last owner
       expect(
-        lastOwnerGuard(
-          await f.db.select(f.db.users).get(),
-          userId: o2.id,
-          newRole: Role.owner,
-          newActive: false,
-        ),
+        lastOwnerGuard(await f.db.select(f.db.users).get(), userId: o2.id, newRole: Role.owner, newActive: false),
         isNotNull,
       );
     });
@@ -114,12 +109,7 @@ void main() {
       expect(UserInput(name: 'A', role: Role.cashier).validate(creating: true), isNotNull);
       expect(UserInput(name: 'A', role: Role.cashier, pin: '1111').validate(creating: true), isNotNull);
       expect(
-        UserInput(
-          name: 'A',
-          role: Role.cashier,
-          pin: '4826',
-          maxDiscountPercent: 120,
-        ).validate(creating: true),
+        UserInput(name: 'A', role: Role.cashier, pin: '4826', maxDiscountPercent: 120).validate(creating: true),
         isNotNull,
       );
       expect(UserInput(name: 'A', role: Role.cashier).validate(creating: false), isNull);
@@ -135,10 +125,7 @@ void main() {
       expect(() => clock.clockIn(f.owner.id), throwsA(isA<BusinessException>()));
       final s = await clock.clockOut(f.owner.id);
       expect(s.endedAt, isNotNull);
-      expect(
-        overlap(s, start, DateTime.now().add(const Duration(minutes: 1))).inMinutes,
-        inInclusiveRange(179, 181),
-      );
+      expect(overlap(s, start, DateTime.now().add(const Duration(minutes: 1))).inMinutes, inInclusiveRange(179, 181));
       // can clock in again after clocking out
       await clock.clockIn(f.owner.id);
       expect(await clock.openSession(f.owner.id), isNotNull);
@@ -178,12 +165,7 @@ void main() {
         reason: 'end before start',
       );
       expect(
-        () => clock.save(
-          userId: f.owner.id,
-          start: now.add(const Duration(hours: 1)),
-          actorId: f.owner.id,
-          now: now,
-        ),
+        () => clock.save(userId: f.owner.id, start: now.add(const Duration(hours: 1)), actorId: f.owner.id, now: now),
         throwsA(isA<BusinessException>()),
         reason: 'future',
       );
@@ -331,10 +313,7 @@ void main() {
         actor: f.owner,
       );
       await staff.setActive(a.id, false, actor: f.owner);
-      await expectLater(
-        staff.setActive(a.id, true, actor: f.owner, newPin: '2580'),
-        throwsA(isA<BusinessException>()),
-      );
+      await expectLater(staff.setActive(a.id, true, actor: f.owner, newPin: '2580'), throwsA(isA<BusinessException>()));
       expect((await reload(a.id)).isActive, isFalse);
     });
 
@@ -344,14 +323,8 @@ void main() {
       await clock.delete(ws.id, actorId: f.owner.id);
       final row = await (f.db.select(f.db.workSessions)..where((w) => w.id.equals(ws.id))).getSingle();
       expect(row.deletedAt, isNotNull);
-      expect(
-        await clock.openSession(f.owner.id),
-        isNull,
-        reason: 'deleted session no longer blocks clock-in',
-      );
-      final audit = await (f.db.select(
-        f.db.auditLog,
-      )..where((a) => a.action.equals('time.delete'))).getSingle();
+      expect(await clock.openSession(f.owner.id), isNull, reason: 'deleted session no longer blocks clock-in');
+      final audit = await (f.db.select(f.db.auditLog)..where((a) => a.action.equals('time.delete'))).getSingle();
       expect(audit.details, isNotEmpty);
     });
   });

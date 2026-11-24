@@ -30,7 +30,7 @@ class BackupInfo {
 /// temp directory instead of path_provider.
 class BackupService {
   BackupService(this.db, this.documentsDir, {Future<String> Function()? dbPath})
-      : dbPath = dbPath ?? DbLocation.dbPath;
+    : dbPath = dbPath ?? DbLocation.dbPath;
   final AppDatabase db;
   final Future<Directory> Function() documentsDir;
   final Future<String> Function() dbPath;
@@ -80,9 +80,7 @@ class BackupService {
         out.add(BackupInfo(e, st.size, st.modified));
       }
     }
-    out.sort((a, b) => b.date.compareTo(a.date) != 0
-        ? b.date.compareTo(a.date)
-        : b.name.compareTo(a.name));
+    out.sort((a, b) => b.date.compareTo(a.date) != 0 ? b.date.compareTo(a.date) : b.name.compareTo(a.name));
     return out;
   }
 
@@ -146,13 +144,32 @@ class BackupService {
     final rows = await (db.select(db.products)..where((t) => t.deletedAt.isNull())).get();
     rows.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     final lines = [
-      csvRow(['Наименование', 'Артикул', 'Штрихкод', 'Категория', 'Ед. изм.', 'Цена',
-        'Себестоимость', 'Остаток', 'Мин. остаток', 'НДС %', 'Активен']),
+      csvRow([
+        'Наименование',
+        'Артикул',
+        'Штрихкод',
+        'Категория',
+        'Ед. изм.',
+        'Цена',
+        'Себестоимость',
+        'Остаток',
+        'Мин. остаток',
+        'НДС %',
+        'Активен',
+      ]),
       for (final r in rows)
         csvRow([
-          r.name, r.sku, r.barcode, cats[r.categoryId], Qty.unitLabel(r.unit),
-          csvMoney(r.price, c), csvMoney(r.costPrice, c), csvQty(r.stockQty), csvQty(r.minStock),
-          formatPercentValue(r.vatPercent), r.isActive ? 'да' : 'нет',
+          r.name,
+          r.sku,
+          r.barcode,
+          cats[r.categoryId],
+          Qty.unitLabel(r.unit),
+          csvMoney(r.price, c),
+          csvMoney(r.costPrice, c),
+          csvQty(r.stockQty),
+          csvQty(r.minStock),
+          formatPercentValue(r.vatPercent),
+          r.isActive ? 'да' : 'нет',
         ]),
     ];
     final f = await _writeCsv('products', lines, now ?? DateTime.now());
@@ -165,13 +182,30 @@ class BackupService {
     final rows = await (db.select(db.customers)..where((t) => t.deletedAt.isNull())).get();
     rows.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     final lines = [
-      csvRow(['Имя', 'Телефон', 'Email', 'Карта', 'Скидка %', 'Бонусы', 'Долг', 'Лимит долга',
-        'Покупок на сумму', 'Визитов']),
+      csvRow([
+        'Имя',
+        'Телефон',
+        'Email',
+        'Карта',
+        'Скидка %',
+        'Бонусы',
+        'Долг',
+        'Лимит долга',
+        'Покупок на сумму',
+        'Визитов',
+      ]),
       for (final r in rows)
         csvRow([
-          r.name, r.phone, r.email, r.cardNumber, formatPercentValue(r.discountPercent),
-          csvMoney(r.bonusBalance, c), csvMoney(r.debtBalance, c), csvMoney(r.debtLimit, c),
-          csvMoney(r.totalSpent, c), r.visits,
+          r.name,
+          r.phone,
+          r.email,
+          r.cardNumber,
+          formatPercentValue(r.discountPercent),
+          csvMoney(r.bonusBalance, c),
+          csvMoney(r.debtBalance, c),
+          csvMoney(r.debtLimit, c),
+          csvMoney(r.totalSpent, c),
+          r.visits,
         ]),
     ];
     final f = await _writeCsv('customers', lines, now ?? DateTime.now());

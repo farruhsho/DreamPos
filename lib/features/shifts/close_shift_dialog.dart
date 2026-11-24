@@ -62,12 +62,7 @@ class _CloseShiftFormState extends ConsumerState<_CloseShiftForm> {
 
   Future<void> _submit(int expected) async {
     if (_busy) return;
-    final err = validateClose(
-      counted: _counted,
-      expected: expected,
-      note: _note.text,
-      collection: _collection,
-    );
+    final err = validateClose(counted: _counted, expected: expected, note: _note.text, collection: _collection);
     setState(() => _error = err);
     if (err != null) return;
     final counted = _counted!;
@@ -151,16 +146,8 @@ class _CloseShiftFormState extends ConsumerState<_CloseShiftForm> {
                   const SizedBox(height: Gap.m),
                   SegmentedButton<bool>(
                     segments: const [
-                      ButtonSegment(
-                        value: true,
-                        icon: Icon(Icons.payments_outlined),
-                        label: Text('По купюрам'),
-                      ),
-                      ButtonSegment(
-                        value: false,
-                        icon: Icon(Icons.calculate_outlined),
-                        label: Text('Общей суммой'),
-                      ),
+                      ButtonSegment(value: true, icon: Icon(Icons.payments_outlined), label: Text('По купюрам')),
+                      ButtonSegment(value: false, icon: Icon(Icons.calculate_outlined), label: Text('Общей суммой')),
                     ],
                     selected: {_byDenomination},
                     onSelectionChanged: (s) => setState(() {
@@ -213,12 +200,7 @@ class _CloseShiftFormState extends ConsumerState<_CloseShiftForm> {
                       child: Column(
                         children: [
                           _kv(context, 'Ожидается в кассе', Money.format(expected)),
-                          _kv(
-                            context,
-                            'Пересчитано',
-                            counted == null ? '—' : Money.format(counted),
-                            bold: true,
-                          ),
+                          _kv(context, 'Пересчитано', counted == null ? '—' : Money.format(counted), bold: true),
                           const Divider(height: Gap.l),
                           _kv(
                             context,
@@ -241,9 +223,7 @@ class _CloseShiftFormState extends ConsumerState<_CloseShiftForm> {
                     minLines: 1,
                     maxLines: 3,
                     decoration: InputDecoration(
-                      labelText: diff != null && diff != 0
-                          ? 'Причина расхождения *'
-                          : 'Примечание (необязательно)',
+                      labelText: diff != null && diff != 0 ? 'Причина расхождения *' : 'Примечание (необязательно)',
                     ),
                     onChanged: (_) {
                       if (_error != null) setState(() => _error = null);
@@ -291,6 +271,32 @@ class _CloseShiftFormState extends ConsumerState<_CloseShiftForm> {
               ),
             ),
           ),
+          // On phones the summary card scrolls away behind the denomination
+          // list, so the running total stays pinned above the buttons.
+          if (MediaQuery.sizeOf(context).height < 900 || MediaQuery.sizeOf(context).width < 600)
+            Container(
+              key: const ValueKey('close_sticky_total'),
+              padding: const EdgeInsets.symmetric(horizontal: Gap.xl, vertical: Gap.s),
+              decoration: BoxDecoration(
+                border: Border(top: BorderSide(color: t.colorScheme.outlineVariant)),
+              ),
+              child: Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: Gap.m,
+                runSpacing: 2,
+                children: [
+                  Text('Пересчитано: ${counted == null ? '—' : Money.format(counted)}', style: t.textTheme.titleSmall),
+                  if (diff != null)
+                    Text(
+                      diff == 0
+                          ? 'без расхождений'
+                          : '${diff < 0 ? 'недостача' : 'излишек'} ${Money.format(diff.abs())}',
+                      style: t.textTheme.bodySmall?.copyWith(color: diffColor, fontWeight: FontWeight.w600),
+                    ),
+                ],
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.fromLTRB(Gap.xl, Gap.s, Gap.xl, Gap.l),
             child: OverflowBar(
@@ -298,19 +304,12 @@ class _CloseShiftFormState extends ConsumerState<_CloseShiftForm> {
               overflowAlignment: OverflowBarAlignment.end,
               spacing: Gap.s,
               children: [
-                TextButton(
-                  onPressed: _busy ? null : () => Navigator.pop(context, false),
-                  child: const Text('Отмена'),
-                ),
+                TextButton(onPressed: _busy ? null : () => Navigator.pop(context, false), child: const Text('Отмена')),
                 FilledButton.icon(
                   key: const ValueKey('close_submit'),
                   onPressed: _busy ? null : () => _submit(expected),
                   icon: _busy
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                       : const Icon(Icons.lock_clock),
                   label: const Text('Закрыть смену'),
                 ),
@@ -366,11 +365,7 @@ class _DenominationRow extends StatelessWidget {
       children: [
         SizedBox(
           width: 92,
-          child: Text(
-            Money.format(denomination, withSymbol: false),
-            textAlign: TextAlign.right,
-            style: t.titleSmall,
-          ),
+          child: Text(Money.format(denomination, withSymbol: false), textAlign: TextAlign.right, style: t.titleSmall),
         ),
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: Gap.s),
@@ -385,16 +380,22 @@ class _DenominationRow extends StatelessWidget {
             keyboardType: TextInputType.number,
             textInputAction: TextInputAction.next,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(5)],
-            decoration: const InputDecoration(hintText: '0'),
+            decoration: InputDecoration(
+              hintText: '0',
+              hintStyle: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
+            ),
             onChanged: (v) => onChanged(int.tryParse(v) ?? 0),
           ),
         ),
         const SizedBox(width: Gap.s),
         Expanded(
           child: Text(
-            n == 0 ? '' : Money.format(denomination * n, withSymbol: false),
+            n == 0 ? '' : '= ${Money.format(denomination * n, withSymbol: false)}',
             textAlign: TextAlign.right,
-            style: t.bodySmall,
+            style: t.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
           ),
         ),
       ],

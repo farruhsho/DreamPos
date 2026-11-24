@@ -166,7 +166,8 @@ class PaymentsTab extends ConsumerWidget {
                       for (final r in list)
                         ShareItem(paymentMethodLabel(r.method), r.net,
                             trailing:
-                                '${Money.format(r.net)} · ${(totalNet == 0 ? 0 : r.net * 100 / totalNet).toStringAsFixed(0)}%'),
+                                '${Money.format(r.net)} · ${(totalNet == 0 ? 0 : r.net * 100 / totalNet).toStringAsFixed(0)}%',
+                            color: paymentMethodColor(r.method)),
                     ]),
             ),
             right: AsyncView<DebtSummary>(
@@ -174,7 +175,7 @@ class PaymentsTab extends ConsumerWidget {
               data: (d) => SectionCard(
                 title: 'Долги клиентов',
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  ResponsiveGrid(minTile: 160, children: [
+                  ResponsiveGrid(minTile: 160, maxColumns: 2, children: [
                     KpiTile(
                       label: 'Выдано в долг',
                       value: Money.format(d.issued),

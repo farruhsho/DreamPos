@@ -16,8 +16,7 @@ export 'report_data.dart';
 /// Prints an X/Z report (roll or A4). Installed by [ShiftsScreen] with the
 /// PDF implementation from z_report_pdf.dart; kept as a hook so the screen
 /// body does not depend on the PDF stack (and stays testable headless).
-typedef ZReportPrintFn =
-    Future<void> Function(AppDatabase db, String shiftId, {required bool a4, bool showProfit});
+typedef ZReportPrintFn = Future<void> Function(AppDatabase db, String shiftId, {required bool a4, bool showProfit});
 
 ZReportPrintFn? zReportPrinter;
 
@@ -53,11 +52,7 @@ class PrintReportButton extends ConsumerWidget {
         void toggle() => c.isOpen ? c.close() : c.open();
         return filled
             ? FilledButton.icon(onPressed: toggle, icon: const Icon(Icons.print), label: const Text('Печать'))
-            : OutlinedButton.icon(
-                onPressed: toggle,
-                icon: const Icon(Icons.print),
-                label: const Text('Печать'),
-              );
+            : OutlinedButton.icon(onPressed: toggle, icon: const Icon(Icons.print), label: const Text('Печать'));
       },
     );
   }
@@ -87,19 +82,22 @@ class ReportSectionsView extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
+                    flex: 5,
                     child: Text(
                       l.label,
                       style: l.indent
-                          ? t.textTheme.bodySmall
+                          ? t.textTheme.bodyMedium?.copyWith(color: t.colorScheme.onSurfaceVariant)
                           : t.textTheme.bodyMedium?.copyWith(fontWeight: l.bold ? FontWeight.w600 : null),
                     ),
                   ),
                   const SizedBox(width: Gap.m),
-                  Flexible(
+                  Expanded(
+                    flex: 4,
                     child: Text(
                       l.value,
                       textAlign: TextAlign.right,
                       style: t.textTheme.bodyMedium?.copyWith(
+                        fontFeatures: const [FontFeature.tabularFigures()],
                         fontWeight: l.bold ? FontWeight.w700 : null,
                         color: (l.label == 'Недостача' && diff != null)
                             ? AppColors.danger
@@ -148,10 +146,7 @@ class ZReportPanel extends ConsumerWidget {
             Row(
               children: [
                 Expanded(
-                  child: Text(
-                    '${d.title} · смена №${f.shift.number}',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
+                  child: Text('${d.title} · смена №${f.shift.number}', style: Theme.of(context).textTheme.titleMedium),
                 ),
                 PrintReportButton(shiftId: shiftId),
               ],

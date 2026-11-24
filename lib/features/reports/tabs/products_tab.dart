@@ -186,7 +186,8 @@ class _ProductsTabState extends ConsumerState<ProductsTab> {
               padding: const EdgeInsets.only(bottom: Gap.m),
               child: Wrap(spacing: Gap.s, runSpacing: Gap.s, crossAxisAlignment: WrapCrossAlignment.center, children: [
                 SizedBox(
-                  width: 260,
+                  // full width on phones, a compact field next to the chips otherwise
+                  width: context.isCompact ? double.infinity : 260,
                   child: SearchField(hint: 'Поиск товара', onChanged: (v) => setState(() => _q = v)),
                 ),
                 ChoiceChip(

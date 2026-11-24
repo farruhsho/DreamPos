@@ -133,57 +133,69 @@ class _PayDebtFormState extends ConsumerState<_PayDebtForm> {
                 style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.w700)),
           ])),
           const SizedBox(height: Gap.l),
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Expanded(
-              child: MoneyField(
-                label: 'Сумма оплаты *',
-                controller: _amount,
-                autofocus: true,
-                required: true,
-                allowZero: false,
-                validator: (v) => v != null && v > debt ? 'Не больше долга (${Money.format(debt)})' : null,
-                onSubmitted: (_) => _submit(debt),
+          LayoutBuilder(builder: (context, box) {
+            final field = MoneyField(
+              label: 'Сумма оплаты *',
+              controller: _amount,
+              autofocus: true,
+              required: true,
+              allowZero: false,
+              validator: (v) => v != null && v > debt ? 'Не больше долга (${Money.format(debt)})' : null,
+              onSubmitted: (_) => _submit(debt),
+            );
+            void fill() => setState(() => _amount.text = Money.toInput(debt));
+            // Phones: the amount gets the full width; the shortcut sits
+            // below it and shows the sum it will fill in.
+            if (box.maxWidth < 380) {
+              return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                field,
+                const SizedBox(height: Gap.xs),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: fill,
+                    icon: const Icon(Icons.done_all, size: 18),
+                    label: Text('Вся сумма: ${Money.format(debt)}'),
+                  ),
+                ),
+              ]);
+            }
+            return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(child: field),
+              const SizedBox(width: Gap.s),
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: OutlinedButton(onPressed: fill, child: const Text('Вся сумма')),
               ),
-            ),
-            const SizedBox(width: Gap.s),
-            Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: OutlinedButton(
-                onPressed: () => setState(() => _amount.text = Money.toInput(debt)),
-                child: const Text('Вся сумма'),
-              ),
-            ),
-          ]),
+            ]);
+          }),
           const SizedBox(height: Gap.l),
           Text('Способ оплаты', style: t.textTheme.labelLarge),
           const SizedBox(height: Gap.s),
-          // SegmentedButton does not shrink: on phones (dialog content < 380px)
-          // three labelled segments with icons overflow, so use chips there.
+          // On phones (dialog content < 380px) three segments with icons do
+          // not fit: drop the icons, keep one full-width control.
           LayoutBuilder(
-            builder: (context, box) => box.maxWidth < 380
-                ? Wrap(spacing: Gap.xs, runSpacing: Gap.xs, children: [
-                    for (final e in debtPaymentMethods.entries)
-                      ChoiceChip(
-                        label: Text(e.value),
-                        selected: _method == e.key,
-                        onSelected: (_) => setState(() => _method = e.key),
-                      ),
-                  ])
-                : SegmentedButton<String>(
-                    segments: [
-                      for (final e in debtPaymentMethods.entries)
-                        ButtonSegment(
-                            value: e.key,
-                            label: Text(e.value),
-                            icon: Icon(switch (e.key) {
-                              'cash' => Icons.payments_outlined,
-                              'card' => Icons.credit_card,
-                              _ => Icons.swap_horiz,
-                            })),
-                    ],
-                    selected: {_method},
-                    onSelectionChanged: (s) => setState(() => _method = s.first),
-                  ),
+            builder: (context, box) => SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<String>(
+                showSelectedIcon: box.maxWidth >= 380,
+                segments: [
+                  for (final e in debtPaymentMethods.entries)
+                    ButtonSegment(
+                        value: e.key,
+                        label: Text(e.value, maxLines: 1, softWrap: false),
+                        icon: box.maxWidth < 380
+                            ? null
+                            : Icon(switch (e.key) {
+                                'cash' => Icons.payments_outlined,
+                                'card' => Icons.credit_card,
+                                _ => Icons.swap_horiz,
+                              })),
+                ],
+                selected: {_method},
+                onSelectionChanged: (s) => setState(() => _method = s.first),
+              ),
+            ),
           ),
           if (noShiftForCash) ...[
             const SizedBox(height: Gap.s),

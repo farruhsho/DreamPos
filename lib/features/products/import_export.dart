@@ -188,21 +188,27 @@ class _ImportDialogState extends ConsumerState<_ImportDialog> {
         ),
       ),
       const SizedBox(height: Gap.m),
-      Row(children: [
-        Expanded(
-          child: TextField(
-            controller: _path,
-            decoration: const InputDecoration(
-              labelText: 'Или путь к файлу',
-              hintText: r'C:\Users\...\товары.csv',
-              prefixIcon: Icon(Icons.insert_drive_file_outlined, size: 20),
-            ),
-            onSubmitted: (_) => _loadFile(),
+      LayoutBuilder(builder: (context, c) {
+        final field = TextField(
+          controller: _path,
+          decoration: const InputDecoration(
+            labelText: 'Или путь к файлу',
+            hintText: r'C:\Users\...\товары.csv',
+            prefixIcon: Icon(Icons.insert_drive_file_outlined, size: 20),
           ),
-        ),
-        const SizedBox(width: Gap.s),
-        OutlinedButton(onPressed: _loadFile, child: const Text('Загрузить')),
-      ]),
+          onSubmitted: (_) => _loadFile(),
+        );
+        final load = OutlinedButton(onPressed: _loadFile, child: const Text('Загрузить'));
+        if (c.maxWidth < 480) {
+          // Phone: a path field squeezed next to the button is unreadable.
+          return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            field,
+            const SizedBox(height: Gap.s),
+            Align(alignment: Alignment.centerRight, child: load),
+          ]);
+        }
+        return Row(children: [Expanded(child: field), const SizedBox(width: Gap.s), load]);
+      }),
       const SizedBox(height: Gap.s),
       SwitchListTile(
         contentPadding: EdgeInsets.zero,

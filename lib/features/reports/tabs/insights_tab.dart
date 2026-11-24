@@ -41,28 +41,34 @@ class InsightsTab extends ConsumerWidget {
       data: (d) {
         final list = buildInsights(d, withCost: withCost);
         return ListView(padding: const EdgeInsets.all(Gap.l), children: [
-          Wrap(spacing: Gap.m, runSpacing: Gap.s, crossAxisAlignment: WrapCrossAlignment.center, children: [
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 640),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.auto_awesome, color: t.colorScheme.primary),
-                const SizedBox(width: Gap.s),
-                Flexible(
-                  child: Text(
-                    'Подсказки по вашим данным за последние 30 дней. Считаются на этом устройстве, '
-                    'без интернета; каждая объясняет, откуда взялись цифры.',
-                    style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant),
-                  ),
+          LayoutBuilder(builder: (context, c) {
+            final intro = Row(children: [
+              Icon(Icons.auto_awesome, color: t.colorScheme.primary),
+              const SizedBox(width: Gap.s),
+              Expanded(
+                child: Text(
+                  'Подсказки по вашим данным за последние 30 дней. Считаются на этом устройстве, '
+                  'без интернета; каждая объясняет, откуда взялись цифры.',
+                  style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant),
                 ),
-              ]),
-            ),
-            OutlinedButton.icon(
+              ),
+            ]);
+            final refresh = OutlinedButton.icon(
               onPressed: () => ref.invalidate(insightsDataProvider),
               icon: const Icon(Icons.refresh, size: 18),
               label: const Text('Обновить'),
               style: OutlinedButton.styleFrom(minimumSize: const Size(0, 40)),
-            ),
-          ]),
+            );
+            // wide: refresh button at the right edge; phone: under the text
+            if (c.maxWidth >= 600) {
+              return Row(children: [Expanded(child: intro), const SizedBox(width: Gap.m), refresh]);
+            }
+            return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              intro,
+              const SizedBox(height: Gap.s),
+              refresh,
+            ]);
+          }),
           const SizedBox(height: Gap.m),
           if (list.isEmpty)
             const EmptyState(
@@ -114,8 +120,11 @@ class InsightCard extends StatelessWidget {
                     style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant)),
                 if (insight.action != null && canOpen) ...[
                   const SizedBox(height: Gap.s),
+                  // Cards in one grid row share a height: keep every action
+                  // link on the same baseline at the bottom of its card.
+                  const Spacer(),
                   TextButton.icon(
-                    style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 36)),
+                    style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 44)),
                     onPressed: () => context.go(insight.route!),
                     icon: const Icon(Icons.arrow_forward, size: 18),
                     label: Text(insight.action!),

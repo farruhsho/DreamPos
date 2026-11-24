@@ -120,16 +120,20 @@ class _ForecastTabState extends ConsumerState<ForecastTab> {
               ),
           ]),
           const SizedBox(height: Gap.m),
+          // Formula help: open on wide screens, collapsed on phones where it
+          // would push the table a whole screen down.
           Card(
-            child: Padding(
-              padding: const EdgeInsets.all(Gap.l),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  Icon(Icons.lightbulb_outline, color: t.colorScheme.primary),
-                  const SizedBox(width: Gap.s),
-                  Expanded(child: Text('Как считается прогноз', style: t.textTheme.titleSmall)),
-                ]),
-                const SizedBox(height: Gap.s),
+            clipBehavior: Clip.antiAlias,
+            child: ExpansionTile(
+              key: ValueKey('forecast-help-${context.isCompact}'),
+              initiallyExpanded: !context.isCompact,
+              shape: const Border(),
+              collapsedShape: const Border(),
+              leading: Icon(Icons.lightbulb_outline, color: t.colorScheme.primary),
+              title: Text('Как считается прогноз', style: t.textTheme.titleSmall),
+              childrenPadding: const EdgeInsets.fromLTRB(Gap.l, 0, Gap.l, Gap.l),
+              expandedAlignment: Alignment.centerLeft,
+              children: [
                 Text(
                   '• Продаж в день = продано за последние 28 дней (за вычетом возвратов) ÷ 28. '
                   'Для новых товаров — за дни с момента добавления, но не меньше 7.\n'
@@ -138,7 +142,7 @@ class _ForecastTabState extends ConsumerState<ForecastTab> {
                   '• «Риск» — товар закончится в ближайшие $forecastRiskDays дней.',
                   style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant),
                 ),
-              ]),
+              ],
             ),
           ),
           const SizedBox(height: Gap.m),

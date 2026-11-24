@@ -11,11 +11,11 @@ import 'promotion_editor.dart';
 import 'promotion_logic.dart';
 
 Color promoStatusColor(PromoStatus s) => switch (s) {
-      PromoStatus.active => AppColors.success,
-      PromoStatus.scheduled => AppColors.info,
-      PromoStatus.finished => Colors.grey,
-      PromoStatus.disabled => AppColors.warning,
-    };
+  PromoStatus.active => AppColors.success,
+  PromoStatus.scheduled => AppColors.info,
+  PromoStatus.finished => Colors.grey,
+  PromoStatus.disabled => AppColors.warning,
+};
 
 class PromotionsTab extends ConsumerStatefulWidget {
   const PromotionsTab({super.key});
@@ -33,15 +33,19 @@ class _PromotionsTabState extends ConsumerState<PromotionsTab> {
   }
 
   Future<void> _delete(Promotion p) async {
-    final ok = await confirm(context,
-        title: 'Удалить акцию?',
-        message: '«${p.name}» перестанет применяться на кассе. Проданные чеки не изменятся.',
-        ok: 'Удалить',
-        destructive: true);
+    final ok = await confirm(
+      context,
+      title: 'Удалить акцию?',
+      message: '«${p.name}» перестанет применяться на кассе. Проданные чеки не изменятся.',
+      ok: 'Удалить',
+      destructive: true,
+    );
     if (!ok || !mounted) return;
-    await runGuarded(context,
-        () => ref.read(marketingRepoProvider).deletePromotion(p, userId: ref.read(sessionProvider)!.user.id),
-        success: 'Акция удалена');
+    await runGuarded(
+      context,
+      () => ref.read(marketingRepoProvider).deletePromotion(p, userId: ref.read(sessionProvider)!.user.id),
+      success: 'Акция удалена',
+    );
   }
 
   @override
@@ -57,92 +61,126 @@ class _PromotionsTabState extends ConsumerState<PromotionsTab> {
       data: (all) {
         int count(PromoStatus s) => all.where((p) => statusOf(p, now) == s).length;
         final q = _search.toLowerCase();
-        final list = all
-            .where((p) => _status == null || statusOf(p, now) == _status)
-            .where((p) => q.isEmpty || p.name.toLowerCase().contains(q) || (p.code ?? '').toLowerCase().contains(q))
-            .toList()
-          // Dart's sort is not stable: tie-break by newest first so rows do
-          // not jump around when the stream re-emits.
-          ..sort((a, b) {
-            final r = statusOf(a, now).index.compareTo(statusOf(b, now).index);
-            return r != 0 ? r : b.createdAt.compareTo(a.createdAt);
-          });
+        final list =
+            all
+                .where((p) => _status == null || statusOf(p, now) == _status)
+                .where((p) => q.isEmpty || p.name.toLowerCase().contains(q) || (p.code ?? '').toLowerCase().contains(q))
+                .toList()
+              // Dart's sort is not stable: tie-break by newest first so rows do
+              // not jump around when the stream re-emits.
+              ..sort((a, b) {
+                final r = statusOf(a, now).index.compareTo(statusOf(b, now).index);
+                return r != 0 ? r : b.createdAt.compareTo(a.createdAt);
+              });
 
-        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(Gap.l, Gap.l, Gap.l, 0),
-            child: Wrap(spacing: Gap.s, runSpacing: Gap.s, crossAxisAlignment: WrapCrossAlignment.center, children: [
-              SizedBox(
-                width: 320,
-                child: SearchField(hint: 'Название или промокод', onChanged: (v) => setState(() => _search = v)),
-              ),
-              FilledButton.icon(onPressed: _create, icon: const Icon(Icons.add), label: const Text('Новая акция')),
-              OutlinedButton.icon(
-                onPressed: () => showPromoSimulator(context),
-                icon: const Icon(Icons.calculate_outlined),
-                label: const Text('Проверить на чеке'),
-              ),
-            ]),
-          ),
-          SizedBox(
-            height: 52,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: Gap.l, vertical: Gap.s),
+        // Cap the width on wide monitors: a 1400px row with the switch at
+        // the far edge is hard to scan.
+        return Align(
+          alignment: Alignment.topLeft,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: _maxContentWidth),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                ChoiceChip(
-                    label: Text('Все ${all.length}'),
-                    selected: _status == null,
-                    onSelected: (_) => setState(() => _status = null)),
-                for (final s in PromoStatus.values) ...[
-                  const SizedBox(width: Gap.xs),
-                  ChoiceChip(
-                      label: Text('${s.label} ${count(s)}'),
-                      selected: _status == s,
-                      onSelected: (_) => setState(() => _status = s)),
-                ],
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(Gap.l, Gap.l, Gap.l, 0),
+                  child: Wrap(
+                    spacing: Gap.s,
+                    runSpacing: Gap.s,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: context.width < 600 ? double.infinity : 320,
+                        child: SearchField(
+                          hint: 'Название или промокод',
+                          onChanged: (v) => setState(() => _search = v),
+                        ),
+                      ),
+                      FilledButton.icon(
+                        onPressed: _create,
+                        icon: const Icon(Icons.add),
+                        label: const Text('Новая акция'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: () => showPromoSimulator(context),
+                        icon: const Icon(Icons.calculate_outlined),
+                        label: const Text('Проверить на чеке'),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(
+                  height: 52,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: Gap.l, vertical: Gap.s),
+                    children: [
+                      ChoiceChip(
+                        label: Text('Все ${all.length}'),
+                        selected: _status == null,
+                        onSelected: (_) => setState(() => _status = null),
+                      ),
+                      for (final s in PromoStatus.values) ...[
+                        const SizedBox(width: Gap.xs),
+                        ChoiceChip(
+                          label: Text('${s.label} ${count(s)}'),
+                          selected: _status == s,
+                          onSelected: (_) => setState(() => _status = s),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: all.isEmpty
+                      ? EmptyState(
+                          icon: Icons.campaign_outlined,
+                          title: 'Акций пока нет',
+                          message:
+                              'Создайте скидку на чек, на категорию или товар, «2+1» или промокод. '
+                              'Касса применит её автоматически.',
+                          action: FilledButton.icon(
+                            onPressed: _create,
+                            icon: const Icon(Icons.add),
+                            label: const Text('Создать акцию'),
+                          ),
+                        )
+                      : list.isEmpty
+                      ? const EmptyState(icon: Icons.filter_alt_off_outlined, title: 'Нет акций с таким фильтром')
+                      : ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(Gap.l, 0, Gap.l, Gap.l),
+                          itemCount: list.length,
+                          separatorBuilder: (_, _) => const SizedBox(height: Gap.s),
+                          itemBuilder: (_, i) {
+                            final p = list[i];
+                            final target = p.type == 'percent_category' ? cats[p.targetId] : prods[p.targetId];
+                            return _PromoCard(
+                              promotion: p,
+                              status: statusOf(p, now),
+                              description: describePromo(p, targetName: target),
+                              onEdit: () => showPromotionEditor(context, promotion: p),
+                              onDuplicate: () => showPromotionEditor(context, promotion: p, duplicate: true),
+                              onDelete: () => _delete(p),
+                              onToggle: (v) => runGuarded(
+                                context,
+                                () => ref
+                                    .read(marketingRepoProvider)
+                                    .setPromotionActive(p, v, userId: ref.read(sessionProvider)!.user.id),
+                              ),
+                            );
+                          },
+                        ),
+                ),
               ],
             ),
           ),
-          Expanded(
-            child: all.isEmpty
-                ? EmptyState(
-                    icon: Icons.campaign_outlined,
-                    title: 'Акций пока нет',
-                    message: 'Создайте скидку на чек, на категорию или товар, «2+1» или промокод. '
-                        'Касса применит её автоматически.',
-                    action: FilledButton.icon(
-                        onPressed: _create, icon: const Icon(Icons.add), label: const Text('Создать акцию')),
-                  )
-                : list.isEmpty
-                    ? const EmptyState(icon: Icons.filter_alt_off_outlined, title: 'Нет акций с таким фильтром')
-                    : ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(Gap.l, 0, Gap.l, Gap.l),
-                        itemCount: list.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: Gap.s),
-                        itemBuilder: (_, i) {
-                          final p = list[i];
-                          final target = p.type == 'percent_category' ? cats[p.targetId] : prods[p.targetId];
-                          return _PromoCard(
-                            promotion: p,
-                            status: statusOf(p, now),
-                            description: describePromo(p, targetName: target),
-                            onEdit: () => showPromotionEditor(context, promotion: p),
-                            onDuplicate: () => showPromotionEditor(context, promotion: p, duplicate: true),
-                            onDelete: () => _delete(p),
-                            onToggle: (v) => runGuarded(
-                                context,
-                                () => ref.read(marketingRepoProvider).setPromotionActive(p, v,
-                                    userId: ref.read(sessionProvider)!.user.id)),
-                          );
-                        },
-                      ),
-          ),
-        ]);
+        );
       },
     );
   }
 }
+
+const _maxContentWidth = 1100.0;
 
 class _PromoCard extends StatelessWidget {
   const _PromoCard({
@@ -173,59 +211,83 @@ class _PromoCard extends StatelessWidget {
         onTap: onEdit,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(Gap.l, Gap.m, Gap.s, Gap.m),
-          child: Row(children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: promoStatusColor(status).withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(
-                switch (p.type) {
-                  'promo_code' => Icons.local_offer_outlined,
-                  'buy_x_get_y' => Icons.redeem_outlined,
-                  'percent_category' => Icons.category_outlined,
-                  'percent_product' => Icons.inventory_2_outlined,
-                  _ => Icons.receipt_long_outlined,
-                },
-                color: promoStatusColor(status),
-              ),
-            ),
-            const SizedBox(width: Gap.m),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Wrap(spacing: Gap.s, runSpacing: Gap.xs, crossAxisAlignment: WrapCrossAlignment.center, children: [
-                  Text(p.name, style: t.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
-                  StatusChip(status.label, color: promoStatusColor(status)),
-                ]),
-                const SizedBox(height: 2),
-                Text(description, style: t.textTheme.bodyMedium),
-                Text('${promoTypeLabel(p.type)} · ${formatPeriod(p.startsAt, p.endsAt)}',
-                    style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant)),
-              ]),
-            ),
-            Tooltip(
-              message: p.isActive ? 'Выключить' : 'Включить',
-              child: Switch(value: p.isActive, onChanged: onToggle),
-            ),
-            PopupMenuButton<String>(
-              tooltip: 'Действия',
-              onSelected: (v) => switch (v) {
-                'edit' => onEdit(),
-                'dup' => onDuplicate(),
-                _ => onDelete(),
-              },
-              itemBuilder: (_) => const [
-                PopupMenuItem(value: 'edit', child: ListTile(leading: Icon(Icons.edit_outlined), title: Text('Изменить'))),
-                PopupMenuItem(value: 'dup', child: ListTile(leading: Icon(Icons.copy), title: Text('Дублировать'))),
-                PopupMenuItem(
-                    value: 'del',
-                    child: ListTile(
+          child: LayoutBuilder(
+            builder: (context, box) => Row(
+              children: [
+                // Phones: the type icon would leave the text ~150px and wrap it
+                // into four lines next to the switch; the status chip carries
+                // the colour anyway.
+                if (box.maxWidth >= 420) ...[
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: promoStatusColor(status).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(switch (p.type) {
+                      'promo_code' => Icons.local_offer_outlined,
+                      'buy_x_get_y' => Icons.redeem_outlined,
+                      'percent_category' => Icons.category_outlined,
+                      'percent_product' => Icons.inventory_2_outlined,
+                      _ => Icons.receipt_long_outlined,
+                    }, color: promoStatusColor(status)),
+                  ),
+                  const SizedBox(width: Gap.m),
+                ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Wrap(
+                        spacing: Gap.s,
+                        runSpacing: Gap.xs,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(p.name, style: t.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
+                          StatusChip(status.label, color: promoStatusColor(status)),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(description, style: t.textTheme.bodyMedium),
+                      Text(
+                        '${promoTypeLabel(p.type)} · ${formatPeriod(p.startsAt, p.endsAt)}',
+                        style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
+                ),
+                Tooltip(
+                  message: p.isActive ? 'Выключить' : 'Включить',
+                  child: Switch(value: p.isActive, onChanged: onToggle),
+                ),
+                PopupMenuButton<String>(
+                  tooltip: 'Действия',
+                  onSelected: (v) => switch (v) {
+                    'edit' => onEdit(),
+                    'dup' => onDuplicate(),
+                    _ => onDelete(),
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(
+                      value: 'edit',
+                      child: ListTile(leading: Icon(Icons.edit_outlined), title: Text('Изменить')),
+                    ),
+                    PopupMenuItem(
+                      value: 'dup',
+                      child: ListTile(leading: Icon(Icons.copy), title: Text('Дублировать')),
+                    ),
+                    PopupMenuItem(
+                      value: 'del',
+                      child: ListTile(
                         leading: Icon(Icons.delete_outline, color: AppColors.danger),
-                        title: Text('Удалить', style: TextStyle(color: AppColors.danger)))),
+                        title: Text('Удалить', style: TextStyle(color: AppColors.danger)),
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
-          ]),
+          ),
         ),
       ),
     );

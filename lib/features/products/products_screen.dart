@@ -193,6 +193,8 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
         leading: _selectionMode
             ? Checkbox(
                 tristate: true,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
                 value: _checked.isEmpty
                     ? false
                     : (_last != null && _last!.every((p) => _checked.contains(p.id)) ? true : null),
@@ -249,7 +251,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
           title: 'Товары',
           padding: EdgeInsets.zero,
           actions: actions,
-          fab: canEdit && compact
+          fab: canEdit && compact && !_selectionMode
               ? FloatingActionButton(
                   onPressed: _create, tooltip: 'Новый товар', child: const Icon(Icons.add))
               : null,
@@ -270,7 +272,8 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
     final search = SearchField(
       controller: _searchCtl,
       focusNode: _searchFocus,
-      hint: 'Название, артикул или штрихкод (Ctrl+F)',
+      // Phones have no Ctrl+F; a shorter hint fits 360–390px without an ellipsis.
+      hint: compact ? 'Название, артикул, штрихкод' : 'Название, артикул или штрихкод (Ctrl+F)',
       onChanged: (v) => _setQuery(_q.copyWith(search: v)),
       onSubmitted: _onSearchSubmitted,
     );
@@ -300,12 +303,11 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
         items: [for (final a in ActiveFilter.values) _MenuItem(a, a.label)],
         onSelected: (v) => _setQuery(_q.copyWith(active: v)),
       ),
-      FilterChip(
-        avatar: Icon(_q.favoritesOnly ? Icons.star : Icons.star_outline, size: 18),
-        label: const Text('Избранные'),
-        selected: _q.favoritesOnly,
-        showCheckmark: false,
-        onSelected: (v) => _setQuery(_q.copyWith(favoritesOnly: v)),
+      _ChipShell(
+        icon: _q.favoritesOnly ? Icons.star : Icons.star_outline,
+        label: 'Избранные',
+        active: _q.favoritesOnly,
+        onTap: () => _setQuery(_q.copyWith(favoritesOnly: !_q.favoritesOnly)),
       ),
       _MenuChip<ProductSort>(
         icon: _q.descending ? Icons.arrow_downward : Icons.arrow_upward,
@@ -328,12 +330,22 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         search,
         const SizedBox(height: Gap.s),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(children: [
-            for (final c in chips) ...[c, const SizedBox(width: Gap.s)],
-          ]),
-        ),
+        // Phones: one swipeable row (vertical space is scarce). Wider panes
+        // (incl. the tablet master-detail list) wrap, so no chip hides off-edge.
+        if (compact)
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(children: [
+              for (final c in chips) ...[c, const SizedBox(width: Gap.s)],
+            ]),
+          )
+        else
+          Wrap(
+            spacing: Gap.s,
+            runSpacing: Gap.s,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: chips,
+          ),
       ]),
     );
   }
@@ -382,22 +394,31 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
         Expanded(
           child: LayoutBuilder(builder: (context, c) {
             if (c.maxWidth < 560) {
-              return Align(
-                alignment: Alignment.centerRight,
-                child: PopupMenuButton<int>(
+              // Phones: the two most frequent actions stay one tap away as
+              // 48px icon buttons; the rest go to the overflow menu.
+              const primary = [2, 0]; // Ценники, Категория
+              return Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                for (final i in primary)
+                  IconButton(
+                    tooltip: buttons[i].$4 ?? buttons[i].$2,
+                    onPressed: buttons[i].$3,
+                    icon: Icon(buttons[i].$1),
+                  ),
+                PopupMenuButton<int>(
                   tooltip: 'Действия',
-                  icon: const Icon(Icons.more_horiz),
+                  icon: const Icon(Icons.more_vert),
                   onSelected: (i) => buttons[i].$3?.call(),
                   itemBuilder: (_) => [
                     for (var i = 0; i < buttons.length; i++)
-                      PopupMenuItem(
-                        value: i,
-                        enabled: buttons[i].$3 != null,
-                        child: ListTile(leading: Icon(buttons[i].$1), title: Text(buttons[i].$2)),
-                      ),
+                      if (!primary.contains(i))
+                        PopupMenuItem(
+                          value: i,
+                          enabled: buttons[i].$3 != null,
+                          child: ListTile(leading: Icon(buttons[i].$1), title: Text(buttons[i].$2)),
+                        ),
                   ],
                 ),
-              );
+              ]);
             }
             return SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -533,34 +554,14 @@ class _MenuChip<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = Theme.of(context);
-    final fg = active ? t.colorScheme.onSecondaryContainer : t.colorScheme.onSurface;
     return MenuAnchor(
-      builder: (context, ctl, _) => Tooltip(
-        message: tooltip ?? '',
-        child: Material(
-          color: active ? t.colorScheme.secondaryContainer : Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-            side: BorderSide(color: active ? Colors.transparent : t.colorScheme.outlineVariant),
-          ),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(8),
-            onTap: () => ctl.isOpen ? ctl.close() : ctl.open(),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(icon, size: 18, color: fg),
-                const SizedBox(width: 6),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 180),
-                  child: Text(label, overflow: TextOverflow.ellipsis, style: TextStyle(color: fg)),
-                ),
-                Icon(Icons.arrow_drop_down, size: 20, color: fg),
-              ]),
-            ),
-          ),
-        ),
+      builder: (context, ctl, _) => _ChipShell(
+        icon: icon,
+        label: label,
+        active: active,
+        dropdown: true,
+        tooltip: tooltip,
+        onTap: () => ctl.isOpen ? ctl.close() : ctl.open(),
       ),
       menuChildren: [
         for (final it in items)
@@ -571,5 +572,59 @@ class _MenuChip<T> extends StatelessWidget {
           ),
       ],
     );
+  }
+}
+
+/// Shared look for the filter-bar chips (menu chips and the favourites
+/// toggle), so they all have the same height. On phones the chip is at least
+/// 44px tall for comfortable thumb taps.
+class _ChipShell extends StatelessWidget {
+  const _ChipShell({
+    required this.icon,
+    required this.label,
+    required this.active,
+    required this.onTap,
+    this.dropdown = false,
+    this.tooltip,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+  final bool dropdown;
+  final String? tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    final fg = active ? t.colorScheme.onSecondaryContainer : t.colorScheme.onSurface;
+    final chip = Material(
+      color: active ? t.colorScheme.secondaryContainer : Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(color: active ? Colors.transparent : t.colorScheme.outlineVariant),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: onTap,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: context.isCompact ? 44 : 36),
+          child: Padding(
+            padding: EdgeInsets.only(left: 10, right: dropdown ? 6 : 12),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(icon, size: 18, color: active && !dropdown ? AppColors.warning : fg),
+              const SizedBox(width: 6),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 180),
+                child: Text(label, overflow: TextOverflow.ellipsis, style: TextStyle(color: fg)),
+              ),
+              if (dropdown) Icon(Icons.arrow_drop_down, size: 20, color: fg),
+            ]),
+          ),
+        ),
+      ),
+    );
+    return tooltip == null ? chip : Tooltip(message: tooltip!, child: chip);
   }
 }

@@ -38,27 +38,57 @@ class _UsersTabState extends ConsumerState<UsersTab> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Wrap(
-          spacing: Gap.m,
-          runSpacing: Gap.s,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 320),
-              child: SearchField(hint: 'Имя или телефон', onChanged: (v) => setState(() => _q = v)),
-            ),
-            FilterChip(
-              label: const Text('Показать неактивных'),
+        LayoutBuilder(
+          builder: (context, c) {
+            final search = SearchField(hint: 'Имя или телефон', onChanged: (v) => setState(() => _q = v));
+            final inactive = FilterChip(
+              label: const Text('Неактивные'),
+              tooltip: 'Показать деактивированных сотрудников',
               selected: _showInactive,
               onSelected: (v) => setState(() => _showInactive = v),
-            ),
-            FilledButton.icon(
+            );
+            final compact = c.maxWidth < 600;
+            final add = FilledButton.icon(
               key: const ValueKey('add_user'),
               onPressed: () => showUserFormDialog(context),
               icon: const Icon(Icons.person_add_alt_1),
-              label: const Text('Добавить сотрудника'),
-            ),
-          ],
+              label: Text(compact ? 'Добавить' : 'Добавить сотрудника'),
+            );
+            if (compact) {
+              // Phone: full-width search, then filter + primary action on one row.
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  search,
+                  const SizedBox(height: Gap.s),
+                  Row(
+                    children: [
+                      inactive,
+                      const SizedBox(width: Gap.s),
+                      Expanded(child: add),
+                    ],
+                  ),
+                ],
+              );
+            }
+            return Row(
+              children: [
+                Expanded(
+                  child: Row(
+                    children: [
+                      Flexible(
+                        child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 360), child: search),
+                      ),
+                      const SizedBox(width: Gap.m),
+                      inactive,
+                    ],
+                  ),
+                ),
+                const SizedBox(width: Gap.m),
+                add,
+              ],
+            );
+          },
         ),
         const SizedBox(height: Gap.m),
         Expanded(
@@ -76,21 +106,24 @@ class _UsersTabState extends ConsumerState<UsersTab> {
                   child: EmptyState(
                     icon: Icons.badge_outlined,
                     title: list.isEmpty ? 'Сотрудников пока нет' : 'Никого не найдено',
-                    message: list.isEmpty
-                        ? 'Добавьте кассиров и менеджеров, чтобы они могли входить по PIN'
-                        : null,
+                    message: list.isEmpty ? 'Добавьте кассиров и менеджеров, чтобы они могли входить по PIN' : null,
                   ),
                 );
               }
-              return Card(
-                clipBehavior: Clip.antiAlias,
-                child: ListView.separated(
-                  itemCount: filtered.length,
-                  separatorBuilder: (_, _) => const Divider(),
-                  itemBuilder: (context, i) => _UserTile(
-                    user: filtered[i],
-                    worked: worked[filtered[i].id] ?? Duration.zero,
-                    onShift: onShift.contains(filtered[i].id),
+              // Card hugs its rows instead of a tall empty panel under a short list.
+              return Align(
+                alignment: Alignment.topCenter,
+                child: Card(
+                  clipBehavior: Clip.antiAlias,
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: filtered.length,
+                    separatorBuilder: (_, _) => const Divider(),
+                    itemBuilder: (context, i) => _UserTile(
+                      user: filtered[i],
+                      worked: worked[filtered[i].id] ?? Duration.zero,
+                      onShift: onShift.contains(filtered[i].id),
+                    ),
                   ),
                 ),
               );
@@ -189,14 +222,20 @@ class _UserTile extends ConsumerWidget {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(worked == Duration.zero ? '—' : formatDuration(worked), style: t.textTheme.titleSmall),
-              Text('сегодня', style: t.textTheme.bodySmall),
-            ],
-          ),
+          // Hours worked today; omitted when nothing was clocked (a lone
+          // dash over "сегодня" read like a missing value).
+          if (worked > Duration.zero)
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  formatDuration(worked),
+                  style: t.textTheme.titleSmall?.copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
+                ),
+                Text('сегодня', style: t.textTheme.bodySmall),
+              ],
+            ),
           PopupMenuButton<String>(
             tooltip: editable ? 'Действия' : 'Изменять данные владельца может только владелец',
             enabled: editable,

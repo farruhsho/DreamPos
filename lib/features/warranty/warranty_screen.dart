@@ -81,6 +81,9 @@ class _WarrantyScreenState extends ConsumerState<WarrantyScreen> {
     final async = ref.watch(claimsProvider(_filter));
     if (async.hasValue) _last = async.value;
     final wide = context.isWide;
+    // no claims at all: one centred empty state instead of a pointless split
+    final nothingYet =
+        (_last?.isEmpty ?? false) && _filter.query.isEmpty && _filter.group == ClaimGroup.all && _selected == null;
 
     final list = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -89,7 +92,7 @@ class _WarrantyScreenState extends ConsumerState<WarrantyScreen> {
           padding: const EdgeInsets.fromLTRB(Gap.l, Gap.l, Gap.l, Gap.s),
           child: SearchField(
             autofocus: wide,
-            hint: 'Номер заявки или чека, клиент, серийный номер, товар',
+            hint: wide ? 'Номер заявки или чека, клиент, серийный номер, товар' : 'Заявка, чек, клиент, S/N, товар',
             onChanged: (v) => setState(() => _filter = _filter.copyWith(query: v)),
           ),
         ),
@@ -124,14 +127,18 @@ class _WarrantyScreenState extends ConsumerState<WarrantyScreen> {
         if (wide)
           FilledButton.icon(onPressed: () => _create(), icon: const Icon(Icons.add), label: const Text('Новая заявка')),
       ],
-      fab: wide
+      // the empty state already carries the "new claim" button
+      fab: wide || nothingYet
           ? null
           : FloatingActionButton.extended(
               onPressed: () => _create(),
               icon: const Icon(Icons.add),
               label: const Text('Заявка'),
             ),
-      body: !wide
+      // no claims at all: nothing to search or filter, just the empty state
+      body: nothingYet
+          ? _listBody(async)
+          : !wide
           ? list
           : Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -226,7 +233,7 @@ class _ClaimTile extends StatelessWidget {
       ),
       title: Text(
         '№${c.number} · ${row.productName ?? 'товар не указан'}',
-        maxLines: 1,
+        maxLines: 2,
         overflow: TextOverflow.ellipsis,
         style: const TextStyle(fontWeight: FontWeight.w600),
       ),

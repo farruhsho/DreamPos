@@ -50,7 +50,8 @@ class _ShiftHistoryViewState extends ConsumerState<ShiftHistoryView> {
 
     return LayoutBuilder(
       builder: (context, c) {
-        final wide = c.maxWidth >= 1000;
+        // Master-detail from tablet width up (the report reads fine at ~380px).
+        final wide = c.maxWidth >= 840;
         final list = AsyncView(
           value: rows,
           onRetry: () => ref.invalidate(shiftHistoryProvider),
@@ -64,22 +65,27 @@ class _ShiftHistoryViewState extends ConsumerState<ShiftHistoryView> {
                 ),
               );
             }
-            return Card(
-              clipBehavior: Clip.antiAlias,
-              child: ListView.separated(
-                itemCount: items.length,
-                separatorBuilder: (_, _) => const Divider(),
-                itemBuilder: (context, i) => _HistoryTile(
-                  row: items[i],
-                  users: users,
-                  selected: wide && items[i].shift.id == _selected,
-                  onTap: () {
-                    if (wide) {
-                      setState(() => _selected = items[i].shift.id);
-                    } else {
-                      showZReportDialog(context, items[i].shift.id);
-                    }
-                  },
+            // Card hugs its rows instead of a tall empty panel under a short list.
+            return Align(
+              alignment: Alignment.topCenter,
+              child: Card(
+                clipBehavior: Clip.antiAlias,
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: items.length,
+                  separatorBuilder: (_, _) => const Divider(),
+                  itemBuilder: (context, i) => _HistoryTile(
+                    row: items[i],
+                    users: users,
+                    selected: wide && items[i].shift.id == _selected,
+                    onTap: () {
+                      if (wide) {
+                        setState(() => _selected = items[i].shift.id);
+                      } else {
+                        showZReportDialog(context, items[i].shift.id);
+                      }
+                    },
+                  ),
                 ),
               ),
             );
@@ -148,6 +154,9 @@ class _HistoryTile extends StatelessWidget {
         : '${formatDateTime(s.openedAt)} — ${formatSameDayTime(s.openedAt, s.closedAt!)}';
     return ListTile(
       selected: selected,
+      // Highlight the row, but keep text colours (a fully purple row reads like a link).
+      selectedTileColor: t.colorScheme.secondaryContainer.withValues(alpha: 0.6),
+      selectedColor: t.colorScheme.onSurface,
       onTap: onTap,
       leading: CircleAvatar(
         backgroundColor: (open ? AppColors.success : t.colorScheme.primary).withValues(alpha: 0.12),
@@ -167,14 +176,14 @@ class _HistoryTile extends StatelessWidget {
           if (open) const StatusChip('Открыта', color: AppColors.success),
         ],
       ),
-      subtitle: Text('$when\n$who', maxLines: 2, overflow: TextOverflow.ellipsis),
+      subtitle: Text('$when\n$who', maxLines: 3, overflow: TextOverflow.ellipsis),
       isThreeLine: true,
       trailing: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Text(Money.format(row.salesTotal), style: t.textTheme.titleSmall),
-          Text('${row.salesCount} чек.', style: t.textTheme.bodySmall),
+          Text('${row.salesCount} ${pluralRu(row.salesCount, 'чек', 'чека', 'чеков')}', style: t.textTheme.bodySmall),
           if (diff != null)
             Text(
               diff == 0 ? 'без расхождений' : '${diff < 0 ? '−' : '+'}${Money.format(diff.abs())}',

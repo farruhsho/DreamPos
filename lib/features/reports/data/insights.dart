@@ -174,7 +174,9 @@ List<Insight> buildInsights(InsightData d, {bool withCost = true}) {
     out.add(Insight(
         id: 'stockout_more',
         severity: InsightSeverity.warning,
-        title: 'Ещё ${_items(soon.length - 3)} закончатся в течение недели',
+        title: soon.length - 3 == 1
+            ? 'Ещё 1 товар закончится в течение недели'
+            : 'Ещё ${_items(soon.length - 3)} закончатся в течение недели',
         explanation: 'См. вкладку «Прогноз спроса» — там рекомендуемое количество к заказу.',
         action: 'Оформить закупку',
         route: '/purchasing'));

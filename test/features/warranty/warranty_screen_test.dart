@@ -115,7 +115,9 @@ void main() {
 
   testWidgets('narrow layout opens new claim form', (tester) async {
     await pump(tester, const Size(360, 740));
-    await tester.tap(find.byType(FloatingActionButton));
+    // no claims yet: the empty state's button replaces the FAB
+    expect(find.byType(FloatingActionButton), findsNothing);
+    await tester.tap(find.text('Новая заявка'));
     await settle(tester);
     expect(find.text('Новая гарантийная заявка'), findsOneWidget);
     await tester.tap(find.text('Принять заявку'));

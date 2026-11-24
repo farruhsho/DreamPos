@@ -176,8 +176,10 @@ class _LabelsDialogState extends ConsumerState<_LabelsDialog> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(Gap.xl, Gap.s, Gap.xl, Gap.l),
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Text('Товаров: ${widget.ids.length}. Формат A4, линии реза пунктиром.'),
-        const SizedBox(height: Gap.l),
+        Text('Товаров: ${widget.ids.length}. Формат A4, линии реза пунктиром.',
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        const SizedBox(height: Gap.m),
+        Text('Размер ценника', style: Theme.of(context).textTheme.titleSmall),
         RadioGroup<LabelLayout>(
           groupValue: _layout,
           onChanged: (v) => setState(() => _layout = v ?? _layout),
@@ -186,7 +188,7 @@ class _LabelsDialogState extends ConsumerState<_LabelsDialog> {
               RadioListTile<LabelLayout>(
                 value: l,
                 contentPadding: EdgeInsets.zero,
-                dense: true,
+                visualDensity: VisualDensity.compact,
                 title: Text(l.label),
               ),
           ]),
@@ -205,7 +207,10 @@ class _LabelsDialogState extends ConsumerState<_LabelsDialog> {
             ),
           ),
           const SizedBox(width: Gap.l),
-          Expanded(child: Text('Всего $total ценников, страниц: $pages')),
+          Expanded(
+            child: Text('Всего ценников: $total\nСтраниц A4: $pages',
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          ),
         ]),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,

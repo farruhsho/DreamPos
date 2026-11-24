@@ -72,11 +72,7 @@ class AuditFilter {
 
   @override
   bool operator ==(Object other) =>
-      other is AuditFilter &&
-      other.userId == userId &&
-      other.group == group &&
-      other.from == from &&
-      other.to == to;
+      other is AuditFilter && other.userId == userId && other.group == group && other.from == from && other.to == to;
 
   @override
   int get hashCode => Object.hash(userId, group, from, to);
@@ -86,8 +82,7 @@ const auditLimit = 500;
 
 final auditProvider = StreamProvider.autoDispose.family<List<AuditEntry>, AuditFilter>((ref, f) {
   final db = ref.watch(databaseProvider);
-  final q = db.select(db.auditLog)
-    ..where((a) => a.at.isBiggerOrEqualValue(f.from) & a.at.isSmallerThanValue(f.to));
+  final q = db.select(db.auditLog)..where((a) => a.at.isBiggerOrEqualValue(f.from) & a.at.isSmallerThanValue(f.to));
   if (f.userId != null) q.where((a) => a.userId.equals(f.userId!));
   if (f.group != null) q.where((a) => a.action.like('${f.group}%'));
   q

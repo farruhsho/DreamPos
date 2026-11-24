@@ -69,9 +69,7 @@ class _Body extends ConsumerWidget {
           ],
         ),
         const SizedBox(height: Gap.m),
-        Wrap(
-          spacing: Gap.s,
-          runSpacing: Gap.s,
+        _ActionGrid(
           children: [
             for (final (i, s) in next.indexed)
               i == 0
@@ -372,5 +370,39 @@ Widget _kv(BuildContext context, String k, String v, {Color? color, Widget? trai
         ?trailing,
       ],
     ),
+  );
+}
+
+/// Status actions: one row when they all fit; otherwise the primary action
+/// gets a full-width row and the rest an even two-column grid, so no single
+/// button is left dangling on its own line and phone targets stay large.
+class _ActionGrid extends StatelessWidget {
+  const _ActionGrid({required this.children});
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, c) {
+      if (c.maxWidth >= 860 || children.length < 3) {
+        return Wrap(spacing: Gap.s, runSpacing: Gap.s, children: children);
+      }
+      final rest = children.sublist(1);
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          children.first,
+          for (var i = 0; i < rest.length; i += 2) ...[
+            const SizedBox(height: Gap.s),
+            Row(
+              children: [
+                Expanded(child: rest[i]),
+                const SizedBox(width: Gap.s),
+                Expanded(child: i + 1 < rest.length ? rest[i + 1] : const SizedBox.shrink()),
+              ],
+            ),
+          ],
+        ],
+      );
+    },
   );
 }

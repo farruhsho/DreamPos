@@ -66,12 +66,7 @@ CashDiff classifyDiff(int counted, int expected) => counted == expected
     : CashDiff.surplus;
 
 /// Validates the close-shift form. Returns a Russian error or null.
-String? validateClose({
-  required int? counted,
-  required int expected,
-  required String note,
-  int collection = 0,
-}) {
+String? validateClose({required int? counted, required int expected, required String note, int collection = 0}) {
   if (counted == null) return 'Введите сумму наличных в кассе';
   if (counted < 0) return 'Сумма не может быть отрицательной';
   if (collection < 0) return 'Сумма инкассации не может быть отрицательной';
@@ -180,12 +175,7 @@ class ShiftFigures {
         byCat[c] = (byCat[c] ?? 0) + m.amount;
       }
     }
-    return ShiftFigures(
-      report: rep,
-      returnedCost: returnedCost,
-      movementsByKind: byKind,
-      expensesByCategory: byCat,
-    );
+    return ShiftFigures(report: rep, returnedCost: returnedCost, movementsByKind: byKind, expensesByCategory: byCat);
   }
 }
 
@@ -211,17 +201,11 @@ class ShiftHistoryRow {
   final int salesTotal;
   final int salesCount;
 
-  int? get difference => shift.countedCash == null || shift.expectedCash == null
-      ? null
-      : shift.countedCash! - shift.expectedCash!;
+  int? get difference =>
+      shift.countedCash == null || shift.expectedCash == null ? null : shift.countedCash! - shift.expectedCash!;
 }
 
-Stream<List<ShiftHistoryRow>> watchShiftHistory(
-  AppDatabase db, {
-  String? onlyUserId,
-  DateTime? from,
-  int limit = 300,
-}) {
+Stream<List<ShiftHistoryRow>> watchShiftHistory(AppDatabase db, {String? onlyUserId, DateTime? from, int limit = 300}) {
   final where = <String>[];
   final vars = <Variable>[];
   if (onlyUserId != null) {
@@ -254,4 +238,12 @@ Stream<List<ShiftHistoryRow>> watchShiftHistory(
             ),
         ],
       );
+}
+
+/// Russian plural form: 1 чек, 2 чека, 5 чеков.
+String pluralRu(int n, String one, String few, String many) {
+  final m10 = n.abs() % 10, m100 = n.abs() % 100;
+  if (m10 == 1 && m100 != 11) return one;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+  return many;
 }

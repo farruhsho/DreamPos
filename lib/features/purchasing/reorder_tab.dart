@@ -15,7 +15,7 @@ const _noSupplier = '';
 const reorderTargetDaysKey = 'reorder_target_days';
 
 class _Row {
-  _Row(this.s) : qty = TextEditingController(text: Qty.format(s.suggestedQty).replaceAll(',', '.'));
+  _Row(this.s) : qty = TextEditingController(text: Qty.format(s.suggestedQty));
   final ReorderSuggestion s;
   final TextEditingController qty;
   bool selected = true;
@@ -118,20 +118,28 @@ class _ReorderTabState extends ConsumerState<ReorderTab> {
       }
     }
     if (payload.isEmpty) {
-      showError(context, skipped > 0 ? 'Выберите поставщика для товаров без поставщика' : 'Не выбрано ни одной позиции');
+      showError(
+        context,
+        skipped > 0 ? 'Выберите поставщика для товаров без поставщика' : 'Не выбрано ни одной позиции',
+      );
       return;
     }
-    final ok = await confirm(context,
-        title: 'Создать заказы?',
-        message: 'Будет создано черновиков: ${payload.length}\n'
-            '${payload.entries.map((e) => '• ${names[e.key]}: ${e.value.length} поз.').join('\n')}'
-            '${skipped > 0 ? '\n\n$skipped поз. без поставщика пропущены' : ''}',
-        ok: 'Создать');
+    final ok = await confirm(
+      context,
+      title: 'Создать заказы?',
+      message:
+          'Будет создано черновиков: ${payload.length}\n'
+          '${payload.entries.map((e) => '• ${names[e.key]}: ${e.value.length} поз.').join('\n')}'
+          '${skipped > 0 ? '\n\n$skipped поз. без поставщика пропущены' : ''}',
+      ok: 'Создать',
+    );
     if (!ok || !mounted) return;
     setState(() => _busy = true);
     final done = await runGuarded(
       context,
-      () => ref.read(purchasingRepoProvider).createOrdersFromSuggestions(payload, userId: ref.read(sessionProvider)?.user.id),
+      () => ref
+          .read(purchasingRepoProvider)
+          .createOrdersFromSuggestions(payload, userId: ref.read(sessionProvider)?.user.id),
       success: 'Создано черновиков заказов: ${payload.length}. Проверьте их во вкладке «Заказы»',
     );
     if (!mounted) return;
@@ -145,21 +153,28 @@ class _ReorderTabState extends ConsumerState<ReorderTab> {
     final suppliers = ref.watch(purSuppliersProvider).value ?? const <Supplier>[];
     final names = {for (final s in suppliers) s.id: s.name};
     final canCost = ref.watch(sessionProvider)?.can(Perm.viewCost) ?? false;
-    final toolbar = Wrap(spacing: Gap.m, runSpacing: Gap.s, crossAxisAlignment: WrapCrossAlignment.center, children: [
-      SizedBox(
-        width: 200,
-        child: TextField(
-          controller: _days,
-          keyboardType: TextInputType.number,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          decoration: const InputDecoration(labelText: 'Запас на, дней', suffixText: 'дн.'),
-          onSubmitted: (_) => _applyDays(),
+    final toolbar = Wrap(
+      spacing: Gap.m,
+      runSpacing: Gap.s,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        SizedBox(
+          width: 200,
+          child: TextField(
+            controller: _days,
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            decoration: const InputDecoration(labelText: 'Запас на, дней', suffixText: 'дн.'),
+            onSubmitted: (_) => _applyDays(),
+          ),
         ),
-      ),
-      OutlinedButton.icon(onPressed: _applyDays, icon: const Icon(Icons.refresh), label: const Text('Пересчитать')),
-      Text('Продажи за 30 дней → средний расход в день. Учтены остатки, минимум и уже заказанное.',
-          style: t.textTheme.bodySmall),
-    ]);
+        OutlinedButton.icon(onPressed: _applyDays, icon: const Icon(Icons.refresh), label: const Text('Пересчитать')),
+        Text(
+          'Средний расход считается по продажам за 30 дней; учтены остатки, минимум и уже заказанное.',
+          style: t.textTheme.bodySmall,
+        ),
+      ],
+    );
 
     Widget body;
     if (_error != null) {
@@ -168,42 +183,57 @@ class _ReorderTabState extends ConsumerState<ReorderTab> {
       body = const LoadingView();
     } else if (_rows!.isEmpty) {
       body = const EmptyState(
-          icon: Icons.thumb_up_alt_outlined,
-          title: 'Заказывать нечего',
-          message: 'Запасов хватает на выбранный период. Задайте минимальные остатки в карточках товаров.');
+        icon: Icons.thumb_up_alt_outlined,
+        title: 'Заказывать нечего',
+        message: 'Запасов хватает на выбранный период. Задайте минимальные остатки в карточках товаров.',
+      );
     } else {
       final groups = groupBy<_Row, String>(_rows!, (r) {
         final sid = r.s.product.supplierId;
         return sid != null && names.containsKey(sid) ? sid : _noSupplier;
       });
       final keys = groups.keys.toList()
-        ..sort((a, b) => a == _noSupplier ? 1 : b == _noSupplier ? -1 : (names[a] ?? '').compareTo(names[b] ?? ''));
+        ..sort(
+          (a, b) => a == _noSupplier
+              ? 1
+              : b == _noSupplier
+              ? -1
+              : (names[a] ?? '').compareTo(names[b] ?? ''),
+        );
       final selectedCount = _rows!.where((r) => r.selected && r.q > 0).length;
-      body = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Expanded(
-          child: ListView(children: [
-            for (final k in keys) _group(k, groups[k]!, suppliers, names, canCost),
-          ]),
-        ),
-        const Divider(),
+      body = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(child: ListView(children: [for (final k in keys) _group(k, groups[k]!, suppliers, names, canCost)])),
+          const Divider(),
+          Padding(
+            padding: const EdgeInsets.only(top: Gap.s),
+            child: Row(
+              children: [
+                Expanded(child: Text('Выбрано позиций: $selectedCount', style: t.textTheme.titleSmall)),
+                FilledButton.icon(
+                  onPressed: _busy || selectedCount == 0 ? null : () => _createOrders(groups, names),
+                  icon: const Icon(Icons.playlist_add_check),
+                  label: const Text('Создать заказы'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Top inset keeps the floating field label inside the tab's clip.
         Padding(
           padding: const EdgeInsets.only(top: Gap.s),
-          child: Row(children: [
-            Expanded(child: Text('Выбрано позиций: $selectedCount', style: t.textTheme.titleSmall)),
-            FilledButton.icon(
-              onPressed: _busy || selectedCount == 0 ? null : () => _createOrders(groups, names),
-              icon: const Icon(Icons.playlist_add_check),
-              label: const Text('Создать заказы'),
-            ),
-          ]),
+          child: toolbar,
         ),
-      ]);
-    }
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      toolbar,
-      const SizedBox(height: Gap.m),
-      Expanded(child: body),
-    ]);
+        const SizedBox(height: Gap.m),
+        Expanded(child: body),
+      ],
+    );
   }
 
   Widget _group(String key, List<_Row> rows, List<Supplier> suppliers, Map<String, String> names, bool canCost) {
@@ -214,42 +244,55 @@ class _ReorderTabState extends ConsumerState<ReorderTab> {
       margin: const EdgeInsets.only(bottom: Gap.m),
       child: Padding(
         padding: const EdgeInsets.all(Gap.m),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Row(children: [
-            Checkbox(
-              value: allSel,
-              onChanged: (v) => setState(() {
-                for (final r in rows) {
-                  r.selected = v ?? false;
-                }
-              }),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Checkbox(
+                  value: allSel,
+                  onChanged: (v) => setState(() {
+                    for (final r in rows) {
+                      r.selected = v ?? false;
+                    }
+                  }),
+                ),
+                Expanded(
+                  child: Text(
+                    key == _noSupplier ? 'Без поставщика' : names[key] ?? '—',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: t.textTheme.titleMedium,
+                  ),
+                ),
+                if (canCost) Text('≈ ${Money.format(total)}', style: const TextStyle(fontWeight: FontWeight.w700)),
+              ],
             ),
-            Expanded(
-              child: Text(key == _noSupplier ? 'Без поставщика' : names[key] ?? '—',
-                  maxLines: 1, overflow: TextOverflow.ellipsis, style: t.textTheme.titleMedium),
-            ),
-            if (canCost) Text('≈ ${Money.format(total)}', style: const TextStyle(fontWeight: FontWeight.w700)),
-          ]),
-          if (key == _noSupplier)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(Gap.s, 0, Gap.s, Gap.s),
-              child: DropdownButtonFormField<String>(
-                key: ValueKey('assign${suppliers.length}'),
-                isExpanded: true,
-                decoration: const InputDecoration(
+            if (key == _noSupplier)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(Gap.s, 0, Gap.s, Gap.s),
+                child: DropdownButtonFormField<String>(
+                  key: ValueKey('assign${suppliers.length}'),
+                  isExpanded: true,
+                  decoration: const InputDecoration(
                     labelText: 'Заказать у поставщика',
-                    helperText: 'У этих товаров поставщик не указан в карточке'),
-                initialValue: names.containsKey(_assign[_noSupplier]) ? _assign[_noSupplier] : null,
-                items: [
-                  for (final s in suppliers)
-                    DropdownMenuItem(value: s.id, child: Text(s.name, overflow: TextOverflow.ellipsis)),
-                ],
-                onChanged: (v) => setState(() => v == null ? _assign.remove(_noSupplier) : _assign[_noSupplier] = v),
+                    helperText: 'У этих товаров поставщик не указан в карточке',
+                  ),
+                  initialValue: names.containsKey(_assign[_noSupplier]) ? _assign[_noSupplier] : null,
+                  items: [
+                    for (final s in suppliers)
+                      DropdownMenuItem(
+                        value: s.id,
+                        child: Text(s.name, overflow: TextOverflow.ellipsis),
+                      ),
+                  ],
+                  onChanged: (v) => setState(() => v == null ? _assign.remove(_noSupplier) : _assign[_noSupplier] = v),
+                ),
               ),
-            ),
-          const Divider(),
-          for (final r in rows) _row(r, canCost),
-        ]),
+            const Divider(),
+            for (final r in rows) _row(r, canCost),
+          ],
+        ),
       ),
     );
   }
@@ -259,22 +302,29 @@ class _ReorderTabState extends ConsumerState<ReorderTab> {
     final p = r.s.product;
     final cover = r.s.daysOfCover;
     final urgent = p.stockQty <= 0 || (cover != null && cover < 3);
-    final info = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
-        Flexible(child: Text(p.name, maxLines: 2, overflow: TextOverflow.ellipsis)),
-        if (urgent) ...[const SizedBox(width: Gap.s), const StatusChip('Срочно', color: AppColors.danger)],
-      ]),
-      Text(
-        [
-          'остаток ${Qty.format(p.stockQty, p.unit)}',
-          if (p.minStock > 0) 'мин. ${Qty.format(p.minStock)}',
-          'продаж/день ${r.s.avgDaily.toStringAsFixed(r.s.avgDaily >= 10 ? 0 : 2).replaceAll('.', ',')}',
-          cover == null ? 'продаж не было' : 'хватит на ${cover.toStringAsFixed(cover >= 10 ? 0 : 1).replaceAll('.', ',')} дн.',
-          if (r.s.onOrder > 0) 'уже в заказах ${Qty.format(r.s.onOrder)}',
-        ].join(' · '),
-        style: t.textTheme.bodySmall?.copyWith(color: urgent ? AppColors.danger : t.colorScheme.onSurfaceVariant),
-      ),
-    ]);
+    final info = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Flexible(child: Text(p.name, maxLines: 2, overflow: TextOverflow.ellipsis)),
+            if (urgent) ...[const SizedBox(width: Gap.s), const StatusChip('Срочно', color: AppColors.danger)],
+          ],
+        ),
+        Text(
+          [
+            'остаток ${Qty.format(p.stockQty, p.unit)}',
+            if (p.minStock > 0) 'мин. ${Qty.format(p.minStock)}',
+            'продаж/день ${r.s.avgDaily.toStringAsFixed(r.s.avgDaily >= 10 ? 0 : 2).replaceAll('.', ',')}',
+            cover == null
+                ? 'продаж не было'
+                : 'хватит на ${cover.toStringAsFixed(cover >= 10 ? 0 : 1).replaceAll('.', ',')} дн.',
+            if (r.s.onOrder > 0) 'уже в заказах ${Qty.format(r.s.onOrder)}',
+          ].join(' · '),
+          style: t.textTheme.bodySmall?.copyWith(color: urgent ? AppColors.danger : t.colorScheme.onSurfaceVariant),
+        ),
+      ],
+    );
     final qty = SizedBox(
       width: 110,
       child: TextField(
@@ -295,27 +345,37 @@ class _ReorderTabState extends ConsumerState<ReorderTab> {
     final check = Checkbox(value: r.selected, onChanged: (v) => setState(() => r.selected = v ?? false));
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: Gap.xs),
-      child: LayoutBuilder(builder: (context, c) {
-        if (c.maxWidth >= 560) {
-          return Row(children: [
-            check,
-            Expanded(child: info),
-            const SizedBox(width: Gap.s),
-            qty,
-            ?cost,
-          ]);
-        }
-        return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          check,
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              info,
-              const SizedBox(height: Gap.xs),
-              Row(children: [qty, const Spacer(), ?cost]),
-            ]),
-          ),
-        ]);
-      }),
+      child: LayoutBuilder(
+        builder: (context, c) {
+          if (c.maxWidth >= 560) {
+            return Row(
+              children: [
+                check,
+                Expanded(child: info),
+                const SizedBox(width: Gap.s),
+                qty,
+                ?cost,
+              ],
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              check,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    info,
+                    const SizedBox(height: Gap.xs),
+                    Row(children: [qty, const Spacer(), ?cost]),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 

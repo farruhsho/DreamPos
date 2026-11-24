@@ -20,13 +20,13 @@ import 'settings_widgets.dart';
 enum SettingsSection {
   store('Магазин', 'Название, реквизиты, чек', Icons.storefront_outlined),
   currency('Валюта и налоги', 'Валюта учёта, НДС', Icons.currency_exchange),
-  sales('Продажи', 'Смены, остатки, возвраты, оплата', Icons.shopping_cart_outlined),
+  sales('Продажи', 'Смены, возвраты, оплата', Icons.shopping_cart_outlined),
   loyalty('Лояльность', 'Бонусная программа', Icons.loyalty_outlined),
   devices('Кассы и устройства', 'Кассы, принтер, сканер', Icons.devices_outlined),
   appearance('Внешний вид', 'Светлая и тёмная тема', Icons.palette_outlined),
   backup('Резервное копирование', 'Копии и восстановление', Icons.backup_outlined),
   data('Данные', 'Демо-режим, экспорт', Icons.dataset_outlined),
-  about('О программе', 'Версия, лицензия, поддержка', Icons.info_outline);
+  about('О программе', 'Версия, лицензия, помощь', Icons.info_outline);
 
   const SettingsSection(this.label, this.hint, this.icon);
   final String label;
@@ -34,16 +34,16 @@ enum SettingsSection {
   final IconData icon;
 
   Widget build() => switch (this) {
-        store => const StoreSection(),
-        currency => const CurrencySection(),
-        sales => const SalesSection(),
-        loyalty => const LoyaltySection(),
-        devices => const DevicesSection(),
-        appearance => const AppearanceSection(),
-        backup => const BackupSection(),
-        data => const DataSection(),
-        about => const AboutSection(),
-      };
+    store => const StoreSection(),
+    currency => const CurrencySection(),
+    sales => const SalesSection(),
+    loyalty => const LoyaltySection(),
+    devices => const DevicesSection(),
+    appearance => const AppearanceSection(),
+    backup => const BackupSection(),
+    data => const DataSection(),
+    about => const AboutSection(),
+  };
 }
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -79,12 +79,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   void _open(SettingsSection s) {
     final dirty = ValueNotifier<bool>(false);
-    Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (c) => SettingsDirtyScope(
-        dirty: dirty,
-        child: _SectionPage(section: s, dirty: dirty),
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (c) => SettingsDirtyScope(
+          dirty: dirty,
+          child: _SectionPage(section: s, dirty: dirty),
+        ),
       ),
-    ));
+    );
   }
 
   @override
@@ -101,74 +103,79 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       );
     }
     final settings = ref.watch(settingsProvider);
-    return LayoutBuilder(builder: (context, c) {
-      final wide = context.isWide;
-      return PageScaffold(
-        title: 'Настройки',
-        padding: EdgeInsets.zero,
-        body: AsyncView(
-          value: settings,
-          onRetry: () => ref.invalidate(settingsProvider),
-          data: (_) => wide ? _wide(context) : _narrow(context),
-        ),
-      );
-    });
+    return LayoutBuilder(
+      builder: (context, c) {
+        final wide = context.isWide;
+        return PageScaffold(
+          title: 'Настройки',
+          padding: EdgeInsets.zero,
+          body: AsyncView(
+            value: settings,
+            onRetry: () => ref.invalidate(settingsProvider),
+            data: (_) => wide ? _wide(context) : _narrow(context),
+          ),
+        );
+      },
+    );
   }
 
   Widget _wide(BuildContext context) {
     final t = Theme.of(context);
-    return Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      SizedBox(
-        width: 290,
-        child: Material(
-          color: t.cardTheme.color,
-          child: ListView(
-            padding: const EdgeInsets.symmetric(vertical: Gap.m, horizontal: Gap.s),
-            children: [
-              for (final s in SettingsSection.values)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 2),
-                  child: ListTile(
-                    key: ValueKey('nav-${s.name}'),
-                    selected: s == _selected,
-                    selectedTileColor: t.colorScheme.primaryContainer.withValues(alpha: 0.6),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    leading: Icon(s.icon),
-                    title: Text(s.label),
-                    subtitle: Text(s.hint, maxLines: 1, overflow: TextOverflow.ellipsis),
-                    onTap: () => _select(s),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          width: 290,
+          child: Material(
+            color: t.cardTheme.color,
+            child: ListView(
+              padding: const EdgeInsets.symmetric(vertical: Gap.m, horizontal: Gap.s),
+              children: [
+                for (final s in SettingsSection.values)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: ListTile(
+                      key: ValueKey('nav-${s.name}'),
+                      selected: s == _selected,
+                      selectedTileColor: t.colorScheme.primaryContainer.withValues(alpha: 0.6),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      leading: Icon(s.icon),
+                      title: Text(s.label),
+                      subtitle: Text(s.hint, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      onTap: () => _select(s),
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
-      ),
-      const VerticalDivider(width: 1),
-      Expanded(
-        child: SettingsDirtyScope(
-          dirty: _dirty,
-          child: KeyedSubtree(key: ValueKey(_selected), child: _selected.build()),
+        const VerticalDivider(width: 1),
+        Expanded(
+          child: SettingsDirtyScope(
+            dirty: _dirty,
+            child: KeyedSubtree(key: ValueKey(_selected), child: _selected.build()),
+          ),
         ),
-      ),
-    ]);
+      ],
+    );
   }
 
   Widget _narrow(BuildContext context) => ListView(
-        padding: const EdgeInsets.symmetric(vertical: Gap.s),
-        children: [
-          for (final s in SettingsSection.values) ...[
-            ListTile(
-              key: ValueKey('nav-${s.name}'),
-              leading: Icon(s.icon),
-              title: Text(s.label),
-              subtitle: Text(s.hint),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => _open(s),
-            ),
-            if (s == SettingsSection.loyalty || s == SettingsSection.appearance) const Divider(),
-          ],
-        ],
-      );
+    padding: const EdgeInsets.symmetric(vertical: Gap.s),
+    children: [
+      for (final s in SettingsSection.values) ...[
+        ListTile(
+          key: ValueKey('nav-${s.name}'),
+          leading: Icon(s.icon),
+          title: Text(s.label),
+          subtitle: Text(s.hint),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => _open(s),
+        ),
+        if (s == SettingsSection.loyalty || s == SettingsSection.appearance) const Divider(),
+      ],
+    ],
+  );
 }
 
 /// Section pushed as its own page on phones/tablets.
@@ -179,17 +186,13 @@ class _SectionPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => PopScope(
-        canPop: false,
-        onPopInvokedWithResult: (didPop, _) async {
-          if (didPop) return;
-          if (dirty.value && !await confirmDiscard(context)) return;
-          dirty.value = false;
-          if (context.mounted) Navigator.of(context).pop();
-        },
-        child: PageScaffold(
-          title: section.label,
-          padding: EdgeInsets.zero,
-          body: section.build(),
-        ),
-      );
+    canPop: false,
+    onPopInvokedWithResult: (didPop, _) async {
+      if (didPop) return;
+      if (dirty.value && !await confirmDiscard(context)) return;
+      dirty.value = false;
+      if (context.mounted) Navigator.of(context).pop();
+    },
+    child: PageScaffold(title: section.label, padding: EdgeInsets.zero, body: section.build()),
+  );
 }

@@ -22,11 +22,7 @@ const poStatusLabels = <String, String>{
   'cancelled': 'Отменён',
 };
 
-const paymentMethodLabels = <String, String>{
-  'cash': 'Наличные',
-  'card': 'Карта',
-  'transfer': 'Перечисление',
-};
+const paymentMethodLabels = <String, String>{'cash': 'Наличные', 'card': 'Карта', 'transfer': 'Перечисление'};
 
 // ------------------------------------------------------------------ providers
 
@@ -92,19 +88,13 @@ final purSupplierOrdersProvider = StreamProvider.family<List<PurchaseOrder>, Str
 });
 
 final purchasingRepoProvider = Provider(
-    (ref) => PurchasingRepo(ref.watch(databaseProvider), ref.watch(stockServiceProvider)));
+  (ref) => PurchasingRepo(ref.watch(databaseProvider), ref.watch(stockServiceProvider)),
+);
 
 // ------------------------------------------------------------------ value types
 
 class SupplierInput {
-  const SupplierInput({
-    required this.name,
-    this.phone,
-    this.contactPerson,
-    this.taxId,
-    this.address,
-    this.note,
-  });
+  const SupplierInput({required this.name, this.phone, this.contactPerson, this.taxId, this.address, this.note});
   final String name;
   final String? phone;
   final String? contactPerson;
@@ -138,8 +128,7 @@ class ReceiveResult {
 
 double remainingQty(PurchaseOrderItem i) => math.max(0, Qty.round(i.qty - i.receivedQty));
 
-int poLinesTotal(Iterable<PoLineInput> lines) =>
-    lines.fold(0, (s, l) => s + (l.qty * l.unitCost).round());
+int poLinesTotal(Iterable<PoLineInput> lines) => lines.fold(0, (s, l) => s + (l.qty * l.unitCost).round());
 
 String? _clean(String? s) => s == null || s.trim().isEmpty ? null : s.trim();
 
@@ -190,8 +179,7 @@ ReorderSuggestion? computeReorder({
   if (need <= 0) return null;
   need = Qty.isFractional(product.unit) ? Qty.round(need) : need.ceilToDouble();
   if (need <= 0) return null;
-  return ReorderSuggestion(
-      product: product, avgDaily: avg, onOrder: onOrder, suggestedQty: need, daysOfCover: cover);
+  return ReorderSuggestion(product: product, avgDaily: avg, onOrder: onOrder, suggestedQty: need, daysOfCover: cover);
 }
 
 // ------------------------------------------------------------------ price control
@@ -204,8 +192,7 @@ class PricePoint {
   final int? prevCost;
 
   /// Percent change vs previous receipt; null for the first one.
-  double? get changePercent =>
-      prevCost == null || prevCost == 0 ? null : (unitCost - prevCost!) * 100 / prevCost!;
+  double? get changePercent => prevCost == null || prevCost == 0 ? null : (unitCost - prevCost!) * 100 / prevCost!;
   bool get isSpike => (changePercent ?? 0) > 10;
 }
 
@@ -280,13 +267,14 @@ class PurchasingRepo {
       if (s.balance != 0) {
         throw BusinessException('Нельзя удалить поставщика с ненулевым балансом (${Money.format(s.balance)})');
       }
-      final open = await (db.select(db.purchaseOrders)
-            ..where((o) => o.supplierId.equals(id) & o.status.isIn(['draft', 'ordered']) & o.deletedAt.isNull()))
-          .get();
+      final open = await (db.select(
+        db.purchaseOrders,
+      )..where((o) => o.supplierId.equals(id) & o.status.isIn(['draft', 'ordered']) & o.deletedAt.isNull())).get();
       if (open.isNotEmpty) throw BusinessException('У поставщика есть незакрытые заказы (${open.length})');
       final now = DateTime.now();
-      await (db.update(db.suppliers)..where((t) => t.id.equals(id)))
-          .write(SuppliersCompanion(deletedAt: Value(now), updatedAt: Value(now)));
+      await (db.update(
+        db.suppliers,
+      )..where((t) => t.id.equals(id))).write(SuppliersCompanion(deletedAt: Value(now), updatedAt: Value(now)));
       await db.markDirty('suppliers', id, op: 'delete');
       await db.audit('supplier.delete', userId: userId, entity: 'supplier', entityId: id, details: s.name);
     });
@@ -316,8 +304,9 @@ class PurchasingRepo {
       if (s == null || s.deletedAt != null) throw BusinessException('Поставщик не найден');
       if (amount > s.balance && !allowOverpay) {
         throw BusinessException(
-            'Сумма больше долга поставщику (${Money.format(math.max(0, s.balance))}). Подтвердите переплату.',
-            code: 'overpay');
+          'Сумма больше долга поставщику (${Money.format(math.max(0, s.balance))}). Подтвердите переплату.',
+          code: 'overpay',
+        );
       }
       PurchaseOrder? order;
       if (orderId != null) {
@@ -332,30 +321,38 @@ class PurchasingRepo {
         if (sh == null || sh.status != 'open') throw BusinessException('Смена закрыта — откройте смену');
       }
       final now = DateTime.now();
-      await db.into(db.supplierPayments).insert(SupplierPaymentsCompanion.insert(
-            id: id,
-            supplierId: supplierId,
-            amount: amount,
-            method: Value(method),
-            orderId: Value(orderId),
-            shiftId: Value(method == 'cash' ? shiftId : null),
-            userId: Value(userId),
-            note: Value(_clean(note)),
-          ));
-      await (db.update(db.suppliers)..where((t) => t.id.equals(supplierId)))
-          .write(SuppliersCompanion(balance: Value(s.balance - amount), updatedAt: Value(now)));
+      await db
+          .into(db.supplierPayments)
+          .insert(
+            SupplierPaymentsCompanion.insert(
+              id: id,
+              supplierId: supplierId,
+              amount: amount,
+              method: Value(method),
+              orderId: Value(orderId),
+              shiftId: Value(method == 'cash' ? shiftId : null),
+              userId: Value(userId),
+              note: Value(_clean(note)),
+            ),
+          );
+      await (db.update(db.suppliers)..where((t) => t.id.equals(supplierId))).write(
+        SuppliersCompanion(balance: Value(s.balance - amount), updatedAt: Value(now)),
+      );
       if (order != null) {
-        await (db.update(db.purchaseOrders)..where((t) => t.id.equals(order!.id)))
-            .write(PurchaseOrdersCompanion(paid: Value(order.paid + amount), updatedAt: Value(now)));
+        await (db.update(db.purchaseOrders)..where((t) => t.id.equals(order!.id))).write(
+          PurchaseOrdersCompanion(paid: Value(order.paid + amount), updatedAt: Value(now)),
+        );
         await db.markDirty('purchase_orders', order.id);
       }
       await db.markDirty('supplier_payments', id);
       await db.markDirty('suppliers', supplierId);
-      await db.audit('supplier.payment',
-          userId: userId,
-          entity: 'supplier',
-          entityId: supplierId,
-          details: '$amount; $method; баланс ${s.balance} → ${s.balance - amount}');
+      await db.audit(
+        'supplier.payment',
+        userId: userId,
+        entity: 'supplier',
+        entityId: supplierId,
+        details: '$amount; $method; баланс ${s.balance} → ${s.balance - amount}',
+      );
     });
     return id;
   }
@@ -390,38 +387,53 @@ class PurchasingRepo {
       final now = DateTime.now();
       if (id == null) {
         final number = await db.nextNumber('po');
-        await db.into(db.purchaseOrders).insert(PurchaseOrdersCompanion.insert(
-              id: oid,
-              number: number,
-              supplierId: supplierId,
-              total: Value(total),
-              expectedAt: Value(expectedAt),
-              note: Value(_clean(note)),
-              userId: Value(userId),
-            ));
+        await db
+            .into(db.purchaseOrders)
+            .insert(
+              PurchaseOrdersCompanion.insert(
+                id: oid,
+                number: number,
+                supplierId: supplierId,
+                total: Value(total),
+                expectedAt: Value(expectedAt),
+                note: Value(_clean(note)),
+                userId: Value(userId),
+              ),
+            );
       } else {
         final o = await (db.select(db.purchaseOrders)..where((t) => t.id.equals(id))).getSingle();
         if (o.status != 'draft') throw BusinessException('Изменять можно только черновик заказа');
-        await (db.update(db.purchaseOrders)..where((t) => t.id.equals(id))).write(PurchaseOrdersCompanion(
+        await (db.update(db.purchaseOrders)..where((t) => t.id.equals(id))).write(
+          PurchaseOrdersCompanion(
             supplierId: Value(supplierId),
             total: Value(total),
             expectedAt: Value(expectedAt),
             note: Value(_clean(note)),
-            updatedAt: Value(now)));
+            updatedAt: Value(now),
+          ),
+        );
         await (db.delete(db.purchaseOrderItems)..where((i) => i.orderId.equals(id))).go();
       }
       for (final l in lines) {
         final iid = newId();
-        await db.into(db.purchaseOrderItems).insert(PurchaseOrderItemsCompanion.insert(
-            id: iid, orderId: oid, productId: l.productId, qty: Qty.round(l.qty), unitCost: l.unitCost));
+        await db
+            .into(db.purchaseOrderItems)
+            .insert(
+              PurchaseOrderItemsCompanion.insert(
+                id: iid,
+                orderId: oid,
+                productId: l.productId,
+                qty: Qty.round(l.qty),
+                unitCost: l.unitCost,
+              ),
+            );
       }
       await db.markDirty('purchase_orders', oid);
     });
     return oid;
   }
 
-  Future<PurchaseOrder> _order(String id) =>
-      (db.select(db.purchaseOrders)..where((t) => t.id.equals(id))).getSingle();
+  Future<PurchaseOrder> _order(String id) => (db.select(db.purchaseOrders)..where((t) => t.id.equals(id))).getSingle();
 
   Future<void> markOrdered(String orderId, {String? userId}) async {
     await db.transaction(() async {
@@ -430,9 +442,16 @@ class PurchasingRepo {
       final n = await (db.select(db.purchaseOrderItems)..where((i) => i.orderId.equals(orderId))).get();
       if (n.isEmpty) throw BusinessException('В заказе нет позиций');
       await (db.update(db.purchaseOrders)..where((t) => t.id.equals(orderId))).write(
-          PurchaseOrdersCompanion(status: const Value('ordered'), updatedAt: Value(DateTime.now())));
+        PurchaseOrdersCompanion(status: const Value('ordered'), updatedAt: Value(DateTime.now())),
+      );
       await db.markDirty('purchase_orders', orderId);
-      await db.audit('po.ordered', userId: userId, entity: 'purchase_order', entityId: orderId, details: '№${o.number}');
+      await db.audit(
+        'po.ordered',
+        userId: userId,
+        entity: 'purchase_order',
+        entityId: orderId,
+        details: '№${o.number}',
+      );
     });
   }
 
@@ -445,16 +464,24 @@ class PurchasingRepo {
       final items = await (db.select(db.purchaseOrderItems)..where((i) => i.orderId.equals(orderId))).get();
       final anyReceived = items.any((i) => i.receivedQty > 0);
       final now = DateTime.now();
-      await (db.update(db.purchaseOrders)..where((t) => t.id.equals(orderId))).write(PurchaseOrdersCompanion(
+      await (db.update(db.purchaseOrders)..where((t) => t.id.equals(orderId))).write(
+        PurchaseOrdersCompanion(
           status: Value(anyReceived ? 'received' : 'cancelled'),
           receivedAt: anyReceived ? Value(now) : const Value.absent(),
           note: reason == null || reason.trim().isEmpty
               ? const Value.absent()
               : Value([if (o.note != null) o.note!, 'Закрыт: ${reason.trim()}'].join('\n')),
-          updatedAt: Value(now)));
+          updatedAt: Value(now),
+        ),
+      );
       await db.markDirty('purchase_orders', orderId);
-      await db.audit(anyReceived ? 'po.close' : 'po.cancel',
-          userId: userId, entity: 'purchase_order', entityId: orderId, details: '№${o.number}; ${reason ?? ''}');
+      await db.audit(
+        anyReceived ? 'po.close' : 'po.cancel',
+        userId: userId,
+        entity: 'purchase_order',
+        entityId: orderId,
+        details: '№${o.number}; ${reason ?? ''}',
+      );
     });
   }
 
@@ -470,7 +497,8 @@ class PurchasingRepo {
         throw BusinessException('Заказ №${o.number} уже ${poStatusLabels[o.status]?.toLowerCase() ?? o.status}');
       }
       final items = {
-        for (final i in await (db.select(db.purchaseOrderItems)..where((i) => i.orderId.equals(orderId))).get()) i.id: i
+        for (final i in await (db.select(db.purchaseOrderItems)..where((i) => i.orderId.equals(orderId))).get())
+          i.id: i,
       };
       var value = 0;
       final now = DateTime.now();
@@ -497,35 +525,42 @@ class PurchasingRepo {
           reason: 'Заказ поставщику №${o.number}',
         );
         final newReceived = Qty.round(it.receivedQty + l.qty);
-        await (db.update(db.purchaseOrderItems)..where((t) => t.id.equals(it.id)))
-            .write(PurchaseOrderItemsCompanion(receivedQty: Value(newReceived), updatedAt: Value(now)));
+        await (db.update(db.purchaseOrderItems)..where((t) => t.id.equals(it.id))).write(
+          PurchaseOrderItemsCompanion(receivedQty: Value(newReceived), updatedAt: Value(now)),
+        );
         items[it.id] = it.copyWith(receivedQty: newReceived);
         value += (l.qty * cost).round();
       }
       final full = items.values.every((i) => remainingQty(i) <= 0);
-      await (db.update(db.purchaseOrders)..where((t) => t.id.equals(orderId))).write(PurchaseOrdersCompanion(
+      await (db.update(db.purchaseOrders)..where((t) => t.id.equals(orderId))).write(
+        PurchaseOrdersCompanion(
           status: Value(full ? 'received' : 'ordered'),
           receivedAt: full ? Value(now) : const Value.absent(),
-          updatedAt: Value(now)));
+          updatedAt: Value(now),
+        ),
+      );
       final s = await (db.select(db.suppliers)..where((t) => t.id.equals(o.supplierId))).getSingle();
-      await (db.update(db.suppliers)..where((t) => t.id.equals(s.id)))
-          .write(SuppliersCompanion(balance: Value(s.balance + value), updatedAt: Value(now)));
+      await (db.update(db.suppliers)..where((t) => t.id.equals(s.id))).write(
+        SuppliersCompanion(balance: Value(s.balance + value), updatedAt: Value(now)),
+      );
       await db.markDirty('purchase_orders', orderId);
       await db.markDirty('suppliers', s.id);
-      await db.audit('po.receive',
-          userId: userId,
-          entity: 'purchase_order',
-          entityId: orderId,
-          details: '№${o.number}; поз. ${active.length}; сумма $value; ${full ? 'полностью' : 'частично'}');
+      await db.audit(
+        'po.receive',
+        userId: userId,
+        entity: 'purchase_order',
+        entityId: orderId,
+        details: '№${o.number}; поз. ${active.length}; сумма $value; ${full ? 'полностью' : 'частично'}',
+      );
       return ReceiveResult(value: value, fullyReceived: full, lines: active.length);
     });
   }
 
   /// Received value of an order (Σ receivedQty × unitCost) from receipts.
   Future<int> receivedValue(String orderId) async {
-    final rows = await (db.select(db.stockMovements)
-          ..where((m) => m.refType.equals('purchase') & m.refId.equals(orderId) & m.type.equals('receipt')))
-        .get();
+    final rows = await (db.select(
+      db.stockMovements,
+    )..where((m) => m.refType.equals('purchase') & m.refId.equals(orderId) & m.type.equals('receipt'))).get();
     return rows.fold<int>(0, (s, m) => s + (m.qty * m.unitCost).round());
   }
 
@@ -533,46 +568,56 @@ class PurchasingRepo {
 
   /// Net sold qty per product since [since] (excludes voided/held sales).
   Future<Map<String, double>> soldQtySince(DateTime since) async {
-    final rows = await db.customSelect(
-      'SELECT si.product_id AS pid, SUM(si.qty - si.returned_qty) AS q '
-      'FROM sale_items si JOIN sales s ON s.id = si.sale_id '
-      "WHERE s.created_at >= ? AND s.status NOT IN ('voided', 'held') AND s.deleted_at IS NULL "
-      'GROUP BY si.product_id',
-      variables: [Variable.withDateTime(since)],
-      readsFrom: {db.saleItems, db.sales},
-    ).get();
+    final rows = await db
+        .customSelect(
+          'SELECT si.product_id AS pid, SUM(si.qty - si.returned_qty) AS q '
+          'FROM sale_items si JOIN sales s ON s.id = si.sale_id '
+          "WHERE s.created_at >= ? AND s.status NOT IN ('voided', 'held') AND s.deleted_at IS NULL "
+          'GROUP BY si.product_id',
+          variables: [Variable.withDateTime(since)],
+          readsFrom: {db.saleItems, db.sales},
+        )
+        .get();
     return {for (final r in rows) r.read<String>('pid'): r.read<double?>('q') ?? 0};
   }
 
   /// Remaining qty on open POs (drafts and ordered) per product. Drafts count
   /// too, so re-running «Автозаказ» does not suggest the same goods twice.
   Future<Map<String, double>> onOrderQty() async {
-    final rows = await db.customSelect(
-      'SELECT i.product_id AS pid, SUM(i.qty - i.received_qty) AS q '
-      'FROM purchase_order_items i JOIN purchase_orders o ON o.id = i.order_id '
-      "WHERE o.status IN ('draft', 'ordered') AND o.deleted_at IS NULL AND i.deleted_at IS NULL "
-      'GROUP BY i.product_id',
-      readsFrom: {db.purchaseOrderItems, db.purchaseOrders},
-    ).get();
+    final rows = await db
+        .customSelect(
+          'SELECT i.product_id AS pid, SUM(i.qty - i.received_qty) AS q '
+          'FROM purchase_order_items i JOIN purchase_orders o ON o.id = i.order_id '
+          "WHERE o.status IN ('draft', 'ordered') AND o.deleted_at IS NULL AND i.deleted_at IS NULL "
+          'GROUP BY i.product_id',
+          readsFrom: {db.purchaseOrderItems, db.purchaseOrders},
+        )
+        .get();
     return {for (final r in rows) r.read<String>('pid'): math.max(0, r.read<double?>('q') ?? 0)};
   }
 
-  Future<List<ReorderSuggestion>> reorderSuggestions({int targetDays = 14, int lookbackDays = 30, DateTime? now}) async {
+  Future<List<ReorderSuggestion>> reorderSuggestions({
+    int targetDays = 14,
+    int lookbackDays = 30,
+    DateTime? now,
+  }) async {
     final since = (now ?? DateTime.now()).subtract(Duration(days: lookbackDays));
     final sold = await soldQtySince(since);
     final onOrder = await onOrderQty();
-    final products = await (db.select(db.products)
-          ..where((p) => p.deletedAt.isNull() & p.isActive.equals(true) & p.trackStock.equals(true))
-          ..orderBy([(p) => OrderingTerm.asc(p.name)]))
-        .get();
+    final products =
+        await (db.select(db.products)
+              ..where((p) => p.deletedAt.isNull() & p.isActive.equals(true) & p.trackStock.equals(true))
+              ..orderBy([(p) => OrderingTerm.asc(p.name)]))
+            .get();
     return [
       for (final p in products)
         ?computeReorder(
-            product: p,
-            soldQty: sold[p.id] ?? 0,
-            lookbackDays: lookbackDays,
-            targetDays: targetDays,
-            onOrder: onOrder[p.id] ?? 0),
+          product: p,
+          soldQty: sold[p.id] ?? 0,
+          lookbackDays: lookbackDays,
+          targetDays: targetDays,
+          onOrder: onOrder[p.id] ?? 0,
+        ),
     ];
   }
 
@@ -582,8 +627,7 @@ class PurchasingRepo {
     await db.transaction(() async {
       for (final e in groups.entries) {
         if (e.value.isEmpty) continue;
-        ids.add(await saveDraftOrder(
-            supplierId: e.key, lines: e.value, userId: userId, note: 'Автозаказ'));
+        ids.add(await saveDraftOrder(supplierId: e.key, lines: e.value, userId: userId, note: 'Автозаказ'));
       }
     });
     if (ids.isEmpty) throw BusinessException('Нет позиций для заказа');

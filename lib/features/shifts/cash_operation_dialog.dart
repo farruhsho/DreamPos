@@ -125,10 +125,7 @@ class _CashOpFormState extends ConsumerState<_CashOpForm> {
                   if (_isOut)
                     Padding(
                       padding: const EdgeInsets.only(top: Gap.xs),
-                      child: Text(
-                        'В кассе сейчас: ${Money.format(widget.cashInDrawer)}',
-                        style: t.textTheme.bodySmall,
-                      ),
+                      child: Text('В кассе сейчас: ${Money.format(widget.cashInDrawer)}', style: t.textTheme.bodySmall),
                     ),
                   const SizedBox(height: Gap.l),
                   MoneyField(
@@ -171,8 +168,7 @@ class _CashOpFormState extends ConsumerState<_CashOpForm> {
                       labelText: reasonRequired ? 'Основание / комментарий *' : 'Комментарий',
                       hintText: widget.kind == 'pay_out' ? 'Кому и зачем выданы деньги' : null,
                     ),
-                    validator: (v) =>
-                        reasonRequired && (v == null || v.trim().isEmpty) ? 'Укажите основание' : null,
+                    validator: (v) => reasonRequired && (v == null || v.trim().isEmpty) ? 'Укажите основание' : null,
                     onFieldSubmitted: (_) => _submit(),
                   ),
                 ],
@@ -186,10 +182,7 @@ class _CashOpFormState extends ConsumerState<_CashOpForm> {
               overflowAlignment: OverflowBarAlignment.end,
               spacing: Gap.s,
               children: [
-                TextButton(
-                  onPressed: _busy ? null : () => Navigator.pop(context, false),
-                  child: const Text('Отмена'),
-                ),
+                TextButton(onPressed: _busy ? null : () => Navigator.pop(context, false), child: const Text('Отмена')),
                 FilledButton(
                   key: const ValueKey('cash_submit'),
                   onPressed: _busy ? null : _submit,

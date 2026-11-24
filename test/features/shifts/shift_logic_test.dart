@@ -112,11 +112,7 @@ void main() {
       expect(fig.expensesByCategory, {'Хозтовары': 500});
       expect(fig.averageCheck, 3000);
 
-      final text = ZReportData(
-        figures: fig,
-        settings: const {'store_name': 'Магазин'},
-        openedByName: 'Owner',
-      ).toText();
+      final text = ZReportData(figures: fig, settings: const {'store_name': 'Магазин'}, openedByName: 'Owner').toText();
       expect(text, contains('X-ОТЧЁТ'));
       expect(text, isNot(contains('Валовая прибыль')), reason: 'profit hidden without viewCost');
     });
@@ -137,13 +133,7 @@ void main() {
     test('close with collection is atomic and keeps the difference intact', () async {
       // Failure: counted < collection makes close() throw -> collection rolled back.
       await expectLater(
-        closeShiftWithCollection(
-          f.db,
-          shiftId: f.shift.id,
-          userId: f.owner.id,
-          counted: 3000,
-          collection: 5000,
-        ),
+        closeShiftWithCollection(f.db, shiftId: f.shift.id, userId: f.owner.id, counted: 3000, collection: 5000),
         throwsA(anything),
       );
       expect(await f.db.select(f.db.cashMovements).get(), isEmpty, reason: 'collection rolled back');

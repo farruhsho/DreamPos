@@ -11,8 +11,13 @@ import 'staff_providers.dart';
 
 /// Clock in / out button for the current session user.
 class ClockButton extends ConsumerStatefulWidget {
-  const ClockButton({super.key, this.compact = false});
+  const ClockButton({super.key, this.compact = false, this.short = false});
+
+  /// Icon only (app bar).
   final bool compact;
+
+  /// Labelled, but with a short label (page header on phones).
+  final bool short;
 
   @override
   ConsumerState<ClockButton> createState() => _ClockButtonState();
@@ -43,8 +48,7 @@ class _ClockButtonState extends ConsumerState<ClockButton> {
           tooltip: 'Отметить начало работы',
           onPressed: _busy
               ? null
-              : () => _run(() => clock.clockIn(user.id),
-                  'Начало работы отмечено в ${formatTime(DateTime.now())}'),
+              : () => _run(() => clock.clockIn(user.id), 'Начало работы отмечено в ${formatTime(DateTime.now())}'),
           icon: const Icon(Icons.timer_outlined),
         );
       }
@@ -54,7 +58,7 @@ class _ClockButtonState extends ConsumerState<ClockButton> {
             ? null
             : () => _run(() => clock.clockIn(user.id), 'Начало работы отмечено в ${formatTime(DateTime.now())}'),
         icon: const Icon(Icons.login),
-        label: const Text('Отметить начало работы'),
+        label: Text(widget.short ? 'Начать работу' : 'Отметить начало работы'),
       );
     }
     final dur = DateTime.now().difference(s.startedAt);
@@ -77,22 +81,14 @@ class _ClockButtonState extends ConsumerState<ClockButton> {
         icon: const Icon(Icons.timer, color: AppColors.success),
       );
     }
-    return OutlinedButton.icon(
-      key: const ValueKey('clock_out'),
-      onPressed: _busy
-          ? null
-          : () async {
-              final ok = await confirm(
-                context,
-                title: 'Отметить уход?',
-                message: 'На работе с ${formatTime(s.startedAt)} (${formatDuration(dur)}).',
-                ok: 'Отметить уход',
-              );
-              if (!ok || !mounted) return;
-              await _run(() => clock.clockOut(user.id), 'Уход отмечен');
-            },
-      icon: const Icon(Icons.logout),
-      label: Text(compact ? 'Уход' : 'Отметить уход · ${formatDuration(dur)}'),
+    return Tooltip(
+      message: 'На работе с ${formatTime(s.startedAt)}',
+      child: OutlinedButton.icon(
+        key: const ValueKey('clock_out'),
+        onPressed: _busy ? null : clockOut,
+        icon: const Icon(Icons.logout),
+        label: Text(widget.short ? 'Уход · ${formatDuration(dur)}' : 'Отметить уход · ${formatDuration(dur)}'),
+      ),
     );
   }
 }
@@ -103,10 +99,7 @@ Period _periodFor(_Range r, DateTime now) {
   final d = DateTime(now.year, now.month, now.day);
   return switch (r) {
     _Range.today => (from: d, to: DateTime(d.year, d.month, d.day + 1)),
-    _Range.week => (
-      from: DateTime(d.year, d.month, d.day - (d.weekday - 1)),
-      to: DateTime(d.year, d.month, d.day + 1),
-    ),
+    _Range.week => (from: DateTime(d.year, d.month, d.day - (d.weekday - 1)), to: DateTime(d.year, d.month, d.day + 1)),
     _Range.month => (from: DateTime(d.year, d.month), to: DateTime(d.year, d.month + 1)),
     _Range.lastMonth => (from: DateTime(d.year, d.month - 1), to: DateTime(d.year, d.month)),
   };
@@ -140,46 +133,81 @@ class _TimeTabState extends ConsumerState<TimeTab> {
     final canManage = ref.watch(sessionProvider)?.can(Perm.manageStaff) ?? false;
     final now = DateTime.now();
 
-    final filters = Wrap(
-      spacing: Gap.s,
-      runSpacing: Gap.s,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        for (final r in _Range.values)
-          ChoiceChip(
-            label: Text(_rangeLabel(r)),
-            selected: _range == r,
-            onSelected: (_) => setState(() {
-              _range = r;
-              _period = _periodFor(r, DateTime.now());
-            }),
-          ),
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 240),
-          child: DropdownButtonFormField<String?>(
-            isExpanded: true,
-            initialValue: _userId,
-            decoration: const InputDecoration(labelText: 'Сотрудник'),
-            items: [
-              const DropdownMenuItem(value: null, child: Text('Все сотрудники')),
-              for (final u in users)
-                DropdownMenuItem(
-                  value: u.id,
-                  child: Text(u.name, overflow: TextOverflow.ellipsis),
-                ),
-            ],
-            onChanged: (v) => setState(() => _userId = v),
-          ),
+    final chips = [
+      for (final r in _Range.values)
+        ChoiceChip(
+          label: Text(_rangeLabel(r)),
+          selected: _range == r,
+          onSelected: (_) => setState(() {
+            _range = r;
+            _period = _periodFor(r, DateTime.now());
+          }),
         ),
-        const ClockButton(),
-        if (canManage)
-          OutlinedButton.icon(
-            key: const ValueKey('add_session'),
-            onPressed: () => showWorkSessionDialog(context, users: users, userId: _userId),
-            icon: const Icon(Icons.more_time),
-            label: const Text('Добавить запись'),
+    ];
+    final userPicker = DropdownButtonFormField<String?>(
+      isExpanded: true,
+      initialValue: _userId,
+      decoration: const InputDecoration(labelText: 'Сотрудник'),
+      items: [
+        const DropdownMenuItem(value: null, child: Text('Все сотрудники')),
+        for (final u in users)
+          DropdownMenuItem(
+            value: u.id,
+            child: Text(u.name, overflow: TextOverflow.ellipsis),
           ),
       ],
+      onChanged: (v) => setState(() => _userId = v),
+    );
+    Widget addButton(bool compact) => OutlinedButton.icon(
+      key: const ValueKey('add_session'),
+      onPressed: () => showWorkSessionDialog(context, users: users, userId: _userId),
+      icon: const Icon(Icons.more_time),
+      label: Text(compact ? 'Запись' : 'Добавить запись'),
+    );
+    // Phone: one scrollable row of periods, then employee + add on one row
+    // (was four ragged rows). Wider: filters left, action pinned right.
+    final filters = LayoutBuilder(
+      builder: (context, c) {
+        if (c.maxWidth < 600) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    for (final (i, chip) in chips.indexed) ...[if (i > 0) const SizedBox(width: Gap.s), chip],
+                  ],
+                ),
+              ),
+              const SizedBox(height: Gap.s),
+              Row(
+                children: [
+                  Expanded(child: userPicker),
+                  if (canManage) ...[const SizedBox(width: Gap.s), addButton(true)],
+                ],
+              ),
+            ],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Wrap(
+                spacing: Gap.s,
+                runSpacing: Gap.s,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  ...chips,
+                  ConstrainedBox(constraints: const BoxConstraints(maxWidth: 240), child: userPicker),
+                ],
+              ),
+            ),
+            if (canManage) ...[const SizedBox(width: Gap.m), addButton(false)],
+          ],
+        );
+      },
     );
 
     List<Widget> content(List<WorkSession> all) {
@@ -194,25 +222,75 @@ class _TimeTabState extends ConsumerState<TimeTab> {
           EmptyState(
             icon: Icons.schedule,
             title: 'Нет отметок за период',
-            message: 'Сотрудники отмечают приход и уход кнопкой «Отметить приход»',
+            message: 'Сотрудники отмечают приход и уход кнопкой «Отметить начало работы»',
           ),
         ];
       }
-      final summary = Wrap(
-        spacing: Gap.m,
-        runSpacing: Gap.m,
-        children: [
-          for (final e in totals.entries.toList()..sort((a, b) => b.value.$1.compareTo(a.value.$1)))
-            SizedBox(
-              width: 220,
-              child: StatCard(
-                label: byId[e.key]?.name ?? '—',
-                value: formatDuration(e.value.$1),
-                hint: '${e.value.$2} отмет.',
-                icon: Icons.timer_outlined,
+      final sorted = totals.entries.toList()..sort((a, b) => b.value.$1.compareTo(a.value.$1));
+      String count(int n) => '$n ${pluralRu(n, 'отметка', 'отметки', 'отметок')}';
+      final summary = LayoutBuilder(
+        builder: (context, c) {
+          if (c.maxWidth < 600) {
+            // Phone: a compact totals table instead of a column of tall cards.
+            return Card(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: Gap.l, vertical: Gap.s),
+                child: Column(
+                  children: [
+                    for (final e in sorted)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: Gap.xs),
+                        child: Row(
+                          children: [
+                            Icon(Icons.timer_outlined, size: 18, color: t.colorScheme.onSurfaceVariant),
+                            const SizedBox(width: Gap.s),
+                            Expanded(
+                              child: Text(
+                                byId[e.key]?.name ?? '—',
+                                overflow: TextOverflow.ellipsis,
+                                style: t.textTheme.bodyMedium,
+                              ),
+                            ),
+                            Text(
+                              count(e.value.$2),
+                              style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant),
+                            ),
+                            const SizedBox(width: Gap.m),
+                            SizedBox(
+                              width: 92,
+                              child: Text(
+                                formatDuration(e.value.$1),
+                                textAlign: TextAlign.right,
+                                style: t.textTheme.titleSmall?.copyWith(
+                                  fontFeatures: const [FontFeature.tabularFigures()],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
               ),
-            ),
-        ],
+            );
+          }
+          return Wrap(
+            spacing: Gap.m,
+            runSpacing: Gap.m,
+            children: [
+              for (final e in sorted)
+                SizedBox(
+                  width: 220,
+                  child: StatCard(
+                    label: byId[e.key]?.name ?? '—',
+                    value: formatDuration(e.value.$1),
+                    hint: count(e.value.$2),
+                    icon: Icons.timer_outlined,
+                  ),
+                ),
+            ],
+          );
+        },
       );
       return [
         summary,
@@ -239,7 +317,7 @@ class _TimeTabState extends ConsumerState<TimeTab> {
                   isThreeLine: (s.note ?? '').isNotEmpty,
                   trailing: Text(
                     formatDuration((s.endedAt ?? now).difference(s.startedAt)),
-                    style: t.textTheme.titleSmall,
+                    style: t.textTheme.titleSmall?.copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
                   ),
                 ),
               ],

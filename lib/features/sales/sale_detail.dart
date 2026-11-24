@@ -20,19 +20,23 @@ import 'sales_queries.dart';
 
 /// Full-page detail for narrow screens.
 class SaleDetailPage extends StatelessWidget {
-  const SaleDetailPage({super.key, required this.saleId});
+  const SaleDetailPage({super.key, required this.saleId, this.focusReturnId});
   final String saleId;
+
+  /// Opened from the returns list: that return is shown first and highlighted.
+  final String? focusReturnId;
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Чек')),
-    body: SaleDetailView(saleId: saleId),
+    appBar: AppBar(title: Text(focusReturnId == null ? 'Чек' : 'Возврат')),
+    body: SaleDetailView(saleId: saleId, focusReturnId: focusReturnId),
   );
 }
 
 class SaleDetailView extends ConsumerWidget {
-  const SaleDetailView({super.key, required this.saleId});
+  const SaleDetailView({super.key, required this.saleId, this.focusReturnId});
   final String saleId;
+  final String? focusReturnId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -40,14 +44,17 @@ class SaleDetailView extends ConsumerWidget {
     return AsyncView<SaleDetail?>(
       value: async,
       onRetry: () => ref.invalidate(saleDetailProvider(saleId)),
-      data: (d) => d == null ? const EmptyState(icon: Icons.search_off, title: 'Чек не найден') : _DetailBody(d: d),
+      data: (d) => d == null
+          ? const EmptyState(icon: Icons.search_off, title: 'Чек не найден')
+          : _DetailBody(d: d, focusReturnId: focusReturnId),
     );
   }
 }
 
 class _DetailBody extends ConsumerWidget {
-  const _DetailBody({required this.d});
+  const _DetailBody({required this.d, this.focusReturnId});
   final SaleDetail d;
+  final String? focusReturnId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -64,9 +71,7 @@ class _DetailBody extends ConsumerWidget {
         ? 'Все товары уже возвращены'
         : null;
 
-    final actions = Wrap(
-      spacing: Gap.s,
-      runSpacing: Gap.s,
+    final actions = _ActionGrid(
       children: [
         if (canRefund)
           _ActionButton(
@@ -95,6 +100,18 @@ class _DetailBody extends ConsumerWidget {
             onPressed: () => _void(context, ref),
           ),
       ],
+    );
+
+    // opened from the returns list: the selected return goes right under
+    // the header instead of below the fold
+    final returnsFirst = focusReturnId != null && d.returns.any((r) => r.ret.id == focusReturnId);
+    final returns = SectionCard(
+      title: 'Возвраты (${d.returns.length})',
+      child: Column(
+        children: [
+          for (final r in d.returns) _ReturnBlock(r: r, units: d.units, focused: r.ret.id == focusReturnId),
+        ],
+      ),
     );
 
     return ListView(
@@ -126,6 +143,7 @@ class _DetailBody extends ConsumerWidget {
           const SizedBox(height: Gap.m),
           InfoBanner(color: AppColors.danger, icon: Icons.block, text: 'Аннулирован: ${s.voidReason}'),
         ],
+        if (returnsFirst) ...[const SizedBox(height: Gap.m), returns],
         const SizedBox(height: Gap.m),
         // ---------------- people
         SectionCard(
@@ -134,13 +152,10 @@ class _DetailBody extends ConsumerWidget {
             children: [
               _kv(context, 'Кассир', d.cashierName ?? '—'),
               if (d.sellerName != null && s.sellerId != s.cashierId) _kv(context, 'Продавец', d.sellerName!),
-              _kv(
-                context,
-                'Клиент',
-                d.customer == null
-                    ? 'без клиента'
-                    : [d.customer!.name, d.customer!.phone].whereType<String>().join(', '),
-              ),
+              _kv(context, 'Клиент', d.customer?.name ?? 'без клиента'),
+              // own row: a phone number must never break across lines
+              if ((d.customer?.phone ?? '').isNotEmpty)
+                _kv(context, 'Телефон', d.customer!.phone!.replaceAll(' ', '\u00A0')),
               if (s.promoCode != null) _kv(context, 'Промокод', s.promoCode!),
               if ((s.note ?? '').isNotEmpty) _kv(context, 'Примечание', s.note!),
             ],
@@ -186,15 +201,7 @@ class _DetailBody extends ConsumerWidget {
             ],
           ),
         ),
-        if (d.returns.isNotEmpty) ...[
-          const SizedBox(height: Gap.m),
-          SectionCard(
-            title: 'Возвраты (${d.returns.length})',
-            child: Column(
-              children: [for (final r in d.returns) _ReturnBlock(r: r, units: d.units)],
-            ),
-          ),
-        ],
+        if (d.returns.isNotEmpty && !returnsFirst) ...[const SizedBox(height: Gap.m), returns],
       ],
     );
   }
@@ -213,11 +220,29 @@ class _DetailBody extends ConsumerWidget {
       await showDialog<void>(
         context: context,
         builder: (c) => AlertDialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: Gap.l, vertical: Gap.xl),
           title: Text('Чек №${d.sale.number}'),
           content: SizedBox(
             width: 420,
             child: SingleChildScrollView(
-              child: SelectableText(text, style: const TextStyle(fontFamily: 'RobotoMono', fontSize: 12.5)),
+              // "paper" look; the fixed-width receipt is scaled down on
+              // narrow phones instead of wrapping its columns
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: Gap.m, vertical: Gap.l),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: Theme.of(c).colorScheme.outlineVariant),
+                ),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.topCenter,
+                  child: SelectableText(
+                    text,
+                    style: const TextStyle(fontFamily: AppFonts.mono, fontSize: 12.5, color: Colors.black87),
+                  ),
+                ),
+              ),
             ),
           ),
           actions: [
@@ -318,7 +343,7 @@ Widget _kv(BuildContext context, String k, String v, {Color? color, bool bold = 
           child: Text(k, style: t.textTheme.bodyMedium?.copyWith(color: t.colorScheme.onSurfaceVariant)),
         ),
         const SizedBox(width: Gap.m),
-        Flexible(
+        Expanded(
           child: Text(
             v,
             textAlign: TextAlign.right,
@@ -368,9 +393,10 @@ class _ItemRow extends StatelessWidget {
 }
 
 class _ReturnBlock extends StatelessWidget {
-  const _ReturnBlock({required this.r, required this.units});
+  const _ReturnBlock({required this.r, required this.units, this.focused = false});
   final ReturnWithItems r;
   final Map<String, String> units;
+  final bool focused;
 
   @override
   Widget build(BuildContext context) {
@@ -380,8 +406,9 @@ class _ReturnBlock extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: Gap.s),
       padding: const EdgeInsets.all(Gap.m),
       decoration: BoxDecoration(
-        color: AppColors.danger.withValues(alpha: 0.05),
+        color: AppColors.danger.withValues(alpha: focused ? 0.09 : 0.05),
         borderRadius: BorderRadius.circular(10),
+        border: focused ? Border.all(color: AppColors.danger.withValues(alpha: 0.5)) : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -462,4 +489,34 @@ class _ActionButton extends StatelessWidget {
           );
     return enabled ? b : Tooltip(message: disabledReason!, child: b);
   }
+}
+
+/// Detail actions: one row when they fit, otherwise an even two-column grid
+/// (no lone button wrapping onto its own line, full-width thumb targets).
+class _ActionGrid extends StatelessWidget {
+  const _ActionGrid({required this.children});
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, c) {
+      if (c.maxWidth >= 600 || children.length < 3) {
+        return Wrap(spacing: Gap.s, runSpacing: Gap.s, children: children);
+      }
+      return Column(
+        children: [
+          for (var i = 0; i < children.length; i += 2) ...[
+            if (i > 0) const SizedBox(height: Gap.s),
+            Row(
+              children: [
+                Expanded(child: children[i]),
+                const SizedBox(width: Gap.s),
+                Expanded(child: i + 1 < children.length ? children[i + 1] : const SizedBox.shrink()),
+              ],
+            ),
+          ],
+        ],
+      );
+    },
+  );
 }

@@ -188,7 +188,7 @@ class _ReturnWizardState extends ConsumerState<ReturnWizard> {
         Row(
           children: [
             Expanded(child: Text('Что возвращаем', style: t.textTheme.titleSmall)),
-            Flexible(
+            Expanded(
               flex: 2,
               child: Wrap(
                 alignment: WrapAlignment.end,

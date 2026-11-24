@@ -13,20 +13,13 @@ import '../../domain/services/auth_service.dart';
 
 /// Returns an error if changing [userId] to ([newRole], [newActive]) would
 /// leave the store without an active owner.
-String? lastOwnerGuard(
-  List<User> users, {
-  required String userId,
-  required Role newRole,
-  required bool newActive,
-}) {
+String? lastOwnerGuard(List<User> users, {required String userId, required Role newRole, required bool newActive}) {
   final target = users.where((u) => u.id == userId).firstOrNull;
   if (target == null) return null;
   final wasOwner = target.role == Role.owner.name && target.isActive && target.deletedAt == null;
   final staysOwner = newRole == Role.owner && newActive;
   if (!wasOwner || staysOwner) return null;
-  final others = users.where(
-    (u) => u.id != userId && u.role == Role.owner.name && u.isActive && u.deletedAt == null,
-  );
+  final others = users.where((u) => u.id != userId && u.role == Role.owner.name && u.isActive && u.deletedAt == null);
   if (others.isEmpty) {
     return 'Это единственный активный владелец. Сначала назначьте другого владельца';
   }
@@ -130,12 +123,7 @@ class StaffService {
     if (i.role != beforeRole && !canAssignRole(actorRole, i.role)) {
       throw BusinessException('Назначить роль «Владелец» может только владелец');
     }
-    final guard = lastOwnerGuard(
-      await _allUsers(),
-      userId: userId,
-      newRole: i.role,
-      newActive: before.isActive,
-    );
+    final guard = lastOwnerGuard(await _allUsers(), userId: userId, newRole: i.role, newActive: before.isActive);
     if (guard != null) throw BusinessException(guard);
     // PIN reset and field changes are applied atomically: a rejected PIN
     // (already in use) leaves the user untouched.
@@ -160,8 +148,7 @@ class StaffService {
         if ((before.phone ?? '') != (_clean(i.phone) ?? '')) 'телефон',
         if (before.maxDiscountPercent != i.maxDiscountPercent)
           'скидка: ${before.maxDiscountPercent}% → ${i.maxDiscountPercent}%',
-        if (before.salesPlan != i.salesPlan)
-          'план: ${Money.format(before.salesPlan)} → ${Money.format(i.salesPlan)}',
+        if (before.salesPlan != i.salesPlan) 'план: ${Money.format(before.salesPlan)} → ${Money.format(i.salesPlan)}',
         if (before.commissionPercent != i.commissionPercent)
           'комиссия: ${before.commissionPercent}% → ${i.commissionPercent}%',
       ];
@@ -175,13 +162,7 @@ class StaffService {
         );
       }
       if (changes.isNotEmpty) {
-        await db.audit(
-          'user.update',
-          userId: actor.id,
-          entity: 'user',
-          entityId: userId,
-          details: changes.join('; '),
-        );
+        await db.audit('user.update', userId: actor.id, entity: 'user', entityId: userId, details: changes.join('; '));
       }
     });
     return _get(userId);
@@ -212,18 +193,18 @@ class StaffService {
     final now = DateTime.now();
     await db.transaction(() async {
       if (active) await auth.changePin(userId, newPin!, actorId: actor.id);
-      await (db.update(db.users)..where((t) => t.id.equals(userId))).write(
-        UsersCompanion(isActive: Value(active), updatedAt: Value(now)),
-      );
+      await (db.update(
+        db.users,
+      )..where((t) => t.id.equals(userId))).write(UsersCompanion(isActive: Value(active), updatedAt: Value(now)));
       await db.markDirty('users', userId);
       if (!active) {
         final open = await (db.select(
           db.workSessions,
         )..where((w) => w.userId.equals(userId) & w.endedAt.isNull() & w.deletedAt.isNull())).get();
         for (final w in open) {
-          await (db.update(db.workSessions)..where((t) => t.id.equals(w.id))).write(
-            WorkSessionsCompanion(endedAt: Value(now), updatedAt: Value(now)),
-          );
+          await (db.update(
+            db.workSessions,
+          )..where((t) => t.id.equals(w.id))).write(WorkSessionsCompanion(endedAt: Value(now), updatedAt: Value(now)));
           await db.markDirty('work_sessions', w.id);
         }
       }
@@ -285,9 +266,7 @@ class TimeClock {
       }
       final id = newId();
       final t = at ?? DateTime.now();
-      await db
-          .into(db.workSessions)
-          .insert(WorkSessionsCompanion.insert(id: id, userId: userId, startedAt: t));
+      await db.into(db.workSessions).insert(WorkSessionsCompanion.insert(id: id, userId: userId, startedAt: t));
       await db.markDirty('work_sessions', id);
       await db.audit('time.clock_in', userId: userId, entity: 'work_session', entityId: id);
       return (db.select(db.workSessions)..where((w) => w.id.equals(id))).getSingle();
@@ -406,9 +385,9 @@ class TimeClock {
     final now = DateTime.now();
     await db.transaction(() async {
       final before = await (db.select(db.workSessions)..where((w) => w.id.equals(id))).getSingle();
-      await (db.update(db.workSessions)..where((w) => w.id.equals(id))).write(
-        WorkSessionsCompanion(deletedAt: Value(now), updatedAt: Value(now)),
-      );
+      await (db.update(
+        db.workSessions,
+      )..where((w) => w.id.equals(id))).write(WorkSessionsCompanion(deletedAt: Value(now), updatedAt: Value(now)));
       await db.markDirty('work_sessions', id, op: 'delete');
       await db.audit(
         'time.delete',
@@ -420,8 +399,7 @@ class TimeClock {
     });
   }
 
-  static String _hm(DateTime d) =>
-      '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+  static String _hm(DateTime d) => '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
   static String _dt(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')} ${_hm(d)}';
 }
@@ -440,12 +418,7 @@ class TimeClock {
 // ------------------------------------------------------------ motivation
 
 class MotivationRow {
-  MotivationRow({
-    required this.user,
-    required this.grossRevenue,
-    required this.refunds,
-    required this.receipts,
-  });
+  MotivationRow({required this.user, required this.grossRevenue, required this.refunds, required this.receipts});
 
   final User user;
   final int grossRevenue;
@@ -512,12 +485,7 @@ Future<List<MotivationRow>> computeMotivation(AppDatabase db, DateTime from, Dat
     final sells = Role.parse(u.role).can(Perm.sell);
     if (!has && !(u.isActive && sells)) continue;
     rows.add(
-      MotivationRow(
-        user: u,
-        grossRevenue: rev[u.id]?.$1 ?? 0,
-        receipts: rev[u.id]?.$2 ?? 0,
-        refunds: ref[u.id] ?? 0,
-      ),
+      MotivationRow(user: u, grossRevenue: rev[u.id]?.$1 ?? 0, receipts: rev[u.id]?.$2 ?? 0, refunds: ref[u.id] ?? 0),
     );
   }
   rows.sort((a, b) {
@@ -675,3 +643,81 @@ bool auditIsWarning(String action) => const {
   'product.bulk_price',
   'backup.restore_applied',
 }.contains(action);
+
+// ------------------------------------------------------------ audit details
+
+const _detailKeys = <String, String>{
+  'discount': 'скидка',
+  'total': 'сумма',
+  'opening': 'размен',
+  'expected': 'ожидалось',
+  'counted': 'пересчитано',
+  'manual': 'ручная скидка',
+  'promos': 'акции',
+  'method': 'способ',
+};
+
+const _moneyKeys = {'discount', 'total', 'opening', 'expected', 'counted'};
+
+const _methodLabels = <String, String>{
+  'cash': 'наличные',
+  'card': 'карта',
+  'debt': 'в долг',
+  'bonus': 'бонусы',
+  'transfer': 'перевод',
+  'gift_card': 'сертификат',
+};
+
+/// Turns the raw machine details of an audit entry ("discount=2850;
+/// promos=…", "return #3 total=18000 method=cash; Брак") into readable
+/// Russian ("скидка 2 850 сум · акции: …"). Unknown text is kept as is.
+String auditDetailsText(String action, String? details) {
+  final raw = (details ?? '').trim();
+  if (raw.isEmpty) return '';
+  final amountFirst = action.startsWith('cash.') || action == 'debt.payment';
+  final parts = <String>[];
+  for (final (i, part) in raw.split(';').indexed) {
+    final p = part.trim();
+    if (p.isEmpty) continue;
+    final words = <String>[];
+    final tokens = p.split(' ');
+    for (var j = 0; j < tokens.length; j++) {
+      final tok = tokens[j];
+      final eq = tok.indexOf('=');
+      if (eq > 0 && _detailKeys.containsKey(tok.substring(0, eq))) {
+        final key = tok.substring(0, eq);
+        // The value of "promos=" may contain spaces: take the rest.
+        final value = key == 'promos'
+            ? [tok.substring(eq + 1), ...tokens.skip(j + 1)].join(' ')
+            : tok.substring(eq + 1);
+        final shown = switch (key) {
+          _ when _moneyKeys.contains(key) && int.tryParse(value) != null => Money.format(int.parse(value)),
+          'method' => _methodLabels[value] ?? value,
+          _ => value,
+        };
+        if (shown.isNotEmpty) words.add(key == 'promos' ? 'акции: $shown' : '${_detailKeys[key]} $shown');
+        if (key == 'promos') break;
+      } else if (tok == 'return' && j + 1 < tokens.length && tokens[j + 1].startsWith('#')) {
+        words.add('чек возврата №${tokens[++j].substring(1)}');
+      } else if (i == 0 && j == 0 && amountFirst && int.tryParse(tok) != null) {
+        words.add(Money.format(int.parse(tok)));
+      } else if (action == 'debt.payment' && _methodLabels.containsKey(tok)) {
+        words.add(_methodLabels[tok]!);
+      } else if (action == 'user.create' && i == 0 && j == 0 && Role.values.any((r) => r.name == tok)) {
+        words.add(Role.values.byName(tok).label);
+      } else {
+        words.add(tok);
+      }
+    }
+    if (words.isNotEmpty) parts.add(words.join(' '));
+  }
+  return parts.join(' · ');
+}
+
+/// Russian plural form: 1 отметка, 2 отметки, 5 отметок.
+String pluralRu(int n, String one, String few, String many) {
+  final m10 = n.abs() % 10, m100 = n.abs() % 100;
+  if (m10 == 1 && m100 != 11) return one;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+  return many;
+}

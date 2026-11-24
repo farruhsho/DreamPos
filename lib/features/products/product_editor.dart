@@ -230,7 +230,7 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
     final canPrice = _isNew || session.can(Perm.editPrices);
     final canCost = session.can(Perm.viewCost);
     final compact = context.isCompact;
-    final title = _isNew ? (widget.copyOf != null ? 'Копия товара' : 'Новый товар') : 'Редактирование';
+    final title = _isNew ? (widget.copyOf != null ? 'Копия товара' : 'Новый товар') : 'Редактирование товара';
 
     final body = Form(
       key: _form,
@@ -415,8 +415,9 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
           canPrice
               ? MoneyField(
                   label: 'Себестоимость',
-                  initial: d.costPrice,
-                  helper: _isNew ? 'По ней оприходуется начальный остаток' : 'Средневзвешенная, меняется приходами',
+                  // New product: empty like the other price fields, not a bare "0".
+                  initial: d.costPrice == 0 && _isNew && widget.copyOf == null ? null : d.costPrice,
+                  helper: _isNew ? 'Для начального остатка' : 'Средняя, по приходам',
                   onChanged: (v) => setState(() => d.costPrice = v ?? 0),
                   onSubmitted: (_) => _save(),
                 )
@@ -486,7 +487,12 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
               enabled: canPrice,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
-              decoration: const InputDecoration(labelText: 'Другой', suffixText: '%'),
+              decoration: const InputDecoration(
+                hintText: 'Другой',
+                suffixText: '%',
+                isDense: true,
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
               validator: (v) {
                 if ((v ?? '').trim().isEmpty) return null;
                 final x = parseDecimal(v);
@@ -513,43 +519,45 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
   Widget _codesSection() {
     final bc = _barcode.text.trim();
     String? bcHelper;
+    var bcInvalid = false;
     if (RegExp(r'^\d{13}$').hasMatch(bc)) {
-      bcHelper = Ean13.isValid(bc)
+      bcInvalid = !Ean13.isValid(bc);
+      bcHelper = !bcInvalid
           ? (bc.startsWith(Ean13.internalPrefix) ? 'Внутренний EAN-13' : 'EAN-13 ✓')
-          : 'Неверная контрольная цифра EAN-13 — проверьте код';
+          : 'Неверная контрольная цифра EAN-13';
     }
     return FormSection(title: 'Коды', icon: Icons.qr_code_2, children: [
       FieldRow(children: [
-        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Expanded(
-            child: TextFormField(
-              controller: _barcode,
-              decoration: InputDecoration(
-                labelText: 'Штрихкод',
-                hintText: 'Отсканируйте или введите',
-                errorText: _barcodeError,
-                helperText: bcHelper,
-                prefixIcon: const Icon(Icons.qr_code_scanner, size: 20),
-              ),
-              onChanged: (_) => setState(() => _barcodeError = null),
-              validator: (v) {
-                final s = (v ?? '').trim();
-                if (s.length > 64) return 'Слишком длинный штрихкод';
-                if (s.contains(' ')) return 'Штрихкод не должен содержать пробелы';
-                return null;
-              },
-              onFieldSubmitted: (_) => _save(),
+        // Generate sits inside the field as a suffix icon: the 13-digit code
+        // keeps the full field width (a text button ate ~150px on phones).
+        TextFormField(
+          controller: _barcode,
+          decoration: InputDecoration(
+            labelText: 'Штрихкод',
+            hintText: 'Отсканируйте или введите',
+            errorText: _barcodeError,
+            helperText: bcHelper,
+            helperMaxLines: 2,
+            helperStyle: bcInvalid
+                ? const TextStyle(color: AppColors.warning, fontWeight: FontWeight.w500)
+                : null,
+            prefixIcon: const Icon(Icons.qr_code_scanner, size: 20),
+            suffixIcon: IconButton(
+              key: const ValueKey('generate-barcode'),
+              tooltip: 'Сгенерировать внутренний EAN-13 (префикс 200)',
+              onPressed: _generateBarcode,
+              icon: const Icon(Icons.autorenew),
             ),
           ),
-          const SizedBox(width: Gap.s),
-          Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: Tooltip(
-              message: 'Внутренний EAN-13 (префикс 200)',
-              child: OutlinedButton(onPressed: _generateBarcode, child: const Text('Сгенерировать')),
-            ),
-          ),
-        ]),
+          onChanged: (_) => setState(() => _barcodeError = null),
+          validator: (v) {
+            final s = (v ?? '').trim();
+            if (s.length > 64) return 'Слишком длинный штрихкод';
+            if (s.contains(' ')) return 'Штрихкод не должен содержать пробелы';
+            return null;
+          },
+          onFieldSubmitted: (_) => _save(),
+        ),
         TextFormField(
           controller: _sku,
           decoration: InputDecoration(

@@ -69,7 +69,7 @@ void main() {
     // accept the full debt in cash (shift is open), without printing
     await tester.tap(find.text('Принять оплату долга'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Вся сумма'));
+    await tester.tap(find.textContaining('Вся сумма'));
     await tester.tap(find.text('Распечатать квитанцию'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Принять оплату'));
@@ -77,6 +77,18 @@ void main() {
     final c = await (f.db.select(f.db.customers)..where((t) => t.name.equals('Борис Должников'))).getSingle();
     expect(c.debtBalance, 0);
     expect(find.text('Принять оплату долга'), findsNothing, reason: 'button hidden once debt is paid');
+    await dispose(tester);
+  });
+
+  testWidgets('«Сбросить фильтры» clears the visible search text too', (tester) async {
+    await pump(tester, const Size(1400, 900));
+    await tester.enterText(find.byType(TextField).first, 'zzzz');
+    await tester.pumpAndSettle();
+    expect(find.text('Никого не найдено'), findsOneWidget);
+    await tester.tap(find.text('Сбросить фильтры'));
+    await tester.pumpAndSettle();
+    expect(find.text('zzzz'), findsNothing);
+    expect(find.text('Анна Петрова'), findsOneWidget);
     await dispose(tester);
   });
 
@@ -133,7 +145,7 @@ void main() {
     await tester.tap(find.text('Борис Должников'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Напоминание'));
+    await tester.tap(find.text('Напомнить'));
     await tester.pumpAndSettle();
     expect(find.text('Напоминание о долге'), findsOneWidget);
     expect(find.textContaining('Здравствуйте, Борис Должников!'), findsOneWidget);

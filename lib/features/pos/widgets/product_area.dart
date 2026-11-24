@@ -38,7 +38,9 @@ class PosSearchBar extends StatelessWidget {
       textInputAction: TextInputAction.done,
       style: const TextStyle(fontSize: 17),
       decoration: InputDecoration(
-        hintText: 'Сканируйте штрихкод или введите название (F2)',
+        hintText: context.isCompact
+            ? 'Штрихкод или название'
+            : 'Сканируйте штрихкод или введите название (F2)',
         prefixIcon: busy
             ? const Padding(
                 padding: EdgeInsets.all(14),
@@ -88,13 +90,24 @@ class CategoryChips extends ConsumerWidget {
           onSelected: (_) => onSelected(selected == c.id ? null : c.id),
         ),
     ];
+    // The row scrolls sideways; a soft fade at the right edge tells the
+    // cashier there are more categories (a hard cut looked like a bug). The
+    // end padding lets the last chip scroll fully out of the fade.
     return SizedBox(
       height: 40,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: chips.length,
-        separatorBuilder: (_, _) => const SizedBox(width: Gap.s),
-        itemBuilder: (_, i) => chips[i],
+      child: ShaderMask(
+        blendMode: BlendMode.dstIn,
+        shaderCallback: (r) => LinearGradient(
+          colors: const [Colors.black, Colors.black, Colors.transparent],
+          stops: [0, r.width <= 32 ? 0 : 1 - 32 / r.width, 1],
+        ).createShader(r),
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.only(right: 32),
+          itemCount: chips.length,
+          separatorBuilder: (_, _) => const SizedBox(width: Gap.s),
+          itemBuilder: (_, i) => chips[i],
+        ),
       ),
     );
   }

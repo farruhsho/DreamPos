@@ -54,6 +54,7 @@ class _NewClaimFormState extends ConsumerState<NewClaimForm> {
   Product? _product;
   Customer? _customer;
   bool _busy = false;
+  bool _triedSubmit = false;
 
   @override
   void initState() {
@@ -141,6 +142,7 @@ class _NewClaimFormState extends ConsumerState<NewClaimForm> {
 
   Future<void> _submit() async {
     if (_busy) return; // Ctrl+Enter / double click while a dialog or save is pending
+    setState(() => _triedSubmit = true);
     if (!_formKey.currentState!.validate()) return;
     if (_mode == 0 && _item == null) return showError(context, 'Найдите чек и выберите товар из него');
     if (_mode == 1 && _product == null) return showError(context, 'Выберите товар');
@@ -370,20 +372,35 @@ class _NewClaimFormState extends ConsumerState<NewClaimForm> {
     );
   }
 
-  List<Widget> _manualSection() => [
-    Card(
-      child: ListTile(
-        leading: const Icon(Icons.inventory_2_outlined),
-        title: Text(_product?.name ?? 'Выберите товар *'),
-        subtitle: _product == null ? const Text('Для товара без чека или проданного вне системы') : null,
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () async {
-          final p = await pickProduct(context);
-          if (p != null) setState(() => _product = p);
-        },
+  List<Widget> _manualSection() {
+    final missing = _triedSubmit && _product == null;
+    final err = Theme.of(context).colorScheme.error;
+    return [
+      Card(
+        shape: missing
+            ? RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: err),
+              )
+            : null,
+        child: ListTile(
+          leading: Icon(Icons.inventory_2_outlined, color: missing ? err : null),
+          title: Text(_product?.name ?? 'Выберите товар *', style: missing ? TextStyle(color: err) : null),
+          subtitle: _product == null
+              ? Text(
+                  missing ? 'Обязательно для заявки без чека' : 'Для товара без чека или проданного вне системы',
+                  style: missing ? TextStyle(color: err) : null,
+                )
+              : null,
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () async {
+            final p = await pickProduct(context);
+            if (p != null) setState(() => _product = p);
+          },
+        ),
       ),
-    ),
-  ];
+    ];
+  }
 
   Widget _customerTile(TextStyle? muted) => Card(
     child: ListTile(

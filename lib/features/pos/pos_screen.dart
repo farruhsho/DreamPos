@@ -17,10 +17,13 @@ import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
 import 'cart_controller.dart';
+import 'parked_carts.dart';
 import 'pos_actions.dart';
 import 'pos_providers.dart';
 import 'widgets/cart_panel.dart';
 import 'widgets/product_area.dart';
+
+const _kSideCartMinWidth = 900.0;
 
 class PosScreen extends ConsumerStatefulWidget {
   const PosScreen({super.key});
@@ -41,9 +44,9 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   final _scanQueue = <String>[];
 
   static bool get _isDesktop => switch (defaultTargetPlatform) {
-        TargetPlatform.windows || TargetPlatform.linux || TargetPlatform.macOS => true,
-        _ => false,
-      };
+    TargetPlatform.windows || TargetPlatform.linux || TargetPlatform.macOS => true,
+    _ => false,
+  };
 
   @override
   void dispose() {
@@ -54,8 +57,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     super.dispose();
   }
 
-  PosActions _actions(BuildContext context) =>
-      PosActions(context, ref, refocus: _refocus);
+  PosActions _actions(BuildContext context) => PosActions(context, ref, refocus: _refocus);
 
   /// Returns focus to the scanner field (desktop only: on touch devices it
   /// would pop up the on-screen keyboard after every tap).
@@ -177,8 +179,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         return KeyEventResult.handled;
       }
       if (k == LogicalKeyboardKey.f12 ||
-          ((k == LogicalKeyboardKey.enter || k == LogicalKeyboardKey.numpadEnter) &&
-              hw.isControlPressed)) {
+          ((k == LogicalKeyboardKey.enter || k == LogicalKeyboardKey.numpadEnter) && hw.isControlPressed)) {
         if (ref.read(posCanSellProvider)) {
           a.pay();
         } else {
@@ -233,57 +234,69 @@ class _PosScreenState extends ConsumerState<PosScreen> {
 
     return Focus(
       onKeyEvent: _onKey,
-      child: LayoutBuilder(builder: (context, c) {
-        final wide = c.maxWidth >= Breakpoints.medium;
-        final productArea = _ProductArea(
-          search: PosSearchBar(
-            controller: _search,
-            focusNode: _searchFocus,
-            onChanged: _onSearchChanged,
-            onSubmitted: _onSubmitted,
-            onClear: _clearSearch,
-            error: _scanError,
-            busy: _busy,
-          ),
-          filter: (query: _query, categoryId: _categoryId),
-          onCategory: (id) {
-            setState(() => _categoryId = id);
-            _refocus();
-          },
-          onTapProduct: _onTapProduct,
-          showHints: wide && _isDesktop,
-        );
-        return Scaffold(
-          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-          body: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            if (!canSell)
-              _ShiftBanner(
-                canOpen: session?.can(Perm.openCloseShift) ?? false,
-                onOpen: () => _actions(context).openShift(),
-              ),
-            Expanded(
-              child: wide
-                  ? Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                      Expanded(child: productArea),
-                      const VerticalDivider(width: 1),
-                      SizedBox(
-                        width: c.maxWidth >= Breakpoints.expanded ? 460 : 420,
-                        child: CartPanel(refocus: _refocus),
-                      ),
-                    ])
-                  : productArea,
+      child: LayoutBuilder(
+        builder: (context, c) {
+          // Side-by-side from ~900px of content: a 1024px landscape tablet
+          // (minus the navigation rail) still gets the cart next to the grid.
+          final wide = c.maxWidth >= _kSideCartMinWidth;
+          final productArea = _ProductArea(
+            search: PosSearchBar(
+              controller: _search,
+              focusNode: _searchFocus,
+              onChanged: _onSearchChanged,
+              onSubmitted: _onSubmitted,
+              onClear: _clearSearch,
+              error: _scanError,
+              busy: _busy,
             ),
-          ]),
-          bottomNavigationBar: wide ? null : _CartBottomBar(onOpen: _openCartPage),
-        );
-      }),
+            filter: (query: _query, categoryId: _categoryId),
+            onCategory: (id) {
+              setState(() => _categoryId = id);
+              _refocus();
+            },
+            onTapProduct: _onTapProduct,
+            showHints: wide && _isDesktop,
+          );
+          return Scaffold(
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+            body: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (!canSell)
+                  _ShiftBanner(
+                    canOpen: session?.can(Perm.openCloseShift) ?? false,
+                    onOpen: () => _actions(context).openShift(),
+                  ),
+                Expanded(
+                  child: wide
+                      ? Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(child: productArea),
+                            const VerticalDivider(width: 1),
+                            SizedBox(
+                              width: c.maxWidth >= Breakpoints.expanded
+                                  ? 460
+                                  : c.maxWidth >= 1100
+                                  ? 420
+                                  : 380,
+                              child: CartPanel(refocus: _refocus),
+                            ),
+                          ],
+                        )
+                      : productArea,
+                ),
+              ],
+            ),
+            bottomNavigationBar: wide ? null : _CartBottomBar(onOpen: _openCartPage),
+          );
+        },
+      ),
     );
   }
 
   Future<void> _openCartPage() async {
-    await Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (_) => const _CartPage(),
-    ));
+    await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const _CartPage()));
     _refocus();
   }
 }
@@ -311,24 +324,29 @@ class _ProductArea extends StatelessWidget {
     final compact = context.isCompact;
     return Padding(
       padding: EdgeInsets.fromLTRB(compact ? Gap.m : Gap.l, Gap.m, compact ? Gap.m : Gap.l, 0),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        search,
-        const SizedBox(height: Gap.s),
-        CategoryChips(selected: filter.categoryId, onSelected: onCategory),
-        const SizedBox(height: Gap.s),
-        Expanded(child: ProductGrid(filter: filter, onTap: onTapProduct)),
-        if (showHints)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: Gap.s),
-            child: Text(
-              'F2 поиск · F4 клиент · F8 отложить · F9 отложенные · F12 / Ctrl+Enter оплата · '
-              'Del удалить · +/− количество · ↑↓ выбор позиции · Esc очистить поиск · 3*код — несколько штук',
-              style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          search,
+          const SizedBox(height: Gap.s),
+          CategoryChips(selected: filter.categoryId, onSelected: onCategory),
+          const SizedBox(height: Gap.s),
+          Expanded(
+            child: ProductGrid(filter: filter, onTap: onTapProduct),
           ),
-      ]),
+          if (showHints)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: Gap.s),
+              child: Text(
+                'F2 поиск · F4 клиент · F8 отложить · F9 отложенные · F12 / Ctrl+Enter оплата · '
+                'Del удалить · +/− количество · ↑↓ выбор позиции · Esc очистить поиск · 3*код — несколько штук',
+                style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -383,41 +401,51 @@ class _CartBottomBar extends ConsumerWidget {
     final quote = ref.watch(cartQuoteProvider).value;
     final total = quote?.total ?? cart.grossTotal;
     return Material(
-      elevation: 8,
       color: t.colorScheme.surfaceContainer,
+      shape: Border(top: BorderSide(color: t.colorScheme.outlineVariant)),
       child: SafeArea(
         top: false,
         child: InkWell(
           onTap: onOpen,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(Gap.l, Gap.s, Gap.m, Gap.s),
-            child: Row(children: [
-              Badge(
-                isLabelVisible: cart.isNotEmpty,
-                label: Text('${cart.lines.length}'),
-                child: const Icon(Icons.shopping_cart_outlined, size: 28),
-              ),
-              const SizedBox(width: Gap.m),
-              Expanded(
-                child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(cart.isEmpty ? 'Чек пуст' : 'Итого · ${cart.lines.length} поз.',
-                      style: t.textTheme.bodySmall),
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerLeft,
-                    child: Text(Money.format(total),
-                        key: const Key('bottom-total'),
-                        style: t.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+            child: Row(
+              children: [
+                Badge(
+                  isLabelVisible: cart.isNotEmpty,
+                  label: Text('${cart.lines.length}'),
+                  child: const Icon(Icons.shopping_cart_outlined, size: 28),
+                ),
+                const SizedBox(width: Gap.m),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        cart.isEmpty ? 'Чек пуст' : 'Итого · ${cart.lines.length} поз.',
+                        style: t.textTheme.bodySmall,
+                      ),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          Money.format(total),
+                          key: const Key('bottom-total'),
+                          style: t.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                    ],
                   ),
-                ]),
-              ),
-              FilledButton.icon(
-                key: const Key('pos-open-cart'),
-                onPressed: onOpen,
-                icon: const Icon(Icons.receipt_long),
-                label: const Text('Чек'),
-              ),
-            ]),
+                ),
+                FilledButton.icon(
+                  key: const Key('pos-open-cart'),
+                  onPressed: onOpen,
+                  icon: const Icon(Icons.receipt_long),
+                  label: const Text('Чек'),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -431,29 +459,58 @@ class _CartPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final cart = ref.watch(cartProvider);
-    final a = PosActions(context, ref, onSold: () {
-      if (context.mounted) Navigator.of(context).maybePop();
-    });
+    final parked = ref.watch(parkedCartsProvider).value?.length ?? 0;
+    final a = PosActions(
+      context,
+      ref,
+      onSold: () {
+        if (context.mounted) Navigator.of(context).maybePop();
+      },
+    );
     return Scaffold(
       appBar: AppBar(
         title: Text(cart.isEmpty ? 'Чек' : 'Чек · ${cart.lines.length} поз.'),
+        // Two clear targets instead of four look-alike icons: parked carts
+        // (with a count) and a labelled menu for the rarer actions.
         actions: [
           IconButton(
-              tooltip: 'Отложить чек',
-              onPressed: cart.isEmpty ? null : a.park,
-              icon: const Icon(Icons.pause_circle_outline)),
-          IconButton(
-              tooltip: 'Отложенные чеки',
-              onPressed: a.showParked,
-              icon: const Icon(Icons.inventory_outlined)),
-          IconButton(
-              tooltip: 'Продавец',
-              onPressed: a.chooseSeller,
-              icon: const Icon(Icons.badge_outlined)),
-          IconButton(
-              tooltip: 'Очистить чек',
-              onPressed: cart.isEmpty ? null : a.clearCart,
-              icon: const Icon(Icons.delete_sweep_outlined)),
+            tooltip: 'Отложенные чеки',
+            onPressed: a.showParked,
+            icon: Badge(
+              isLabelVisible: parked > 0,
+              label: Text('$parked'),
+              child: const Icon(Icons.inventory_outlined),
+            ),
+          ),
+          PopupMenuButton<String>(
+            key: const Key('pos-cart-menu'),
+            tooltip: 'Действия с чеком',
+            onSelected: (v) => switch (v) {
+              'park' => a.park(),
+              'seller' => a.chooseSeller(),
+              'clear' => a.clearCart(),
+              _ => null,
+            },
+            itemBuilder: (_) => [
+              PopupMenuItem(
+                value: 'park',
+                enabled: cart.isNotEmpty,
+                child: const ListTile(leading: Icon(Icons.pause_circle_outline), title: Text('Отложить чек')),
+              ),
+              const PopupMenuItem(
+                value: 'seller',
+                child: ListTile(leading: Icon(Icons.badge_outlined), title: Text('Продавец')),
+              ),
+              PopupMenuItem(
+                value: 'clear',
+                enabled: cart.isNotEmpty,
+                child: const ListTile(
+                  leading: Icon(Icons.delete_sweep_outlined, color: AppColors.danger),
+                  title: Text('Очистить чек'),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
       body: SafeArea(

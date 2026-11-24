@@ -53,6 +53,11 @@ class PaymentSplit {
   }
 }
 
+/// Width of the "Всё" / "Проверить" buttons, so every method field lines up
+/// (narrower on phones, where every pixel of the field counts).
+double _trailingWidth(BuildContext context) => context.isCompact ? 84 : 96;
+const _kTrailingPadding = EdgeInsets.symmetric(horizontal: 4);
+
 class PaymentDialog extends ConsumerStatefulWidget {
   const PaymentDialog({
     super.key,
@@ -273,6 +278,8 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
     final extrasError = _validateExtras();
     final canConfirm = s.error == null && extrasError == null && !_busy;
     final tenders = quickTenders(s.cashNeeded, Money.currency);
+    // no keyboard hints on phones
+    final compact = context.isCompact;
 
     Widget methodRow({
       required IconData icon,
@@ -291,16 +298,28 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
             ),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                MoneyField(label: label, controller: c, helper: helper, onSubmitted: (_) => _confirm()),
+                MoneyField(label: label, controller: c, onSubmitted: (_) => _confirm()),
+                // own Text instead of the field's helper: it wraps on phones
+                // instead of being cut off with an ellipsis
+                if (helper != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(Gap.l, Gap.xs, 0, 0),
+                    child: Text(helper,
+                        style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant)),
+                  ),
                 ?extra,
               ]),
             ),
             const SizedBox(width: Gap.s),
             Padding(
               padding: const EdgeInsets.only(top: 4),
-              child: TextButton(
-                onPressed: () => _payAllBy(c, cap: cap),
-                child: const Text('Всё'),
+              child: SizedBox(
+                width: _trailingWidth(context),
+                child: TextButton(
+                  style: TextButton.styleFrom(padding: _kTrailingPadding),
+                  onPressed: () => _payAllBy(c, cap: cap),
+                  child: const Text('Всё'),
+                ),
               ),
             ),
           ]),
@@ -375,9 +394,9 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,\s]'))],
                   decoration: InputDecoration(
-                    labelText: hasNonCash
-                        ? 'Наличными получено (нужно ${Money.format(s.cashNeeded)})'
-                        : 'Наличными получено',
+                    labelText: 'Наличными получено',
+                    helperText: hasNonCash ? 'Нужно наличными: ${Money.format(s.cashNeeded)}' : null,
+                    helperMaxLines: 2,
                     prefixIcon: const Icon(Icons.payments_outlined),
                     suffixText: Money.currency.symbol,
                   ),
@@ -388,14 +407,24 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
                   onFieldSubmitted: (_) => _confirm(),
                 ),
                 const SizedBox(height: Gap.s),
+                // Quick tenders: the chip matching the typed cash is shown as
+                // selected (a permanent check mark on "Без сдачи" read as
+                // "selected" even when another amount was typed). Amounts go
+                // without the currency: the field already shows it, and short
+                // chips fit in one row on desktop and two on phones.
                 Wrap(spacing: Gap.s, runSpacing: Gap.s, children: [
-                  ActionChip(
-                    avatar: const Icon(Icons.check, size: 18),
+                  ChoiceChip(
+                    key: const Key('pay-exact'),
                     label: const Text('Без сдачи'),
-                    onPressed: () => _setCash(s.cashNeeded),
+                    selected: s.cashNeeded > 0 && s.cash == s.cashNeeded,
+                    onSelected: (_) => _setCash(s.cashNeeded),
                   ),
                   for (final v in tenders)
-                    ActionChip(label: Text(Money.format(v)), onPressed: () => _setCash(v)),
+                    ChoiceChip(
+                      label: Text(Money.format(v, withSymbol: false)),
+                      selected: s.cash == v,
+                      onSelected: (_) => _setCash(v),
+                    ),
                 ]),
                 const SizedBox(height: Gap.m),
                 // ---- change / missing
@@ -468,7 +497,10 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
                   else
                     Padding(
                       padding: const EdgeInsets.only(top: Gap.m),
-                      child: Text('Для оплаты в долг или бонусами выберите клиента (F4)',
+                      child: Text(
+                          compact
+                              ? 'Для оплаты в долг или бонусами выберите клиента'
+                              : 'Для оплаты в долг или бонусами выберите клиента (F4)',
                           style: t.textTheme.bodySmall
                               ?.copyWith(color: t.colorScheme.onSurfaceVariant)),
                     ),
@@ -506,9 +538,13 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
                       const SizedBox(width: Gap.s),
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
-                        child: TextButton(
-                          onPressed: _checkingGift ? null : _checkGift,
-                          child: const Text('Проверить'),
+                        child: SizedBox(
+                          width: _trailingWidth(context),
+                          child: TextButton(
+                            style: TextButton.styleFrom(padding: _kTrailingPadding),
+                            onPressed: _checkingGift ? null : _checkGift,
+                            child: const FittedBox(child: Text('Проверить')),
+                          ),
                         ),
                       ),
                     ]),
@@ -523,9 +559,10 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
               ]),
             ),
           ),
-          // ---- footer
+          // ---- footer (divider: the methods above scroll under it)
+          const Divider(height: 1),
           Padding(
-            padding: const EdgeInsets.fromLTRB(Gap.xl, 0, Gap.xl, Gap.l),
+            padding: const EdgeInsets.fromLTRB(Gap.xl, Gap.m, Gap.xl, Gap.l),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               if ((_serverError ?? extrasError) != null)
                 Padding(
@@ -546,7 +583,7 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
                           height: 22,
                           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                       : const Icon(Icons.check_circle_outline),
-                  label: Text(_busy ? 'Проводим…' : 'Провести оплату (Enter)',
+                  label: Text(_busy ? 'Проводим…' : (compact ? 'Провести оплату' : 'Провести оплату (Enter)'),
                       style: const TextStyle(fontSize: 17)),
                 ),
               ),

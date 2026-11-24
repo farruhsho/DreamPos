@@ -67,7 +67,8 @@ class StockTab extends ConsumerWidget {
               KpiTile(
                   label: 'Позиций в наличии',
                   value: '$items',
-                  icon: Icons.inventory_2_outlined),
+                  icon: Icons.inventory_2_outlined,
+                  hint: 'категорий: ${list.length}'),
               if (withCost)
                 KpiTile(
                   label: 'Склад по себестоимости',
@@ -75,11 +76,13 @@ class StockTab extends ConsumerWidget {
                   icon: Icons.account_balance_wallet_outlined,
                   color: AppColors.info,
                   tooltip: 'Сколько денег вложено в товар на складе',
+                  hint: 'вложено в товар',
                 ),
               KpiTile(
                   label: 'Склад по розничным ценам',
                   value: Money.format(retail),
-                  icon: Icons.sell_outlined),
+                  icon: Icons.sell_outlined,
+                  hint: 'если продать всё по текущим ценам'),
               if (withCost)
                 KpiTile(
                   label: 'Потенциальная прибыль',

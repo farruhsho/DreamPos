@@ -30,9 +30,10 @@ class InventoryScreen extends ConsumerWidget {
       return const PageScaffold(
         title: 'Склад',
         body: EmptyState(
-            icon: Icons.lock_outline,
-            title: 'Нет доступа',
-            message: 'Складские операции доступны кладовщику, менеджеру и владельцу'),
+          icon: Icons.lock_outline,
+          title: 'Нет доступа',
+          message: 'Складские операции доступны кладовщику, менеджеру и владельцу',
+        ),
       );
     }
     return DefaultTabController(

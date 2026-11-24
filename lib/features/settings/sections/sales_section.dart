@@ -34,31 +34,36 @@ class _SalesSectionState extends ConsumerState<SalesSection> with SettingsFormMi
       key == SettingKeys.posBanknotes ? banknotesToInput(stored, _cur) : stored;
 
   @override
-  String toStored(String key, String display) => key == SettingKeys.posBanknotes
-      ? parseBanknotes(display, _cur).stored
-      : '${int.parse(display.trim())}';
+  String toStored(String key, String display) =>
+      key == SettingKeys.posBanknotes ? parseBanknotes(display, _cur).stored : '${int.parse(display.trim())}';
 
   Future<bool> _confirmShift(BuildContext context, bool on) async {
     if (on) return true;
-    return confirm(context,
-        title: 'Разрешить продажи без смены?',
-        message: 'Не рекомендуется. Без открытой смены:\n'
-            '• не будет контроля наличных в кассе и Z-отчёта;\n'
-            '• продажи не попадут ни в одну смену, расхождения не найти;\n'
-            '• кассиры смогут продавать, не пересчитав размен.\n\n'
-            'Отключайте, только если касса не принимает наличные.',
-        ok: 'Всё равно отключить',
-        destructive: true);
+    return confirm(
+      context,
+      title: 'Разрешить продажи без смены?',
+      message:
+          'Не рекомендуется. Без открытой смены:\n'
+          '• не будет контроля наличных в кассе и Z-отчёта;\n'
+          '• продажи не попадут ни в одну смену, расхождения не найти;\n'
+          '• кассиры смогут продавать, не пересчитав размен.\n\n'
+          'Отключайте, только если касса не принимает наличные.',
+      ok: 'Всё равно отключить',
+      destructive: true,
+    );
   }
 
   Future<bool> _confirmNegative(BuildContext context, bool on) async {
     if (!on) return true;
-    return confirm(context,
-        title: 'Разрешить продажу при нулевом остатке?',
-        message: 'Остаток сможет уйти в минус. Это удобно, если приход оформляют позже продажи, '
-            'но скрывает пересорт и недостачи. Отрицательные остатки нужно регулярно '
-            'исправлять приходом или инвентаризацией.',
-        ok: 'Разрешить');
+    return confirm(
+      context,
+      title: 'Разрешить продажу при нулевом остатке?',
+      message:
+          'Остаток сможет уйти в минус. Это удобно, если приход оформляют позже продажи, '
+          'но скрывает пересорт и недостачи. Отрицательные остатки нужно регулярно '
+          'исправлять приходом или инвентаризацией.',
+      ok: 'Разрешить',
+    );
   }
 
   @override
@@ -74,94 +79,125 @@ class _SalesSectionState extends ConsumerState<SalesSection> with SettingsFormMi
       title: 'Продажи',
       description: 'Правила, которые касса проверяет при каждой продаже и возврате.',
       children: [
-        TileCard(title: 'Контроль', children: [
-          SettingSwitch(
-            settingKey: SettingKeys.requireShift,
-            defaultOn: true,
-            icon: Icons.schedule,
-            title: 'Продавать только при открытой смене',
-            subtitle: 'Рекомендуется: контроль наличных и Z-отчёт по каждой смене',
-            confirmChange: _confirmShift,
-          ),
-          SettingSwitch(
-            settingKey: SettingKeys.allowNegativeStock,
-            icon: Icons.inventory_2_outlined,
-            title: 'Разрешить продажу при нулевом остатке',
-            subtitle: 'Остаток может уйти в минус (для всех товаров)',
-            confirmChange: _confirmNegative,
-          ),
-          const SettingSwitch(
-            settingKey: SettingKeys.debtRequiresLimit,
-            icon: Icons.credit_score_outlined,
-            title: 'В долг — только клиентам с лимитом',
-            subtitle: 'Продажа в долг клиенту без установленного лимита будет запрещена',
-          ),
-        ]),
+        TileCard(
+          title: 'Контроль',
+          children: [
+            SettingSwitch(
+              settingKey: SettingKeys.requireShift,
+              defaultOn: true,
+              icon: Icons.schedule,
+              title: 'Продавать только при открытой смене',
+              subtitle: 'Рекомендуется: контроль наличных и Z-отчёт по каждой смене',
+              confirmChange: _confirmShift,
+            ),
+            SettingSwitch(
+              settingKey: SettingKeys.allowNegativeStock,
+              icon: Icons.inventory_2_outlined,
+              title: 'Разрешить продажу при нулевом остатке',
+              subtitle: 'Остаток может уйти в минус (для всех товаров)',
+              confirmChange: _confirmNegative,
+            ),
+            const SettingSwitch(
+              settingKey: SettingKeys.debtRequiresLimit,
+              icon: Icons.credit_score_outlined,
+              title: 'В долг — только клиентам с лимитом',
+              subtitle: 'Продажа в долг клиенту без установленного лимита будет запрещена',
+            ),
+          ],
+        ),
         SectionCard(
           title: 'Возвраты',
-          child: TextFormField(
-            controller: ctl(SettingKeys.returnDays),
-            keyboardType: TextInputType.number,
-            decoration: InputDecoration(
-              labelText: 'Срок возврата, дней',
-              suffixText: 'дн.',
-              helperText: days == 0
-                  ? 'Без ограничения срока'
-                  : 'Возврат по чеку возможен в течение ${days ?? '…'} дней. 0 — без ограничения',
+          child: NarrowField(
+            maxWidth: 480,
+            child: TextFormField(
+              controller: ctl(SettingKeys.returnDays),
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: 'Срок возврата, дней',
+                suffixText: 'дн.',
+                helperMaxLines: 3,
+                helperText: days == 0
+                    ? 'Без ограничения срока'
+                    : 'Возврат по чеку возможен в течение ${days ?? '…'} дней. 0 — без ограничения',
+              ),
+              validator: validateReturnDays,
+              onFieldSubmitted: (_) => save(),
             ),
-            validator: validateReturnDays,
-            onFieldSubmitted: (_) => save(),
           ),
         ),
         SectionCard(
           title: 'Быстрая оплата наличными',
-          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            TextFormField(
-              controller: ctl(SettingKeys.posBanknotes),
-              decoration: InputDecoration(
-                labelText: 'Номиналы купюр на экране оплаты',
-                hintText: defaults.map((v) => Money.toInput(v, c: _cur)).join(', '),
-                helperText: 'Через запятую, до $maxBanknotes штук. Пусто — стандартный набор',
-                suffixText: _cur.symbol,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextFormField(
+                controller: ctl(SettingKeys.posBanknotes),
+                decoration: InputDecoration(
+                  labelText: 'Номиналы купюр на экране оплаты',
+                  // Keep the label up so the default set is visible as a hint.
+                  floatingLabelBehavior: FloatingLabelBehavior.always,
+                  hintText: defaults.map((v) => Money.toInput(v, c: _cur)).join(', '),
+                  helperMaxLines: 3,
+                  helperText: 'Через запятую, до $maxBanknotes штук. Пусто — стандартный набор',
+                  suffixText: _cur.symbol,
+                ),
+                validator: (v) => parseBanknotes(v ?? '', _cur).error,
+                onFieldSubmitted: (_) => save(),
               ),
-              validator: (v) => parseBanknotes(v ?? '', _cur).error,
-              onFieldSubmitted: (_) => save(),
-            ),
-            const SizedBox(height: Gap.m),
-            Text('Кнопки на кассе:', style: Theme.of(context).textTheme.bodySmall),
-            const SizedBox(height: Gap.xs),
-            Wrap(spacing: Gap.s, runSpacing: Gap.s, children: [
-              for (final v in shown) Chip(label: Text(Money.format(v, withSymbol: false, c: _cur))),
-            ]),
-          ]),
+              const SizedBox(height: Gap.m),
+              Text(
+                'Кнопки на кассе:',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+              ),
+              const SizedBox(height: Gap.xs),
+              Wrap(
+                spacing: Gap.s,
+                runSpacing: Gap.s,
+                children: [
+                  for (final v in shown) Chip(label: Text(Money.format(v, withSymbol: false, c: _cur))),
+                ],
+              ),
+            ],
+          ),
         ),
         SectionCard(
           title: 'Округление наличных',
-          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            DropdownButtonFormField<String>(
-              key: ValueKey('rounding-$rounding'),
-              initialValue: cashRoundingOptions.contains(rounding) ? rounding : 'none',
-              decoration: const InputDecoration(labelText: 'Округлять итог при оплате наличными'),
-              items: [
-                for (final o in cashRoundingOptions)
-                  DropdownMenuItem(value: o, child: Text(cashRoundingLabel(o, _cur))),
-              ],
-              onChanged: (v) {
-                if (v == null) return;
-                runGuarded(context, () => applySettings(ref, {SettingKeys.cashRounding: v}),
-                    success: 'Округление: ${cashRoundingLabel(v, _cur).toLowerCase()}');
-              },
-            ),
-            const SizedBox(height: Gap.s),
-            InfoBanner(
-              text: rounding == 'none'
-                  ? 'Итог к оплате наличными не округляется.'
-                  : 'Пример: ${Money.format(_roundingSample, c: _cur)} → '
-                      '${Money.format(roundCash(_roundingSample, int.tryParse(rounding) ?? 0), c: _cur)}. '
-                      'Применяется только к наличной оплате; безналичные платежи не округляются.',
-              color: AppColors.info,
-            ),
-          ]),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              NarrowField(
+                maxWidth: 480,
+                child: DropdownButtonFormField<String>(
+                  key: ValueKey('rounding-$rounding'),
+                  initialValue: cashRoundingOptions.contains(rounding) ? rounding : 'none',
+                  decoration: const InputDecoration(labelText: 'Округлять итог при оплате наличными'),
+                  items: [
+                    for (final o in cashRoundingOptions)
+                      DropdownMenuItem(value: o, child: Text(cashRoundingLabel(o, _cur))),
+                  ],
+                  onChanged: (v) {
+                    if (v == null) return;
+                    runGuarded(
+                      context,
+                      () => applySettings(ref, {SettingKeys.cashRounding: v}),
+                      success: 'Округление: ${cashRoundingLabel(v, _cur).toLowerCase()}',
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: Gap.s),
+              InfoBanner(
+                text: rounding == 'none'
+                    ? 'Итог к оплате наличными не округляется.'
+                    : 'Пример: ${Money.format(_roundingSample, c: _cur)} → '
+                          '${Money.format(roundCash(_roundingSample, int.tryParse(rounding) ?? 0), c: _cur)}. '
+                          'Применяется только к наличной оплате; безналичные платежи не округляются.',
+                color: AppColors.info,
+              ),
+            ],
+          ),
         ),
       ],
     );

@@ -25,20 +25,9 @@ const movementTypeLabels = <String, String>{
 
 String movementLabel(String type) => movementTypeLabels[type] ?? type;
 
-const writeOffReasons = <String>[
-  'Брак',
-  'Просрочка',
-  'Порча',
-  'Недостача',
-  'Личное потребление',
-  'Другое',
-];
+const writeOffReasons = <String>['Брак', 'Просрочка', 'Порча', 'Недостача', 'Личное потребление', 'Другое'];
 
-const countStatusLabels = <String, String>{
-  'draft': 'Черновик',
-  'completed': 'Проведена',
-  'cancelled': 'Отменена',
-};
+const countStatusLabels = <String, String>{'draft': 'Черновик', 'completed': 'Проведена', 'cancelled': 'Отменена'};
 
 // ------------------------------------------------------------------ providers
 
@@ -91,16 +80,14 @@ final inventoryCountProvider = StreamProvider.family<InventoryCount?, String>((r
   return (db.select(db.inventoryCounts)..where((c) => c.id.equals(id))).watchSingleOrNull();
 });
 
-final inventoryCountItemsProvider =
-    StreamProvider.family<List<InventoryCountItem>, String>((ref, id) {
+final inventoryCountItemsProvider = StreamProvider.family<List<InventoryCountItem>, String>((ref, id) {
   final db = ref.watch(databaseProvider);
-  return (db.select(db.inventoryCountItems)
-        ..where((i) => i.countId.equals(id) & i.deletedAt.isNull()))
-      .watch();
+  return (db.select(db.inventoryCountItems)..where((i) => i.countId.equals(id) & i.deletedAt.isNull())).watch();
 });
 
 final inventoryRepoProvider = Provider(
-    (ref) => InventoryRepo(ref.watch(databaseProvider), ref.watch(stockServiceProvider)));
+  (ref) => InventoryRepo(ref.watch(databaseProvider), ref.watch(stockServiceProvider)),
+);
 
 // ------------------------------------------------------------------ stock overview
 
@@ -119,11 +106,11 @@ bool isOut(Product p) => p.stockQty == 0;
 bool isNegative(Product p) => p.stockQty < 0;
 
 bool matchesStockFilter(Product p, StockFilter f) => switch (f) {
-      StockFilter.all => true,
-      StockFilter.low => isLow(p),
-      StockFilter.out => isOut(p),
-      StockFilter.negative => isNegative(p),
-    };
+  StockFilter.all => true,
+  StockFilter.low => isLow(p),
+  StockFilter.out => isOut(p),
+  StockFilter.negative => isNegative(p),
+};
 
 bool matchesQuery(Product p, String q) {
   final s = q.trim().toLowerCase();
@@ -166,12 +153,13 @@ class StockValuation {
       if (isNegative(p)) neg++;
     }
     return StockValuation(
-        positions: positions,
-        costValue: cost,
-        retailValue: retail,
-        lowCount: low,
-        outCount: out,
-        negativeCount: neg);
+      positions: positions,
+      costValue: cost,
+      retailValue: retail,
+      lowCount: low,
+      outCount: out,
+      negativeCount: neg,
+    );
   }
 }
 
@@ -308,8 +296,7 @@ class InventoryRepo {
     await db.transaction(() async {
       Supplier? sup;
       if (supplierId != null) {
-        sup = await (db.select(db.suppliers)..where((s) => s.id.equals(supplierId)))
-            .getSingleOrNull();
+        sup = await (db.select(db.suppliers)..where((s) => s.id.equals(supplierId))).getSingleOrNull();
         if (sup == null || sup.deletedAt != null) {
           throw BusinessException('Поставщик не найден');
         }
@@ -329,31 +316,35 @@ class InventoryRepo {
           reason: reason.isEmpty ? null : reason,
         );
         if (canEditPrices && l.newPrice != null) {
-          final cur = await (db.select(db.products)..where((p) => p.id.equals(l.product.id)))
-              .getSingle();
+          final cur = await (db.select(db.products)..where((p) => p.id.equals(l.product.id))).getSingle();
           if (cur.price != l.newPrice) {
             await (db.update(db.products)..where((p) => p.id.equals(cur.id))).write(
-                ProductsCompanion(price: Value(l.newPrice!), updatedAt: Value(DateTime.now())));
+              ProductsCompanion(price: Value(l.newPrice!), updatedAt: Value(DateTime.now())),
+            );
             await db.markDirty('products', cur.id);
-            await db.audit('product.price',
-                userId: userId,
-                entity: 'product',
-                entityId: cur.id,
-                details: '${cur.price} → ${l.newPrice}; приход');
+            await db.audit(
+              'product.price',
+              userId: userId,
+              entity: 'product',
+              entityId: cur.id,
+              details: '${cur.price} → ${l.newPrice}; приход',
+            );
           }
         }
       }
       if (sup != null && total != 0) {
         await (db.update(db.suppliers)..where((s) => s.id.equals(sup!.id))).write(
-            SuppliersCompanion(
-                balance: Value(sup.balance + total), updatedAt: Value(DateTime.now())));
+          SuppliersCompanion(balance: Value(sup.balance + total), updatedAt: Value(DateTime.now())),
+        );
         await db.markDirty('suppliers', sup.id);
       }
-      await db.audit('stock.receipt',
-          userId: userId,
-          entity: 'supplier',
-          entityId: supplierId,
-          details: 'doc $docId; позиций ${lines.length}; сумма $total');
+      await db.audit(
+        'stock.receipt',
+        userId: userId,
+        entity: 'supplier',
+        entityId: supplierId,
+        details: 'doc $docId; позиций ${lines.length}; сумма $total',
+      );
     });
     return docId;
   }
@@ -384,25 +375,36 @@ class InventoryRepo {
     final id = newId();
     await db.transaction(() async {
       final number = await db.nextNumber('inventory');
-      await db.into(db.inventoryCounts).insert(InventoryCountsCompanion.insert(
-          id: id,
-          number: number,
-          userId: Value(userId),
-          note: Value(note == null || note.trim().isEmpty ? null : note.trim())));
+      await db
+          .into(db.inventoryCounts)
+          .insert(
+            InventoryCountsCompanion.insert(
+              id: id,
+              number: number,
+              userId: Value(userId),
+              note: Value(note == null || note.trim().isEmpty ? null : note.trim()),
+            ),
+          );
       await db.batch((b) {
         b.insertAll(db.inventoryCountItems, [
           for (final p in products)
             InventoryCountItemsCompanion.insert(
-                id: newId(),
-                countId: id,
-                productId: p.id,
-                expectedQty: p.stockQty,
-                unitCost: Value(p.costPrice)),
+              id: newId(),
+              countId: id,
+              productId: p.id,
+              expectedQty: p.stockQty,
+              unitCost: Value(p.costPrice),
+            ),
         ]);
       });
       await db.markDirty('inventory_counts', id);
-      await db.audit('inventory.create',
-          userId: userId, entity: 'inventory_count', entityId: id, details: '№$number; ${products.length} поз.');
+      await db.audit(
+        'inventory.create',
+        userId: userId,
+        entity: 'inventory_count',
+        entityId: id,
+        details: '№$number; ${products.length} поз.',
+      );
     });
     return id;
   }
@@ -422,13 +424,13 @@ class InventoryRepo {
       for (final e in values.entries) {
         final v = e.value;
         if (v != null && v < 0) throw BusinessException('Количество не может быть отрицательным');
-        await (db.update(db.inventoryCountItems)
-              ..where((i) => i.id.equals(e.key) & i.countId.equals(countId)))
-            .write(InventoryCountItemsCompanion(
-                countedQty: Value(v == null ? null : Qty.round(v)), updatedAt: Value(now)));
+        await (db.update(db.inventoryCountItems)..where((i) => i.id.equals(e.key) & i.countId.equals(countId))).write(
+          InventoryCountItemsCompanion(countedQty: Value(v == null ? null : Qty.round(v)), updatedAt: Value(now)),
+        );
       }
-      await (db.update(db.inventoryCounts)..where((c) => c.id.equals(countId)))
-          .write(InventoryCountsCompanion(updatedAt: Value(now)));
+      await (db.update(
+        db.inventoryCounts,
+      )..where((c) => c.id.equals(countId))).write(InventoryCountsCompanion(updatedAt: Value(now)));
       await db.markDirty('inventory_counts', countId);
     });
   }
@@ -437,19 +439,24 @@ class InventoryRepo {
   Future<String> addCountItem(String countId, Product p, {double? counted}) async {
     return db.transaction(() async {
       await _draft(countId);
-      final existing = await (db.select(db.inventoryCountItems)
-            ..where((i) => i.countId.equals(countId) & i.productId.equals(p.id)))
-          .getSingleOrNull();
+      final existing = await (db.select(
+        db.inventoryCountItems,
+      )..where((i) => i.countId.equals(countId) & i.productId.equals(p.id))).getSingleOrNull();
       if (existing != null) return existing.id;
       final id = newId();
       final fresh = await (db.select(db.products)..where((t) => t.id.equals(p.id))).getSingle();
-      await db.into(db.inventoryCountItems).insert(InventoryCountItemsCompanion.insert(
-          id: id,
-          countId: countId,
-          productId: p.id,
-          expectedQty: fresh.stockQty,
-          countedQty: Value(counted),
-          unitCost: Value(fresh.costPrice)));
+      await db
+          .into(db.inventoryCountItems)
+          .insert(
+            InventoryCountItemsCompanion.insert(
+              id: id,
+              countId: countId,
+              productId: p.id,
+              expectedQty: fresh.stockQty,
+              countedQty: Value(counted),
+              unitCost: Value(fresh.costPrice),
+            ),
+          );
       await db.markDirty('inventory_counts', countId);
       return id;
     });
@@ -459,10 +466,16 @@ class InventoryRepo {
     await db.transaction(() async {
       final c = await _draft(countId);
       await (db.update(db.inventoryCounts)..where((t) => t.id.equals(countId))).write(
-          InventoryCountsCompanion(status: const Value('cancelled'), updatedAt: Value(DateTime.now())));
+        InventoryCountsCompanion(status: const Value('cancelled'), updatedAt: Value(DateTime.now())),
+      );
       await db.markDirty('inventory_counts', countId);
-      await db.audit('inventory.cancel',
-          userId: userId, entity: 'inventory_count', entityId: countId, details: '№${c.number}');
+      await db.audit(
+        'inventory.cancel',
+        userId: userId,
+        entity: 'inventory_count',
+        entityId: countId,
+        details: '№${c.number}',
+      );
     });
   }
 
@@ -470,9 +483,9 @@ class InventoryRepo {
   Future<void> completeCount(String countId, {String? userId, Map<String, double?> pending = const {}}) async {
     await db.transaction(() async {
       await saveCounted(countId, pending);
-      final counted = await (db.select(db.inventoryCountItems)
-            ..where((i) => i.countId.equals(countId) & i.countedQty.isNotNull()))
-          .get();
+      final counted = await (db.select(
+        db.inventoryCountItems,
+      )..where((i) => i.countId.equals(countId) & i.countedQty.isNotNull())).get();
       if (counted.isEmpty) throw BusinessException('Не введено ни одного фактического количества');
       await stock.completeCount(countId, userId: userId);
     });

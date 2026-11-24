@@ -8,9 +8,8 @@ import '../../core/widgets/widgets.dart';
 import 'settings_logic.dart';
 
 /// Saves settings with audit as the current user.
-Future<int> applySettings(WidgetRef ref, Map<String, String> values) => saveSettings(
-    ref.read(databaseProvider), values,
-    userId: ref.read(sessionProvider)?.user.id);
+Future<int> applySettings(WidgetRef ref, Map<String, String> values) =>
+    saveSettings(ref.read(databaseProvider), values, userId: ref.read(sessionProvider)?.user.id);
 
 String? currentUserId(WidgetRef ref) => ref.read(sessionProvider)?.user.id;
 
@@ -27,21 +26,17 @@ class SettingsDirtyScope extends InheritedWidget {
   bool updateShouldNotify(SettingsDirtyScope oldWidget) => dirty != oldWidget.dirty;
 }
 
-Future<bool> confirmDiscard(BuildContext context) => confirm(context,
-    title: 'Отменить изменения?',
-    message: 'В разделе есть несохранённые изменения. Если уйти, они будут потеряны.',
-    ok: 'Не сохранять',
-    destructive: true);
+Future<bool> confirmDiscard(BuildContext context) => confirm(
+  context,
+  title: 'Отменить изменения?',
+  message: 'В разделе есть несохранённые изменения. Если уйти, они будут потеряны.',
+  ok: 'Не сохранять',
+  destructive: true,
+);
 
 /// Scrollable section body with constrained width and optional sticky save bar.
 class SectionView extends StatelessWidget {
-  const SectionView({
-    super.key,
-    required this.title,
-    required this.children,
-    this.description,
-    this.bottom,
-  });
+  const SectionView({super.key, required this.title, required this.children, this.description, this.bottom});
 
   final String title;
   final String? description;
@@ -52,41 +47,51 @@ class SectionView extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = Theme.of(context);
     final showTitle = context.isWide;
-    return Column(children: [
-      Expanded(
-        child: ListView(
-          padding: EdgeInsets.all(context.isCompact ? Gap.m : Gap.xl),
-          children: [
-            Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 860),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  if (showTitle)
-                    Text(title, style: t.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600)),
-                  if (description != null) ...[
-                    if (showTitle) const SizedBox(height: Gap.xs),
-                    Text(description!,
-                        style: t.textTheme.bodyMedium?.copyWith(color: t.colorScheme.onSurfaceVariant)),
-                  ],
-                  if (showTitle || description != null) const SizedBox(height: Gap.l),
-                  for (final (i, c) in children.indexed) ...[
-                    if (i > 0) const SizedBox(height: Gap.l),
-                    c,
-                  ],
-                ]),
+    return Column(
+      children: [
+        Expanded(
+          child: ListView(
+            padding: EdgeInsets.all(context.isCompact ? Gap.m : Gap.xl),
+            children: [
+              Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 860),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (showTitle)
+                        Text(title, style: t.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600)),
+                      if (description != null) ...[
+                        if (showTitle) const SizedBox(height: Gap.xs),
+                        Text(
+                          description!,
+                          style: t.textTheme.bodyMedium?.copyWith(color: t.colorScheme.onSurfaceVariant),
+                        ),
+                      ],
+                      if (showTitle || description != null) const SizedBox(height: Gap.l),
+                      for (final (i, c) in children.indexed) ...[if (i > 0) const SizedBox(height: Gap.l), c],
+                    ],
+                  ),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
-      ?bottom,
-    ]);
+        ?bottom,
+      ],
+    );
   }
 }
 
 /// Sticky bar shown when a form has unsaved edits.
 class SaveBar extends StatelessWidget {
-  const SaveBar({super.key, required this.visible, required this.saving, required this.onSave, required this.onReset});
+  const SaveBar({
+    super.key,
+    required this.visible,
+    required this.saving,
+    required this.onSave,
+    required this.onReset,
+  });
   final bool visible;
   final bool saving;
   final VoidCallback onSave;
@@ -97,16 +102,17 @@ class SaveBar extends StatelessWidget {
     final t = Theme.of(context);
     final compact = context.isCompact;
     return !visible
-          ? const SizedBox.shrink()
-          : Material(
-              color: t.colorScheme.surfaceContainerHigh,
-              child: SafeArea(
-                top: false,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: Gap.l, vertical: Gap.s),
-                  // On phones the buttons take the whole bar (no icon/hint) so
-                  // nothing overflows at 360px.
-                  child: Row(children: [
+        ? const SizedBox.shrink()
+        : Material(
+            color: t.colorScheme.surfaceContainerHigh,
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: Gap.l, vertical: Gap.s),
+                // On phones the buttons take the whole bar (no icon/hint) so
+                // nothing overflows at 360px.
+                child: Row(
+                  children: [
                     if (!compact) ...[
                       Icon(Icons.edit_note, color: t.colorScheme.primary),
                       const SizedBox(width: Gap.s),
@@ -114,8 +120,10 @@ class SaveBar extends StatelessWidget {
                     Expanded(
                       child: compact
                           ? const SizedBox.shrink()
-                          : const Text('Есть несохранённые изменения (Ctrl+S — сохранить)',
-                              overflow: TextOverflow.ellipsis),
+                          : const Text(
+                              'Есть несохранённые изменения (Ctrl+S — сохранить)',
+                              overflow: TextOverflow.ellipsis,
+                            ),
                     ),
                     TextButton(onPressed: saving ? null : onReset, child: const Text('Отменить')),
                     const SizedBox(width: Gap.s),
@@ -123,14 +131,18 @@ class SaveBar extends StatelessWidget {
                       onPressed: saving ? null : onSave,
                       icon: saving
                           ? const SizedBox(
-                              width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
                           : (compact ? null : const Icon(Icons.save_outlined)),
                       label: const Text('Сохранить'),
                     ),
-                  ]),
+                  ],
                 ),
               ),
-            );
+            ),
+          );
   }
 }
 
@@ -170,7 +182,10 @@ mixin SettingsFormMixin<T extends ConsumerStatefulWidget> on ConsumerState<T> {
 
   void loadFrom(Map<String, String> s) {
     _loading = true;
-    _baseline = {for (final k in formKeys) if (s.containsKey(k)) k: s[k]!};
+    _baseline = {
+      for (final k in formKeys)
+        if (s.containsKey(k)) k: s[k]!,
+    };
     for (final k in formKeys) {
       final d = _display(k);
       if (ctl(k).text != d) ctl(k).text = d;
@@ -288,8 +303,7 @@ class SettingSwitch extends ConsumerWidget {
   /// Return false to cancel the change (e.g. after a warning dialog).
   final Future<bool> Function(BuildContext context, bool newValue)? confirmChange;
 
-  static bool isOn(String? v, {bool defaultOn = false}) =>
-      v == null ? defaultOn : v != '0' && v.isNotEmpty;
+  static bool isOn(String? v, {bool defaultOn = false}) => v == null ? defaultOn : v != '0' && v.isNotEmpty;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -304,8 +318,11 @@ class SettingSwitch extends ConsumerWidget {
           : (v) async {
               if (confirmChange != null && !await confirmChange!(context, v)) return;
               if (!context.mounted) return;
-              await runGuarded(context, () => applySettings(ref, {settingKey: v ? '1' : '0'}),
-                  success: v ? '«$title» — включено' : '«$title» — выключено');
+              await runGuarded(
+                context,
+                () => applySettings(ref, {settingKey: v ? '1' : '0'}),
+                success: v ? '«$title» — включено' : '«$title» — выключено',
+              );
             },
     );
   }
@@ -319,20 +336,42 @@ class TileCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Card(
-        clipBehavior: Clip.antiAlias,
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          if (title != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(Gap.l, Gap.l, Gap.l, Gap.xs),
-              child: Text(title!,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
+    clipBehavior: Clip.antiAlias,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (title != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(Gap.l, Gap.l, Gap.l, Gap.xs),
+            child: Text(
+              title!,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
             ),
-          for (final (i, c) in children.indexed) ...[
-            if (i > 0) const Divider(indent: Gap.l, endIndent: Gap.l),
-            c,
-          ],
-        ]),
-      );
+          ),
+        for (final (i, c) in children.indexed) ...[
+          if (i > 0) const Divider(indent: Gap.l, endIndent: Gap.l),
+          c,
+        ],
+      ],
+    ),
+  );
+}
+
+/// Left-aligned box that keeps short inputs (percent, days, a picker) from
+/// stretching across the whole 860px card on desktop.
+class NarrowField extends StatelessWidget {
+  const NarrowField({super.key, required this.child, this.maxWidth = 360});
+  final Widget child;
+  final double maxWidth;
+
+  @override
+  Widget build(BuildContext context) => Align(
+    alignment: AlignmentDirectional.centerStart,
+    child: ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxWidth),
+      child: child,
+    ),
+  );
 }
 
 /// Colored information / warning banner.
@@ -353,12 +392,15 @@ class InfoBanner extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: c.withValues(alpha: 0.35)),
       ),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(icon, color: c, size: 20),
-        const SizedBox(width: Gap.m),
-        Expanded(child: Text(text)),
-        if (action != null) ...[const SizedBox(width: Gap.s), action!],
-      ]),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: c, size: 20),
+          const SizedBox(width: Gap.m),
+          Expanded(child: Text(text)),
+          if (action != null) ...[const SizedBox(width: Gap.s), action!],
+        ],
+      ),
     );
   }
 }

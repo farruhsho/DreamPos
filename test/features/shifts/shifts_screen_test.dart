@@ -16,10 +16,7 @@ class _FixedSession extends SessionNotifier {
 }
 
 Widget _app(AppDatabase db, User user) => ProviderScope(
-  overrides: [
-    databaseProvider.overrideWithValue(db),
-    sessionProvider.overrideWith(() => _FixedSession(user)),
-  ],
+  overrides: [databaseProvider.overrideWithValue(db), sessionProvider.overrideWith(() => _FixedSession(user))],
   child: const MaterialApp(home: ShiftsView()),
 );
 

@@ -41,12 +41,9 @@ class StaffScreen extends ConsumerWidget {
       child: PageScaffold(
         title: 'Сотрудники',
         padding: EdgeInsets.zero,
-        actions: [ClockButton(compact: context.isCompact)],
-        bottom: TabBar(
-          isScrollable: true,
-          tabAlignment: TabAlignment.start,
-          tabs: [for (final t in tabs) t.$1],
-        ),
+        // Labelled even on phones: the app bar already has the bare timer icon.
+        actions: [ClockButton(short: context.isCompact)],
+        bottom: TabBar(isScrollable: true, tabAlignment: TabAlignment.start, tabs: [for (final t in tabs) t.$1]),
         body: TabBarView(
           children: [for (final t in tabs) Padding(padding: const EdgeInsets.all(Gap.l), child: t.$2)],
         ),

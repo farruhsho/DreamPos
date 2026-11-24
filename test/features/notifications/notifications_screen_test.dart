@@ -40,10 +40,15 @@ void main() {
       expect(find.text('Непрочитанных: 2'), findsOneWidget);
 
       // filter by kind
+      // on phones the filter chips scroll horizontally
+      await tester.ensureVisible(find.textContaining('Дни рождения ('));
+      await tester.pump();
       await tester.tap(find.textContaining('Дни рождения ('));
       await settle(tester);
       expect(find.text('Мало товара: Молоко'), findsNothing);
       expect(find.text('День рождения: Анна'), findsOneWidget);
+      await tester.ensureVisible(find.textContaining('Все ('));
+      await tester.pump();
       await tester.tap(find.textContaining('Все ('));
       await settle(tester);
 

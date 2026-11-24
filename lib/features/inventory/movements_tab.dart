@@ -10,6 +10,7 @@ import '../../core/widgets/pickers.dart';
 import '../../core/widgets/widgets.dart';
 import 'inventory_logic.dart';
 import 'stock_dialogs.dart';
+import 'stock_tab.dart' show InvChipBar;
 
 /// Filter for the stock movement journal.
 class MovementQuery {
@@ -105,97 +106,137 @@ class _MovementsTabState extends ConsumerState<MovementsTab> {
     final products = ref.watch(invProductMapProvider).value ?? const {};
     final users = ref.watch(invUserNamesProvider).value ?? const {};
     final q = _query;
-    final filters = Wrap(spacing: Gap.s, runSpacing: Gap.s, crossAxisAlignment: WrapCrossAlignment.center, children: [
-      SizedBox(
-        width: 220,
-        child: DropdownButtonFormField<String?>(
-          initialValue: _type,
-          isExpanded: true,
-          decoration: const InputDecoration(labelText: 'Тип'),
-          items: [
-            const DropdownMenuItem(value: null, child: Text('Все типы')),
-            for (final e in movementTypeLabels.entries) DropdownMenuItem(value: e.key, child: Text(e.value)),
-          ],
-          onChanged: (v) => setState(() => _type = v),
-        ),
-      ),
-      InputChip(
-        avatar: const Icon(Icons.inventory_2_outlined, size: 18),
-        label: Text(_product?.name ?? 'Все товары', overflow: TextOverflow.ellipsis),
-        onPressed: () async {
-          final p = await pickProduct(context, title: 'Фильтр по товару');
-          if (p != null) setState(() => _product = p);
-        },
-        onDeleted: _product == null ? null : () => setState(() => _product = null),
-        deleteButtonTooltipMessage: 'Сбросить',
-      ),
+    final typeField = DropdownButtonFormField<String?>(
+      initialValue: _type,
+      isExpanded: true,
+      decoration: const InputDecoration(labelText: 'Тип'),
+      items: [
+        const DropdownMenuItem(value: null, child: Text('Все типы')),
+        for (final e in movementTypeLabels.entries) DropdownMenuItem(value: e.key, child: Text(e.value)),
+      ],
+      onChanged: (v) => setState(() => _type = v),
+    );
+    final productChip = InputChip(
+      avatar: const Icon(Icons.inventory_2_outlined, size: 18),
+      label: Text(_product?.name ?? 'Все товары', overflow: TextOverflow.ellipsis),
+      onPressed: () async {
+        final p = await pickProduct(context, title: 'Фильтр по товару');
+        if (p != null) setState(() => _product = p);
+      },
+      onDeleted: _product == null ? null : () => setState(() => _product = null),
+      deleteButtonTooltipMessage: 'Сбросить',
+    );
+    final periods = [
       for (final p in _Period.values)
         ChoiceChip(
-          label: Text(p == _Period.custom && _range != null && _period == _Period.custom
-              ? '${formatDate(_range!.start)} – ${formatDate(_range!.end)}'
-              : p.label),
+          label: Text(
+            p == _Period.custom && _range != null && _period == _Period.custom
+                ? '${formatDate(_range!.start)} – ${formatDate(_range!.end)}'
+                : p.label,
+          ),
           selected: _period == p,
           onSelected: (_) => p == _Period.custom ? _pickRange() : setState(() => _period = p),
         ),
-    ]);
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      filters,
-      const SizedBox(height: Gap.m),
-      Expanded(
-        child: AsyncView(
-          value: ref.watch(movementsProvider(q)),
-          onRetry: () => ref.invalidate(movementsProvider(q)),
-          data: (list) {
-            if (list.isEmpty) {
-              return const EmptyState(
-                  icon: Icons.swap_vert, title: 'Движений нет', message: 'Измените фильтры или период');
-            }
-            var inQty = 0.0, outQty = 0.0;
-            for (final m in list) {
-              if (m.qty > 0) {
-                inQty += m.qty;
-              } else {
-                outQty += m.qty;
-              }
-            }
-            return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              Text(
-                [
-                  'Записей: ${list.length}${list.length >= movementsLimit ? ' (показаны последние $movementsLimit — уточните фильтр)' : ''}',
-                  if (_product != null) 'приход +${Qty.format(inQty)} · расход ${Qty.format(outQty)}',
-                ].join(' · '),
-                style: t.textTheme.bodySmall,
+    ];
+    // Phones: type + product on one line, periods as one scrolling chip row.
+    final filters = context.isCompact
+        ? Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(child: typeField),
+                  const SizedBox(width: Gap.s),
+                  Flexible(child: productChip),
+                ],
               ),
               const SizedBox(height: Gap.s),
-              Expanded(
-                child: Card(
-                  child: ListView.separated(
-                    itemCount: list.length,
-                    separatorBuilder: (_, _) => const Divider(),
-                    itemBuilder: (_, i) {
-                      final m = list[i];
-                      final p = products[m.productId];
-                      return MovementTile(
-                        m: m,
-                        unit: p?.unit ?? 'pcs',
-                        productName: p?.name ?? 'Удалённый товар',
-                        userName: users[m.userId],
-                      );
-                    },
-                  ),
-                ),
-              ),
-            ]);
-          },
-        ),
-      ),
-      if (_product != null)
+              InvChipBar(children: periods),
+            ],
+          )
+        : Wrap(
+            spacing: Gap.s,
+            runSpacing: Gap.s,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              SizedBox(width: 220, child: typeField),
+              productChip,
+              ...periods,
+            ],
+          );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Top inset keeps the floating «Тип» label inside the tab's clip.
         Padding(
           padding: const EdgeInsets.only(top: Gap.s),
-          child: Text('Текущий остаток «${_product!.name}»: '
-              '${Qty.format(products[_product!.id]?.stockQty ?? _product!.stockQty, _product!.unit)}',
-              style: t.textTheme.titleSmall?.copyWith(color: AppColors.info)),
+          child: filters,
         ),
-    ]);
+        const SizedBox(height: Gap.m),
+        Expanded(
+          child: AsyncView(
+            value: ref.watch(movementsProvider(q)),
+            onRetry: () => ref.invalidate(movementsProvider(q)),
+            data: (list) {
+              if (list.isEmpty) {
+                return const EmptyState(
+                  icon: Icons.swap_vert,
+                  title: 'Движений нет',
+                  message: 'Измените фильтры или период',
+                );
+              }
+              var inQty = 0.0, outQty = 0.0;
+              for (final m in list) {
+                if (m.qty > 0) {
+                  inQty += m.qty;
+                } else {
+                  outQty += m.qty;
+                }
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    [
+                      'Записей: ${list.length}${list.length >= movementsLimit ? ' (показаны последние $movementsLimit — уточните фильтр)' : ''}',
+                      if (_product != null) 'приход +${Qty.format(inQty)} · расход ${Qty.format(outQty)}',
+                    ].join(' · '),
+                    style: t.textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: Gap.s),
+                  Expanded(
+                    child: Card(
+                      child: ListView.separated(
+                        itemCount: list.length,
+                        separatorBuilder: (_, _) => const Divider(),
+                        itemBuilder: (_, i) {
+                          final m = list[i];
+                          final p = products[m.productId];
+                          return MovementTile(
+                            m: m,
+                            unit: p?.unit ?? 'pcs',
+                            productName: p?.name ?? 'Удалённый товар',
+                            userName: users[m.userId],
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+        if (_product != null)
+          Padding(
+            padding: const EdgeInsets.only(top: Gap.s),
+            child: Text(
+              'Текущий остаток «${_product!.name}»: '
+              '${Qty.format(products[_product!.id]?.stockQty ?? _product!.stockQty, _product!.unit)}',
+              style: t.textTheme.titleSmall?.copyWith(color: AppColors.info),
+            ),
+          ),
+      ],
+    );
   }
 }

@@ -64,8 +64,7 @@ double? parsePercent(String input) {
 }
 
 /// Validates a percent in [min]..[max]. Returns a Russian error or null.
-String? validatePercent(String? input,
-    {double min = 0, double max = 100, bool allowEmpty = false}) {
+String? validatePercent(String? input, {double min = 0, double max = 100, bool allowEmpty = false}) {
   final t = (input ?? '').trim();
   if (t.isEmpty) return allowEmpty ? null : 'Укажите значение от ${_num(min)} до ${_num(max)}';
   final v = parsePercent(t);
@@ -163,8 +162,10 @@ BanknotesResult parseBanknotes(String input, CurrencyConfig c) {
     }
     final dot = p.indexOf('.');
     if (dot >= 0 && p.length - dot - 1 > c.decimals) {
-      return BanknotesResult(const [],
-          c.decimals == 0 ? '«$p»: у ${c.code} нет дробных единиц' : '«$p»: слишком много знаков после точки');
+      return BanknotesResult(
+        const [],
+        c.decimals == 0 ? '«$p»: у ${c.code} нет дробных единиц' : '«$p»: слишком много знаков после точки',
+      );
     }
     final v = Money.parse(p, c: c);
     if (v == null || v <= 0) return BanknotesResult(const [], '«$p» — номинал должен быть больше нуля');
@@ -173,7 +174,10 @@ BanknotesResult parseBanknotes(String input, CurrencyConfig c) {
     out.add(v);
   }
   if (out.length > maxBanknotes) {
-    return const BanknotesResult([], 'Не больше $maxBanknotes номиналов — кнопки должны помещаться на экране');
+    return const BanknotesResult(
+      [],
+      'Не больше $maxBanknotes номиналов — кнопки должны помещаться на экране',
+    );
   }
   out.sort();
   return BanknotesResult(out);
@@ -295,12 +299,14 @@ final _csvNumber = RegExp(r'^-?\d+([.,]\d+)?$');
 /// Text cells that Excel would run as a formula (=, +, -, @, tab, CR) get an
 /// apostrophe prefix (CSV/formula injection via product or customer names);
 /// plain numbers such as "-5" are kept as is.
-String csvRow(List<Object?> cells) => cells.map((c) {
+String csvRow(List<Object?> cells) => cells
+    .map((c) {
       var s = c?.toString() ?? '';
       if (s.isNotEmpty && '=+-@\t\r'.contains(s[0]) && !_csvNumber.hasMatch(s)) s = "'$s";
       if (s.contains(RegExp(r'[;"\n\r]'))) return '"${s.replaceAll('"', '""')}"';
       return s;
-    }).join(';');
+    })
+    .join(';');
 
 /// Money for spreadsheets: no grouping, decimal comma.
 String csvMoney(int minor, CurrencyConfig c) => Money.toInput(minor, c: c).replaceAll('.', ',');
@@ -314,8 +320,13 @@ String csvQty(double q) {
 
 /// Fake receipt text built from the store settings, for the live preview and
 /// the printer test. Mirrors the layout of `ReceiptData.toText`.
-String sampleReceiptText(Map<String, String> s,
-    {int width = 42, DateTime? now, CurrencyConfig? currency, String title = 'ЧЕК №123'}) {
+String sampleReceiptText(
+  Map<String, String> s, {
+  int width = 42,
+  DateTime? now,
+  CurrencyConfig? currency,
+  String title = 'ЧЕК №123',
+}) {
   final c = currency ?? CurrencyConfig.fromSettings(s);
   final b = StringBuffer();
   String center(String t) => t.length >= width ? t : ' ' * ((width - t.length) ~/ 2) + t;
@@ -386,11 +397,13 @@ Future<int> saveSettings(AppDatabase db, Map<String, String> values, {String? us
       final old = await db.getSetting(e.key);
       if (old == e.value) continue;
       await db.setSetting(e.key, e.value);
-      await db.audit('settings.change',
-          userId: userId,
-          entity: 'settings',
-          entityId: e.key,
-          details: '${e.key}: ${_short(old)} → ${_short(e.value)}');
+      await db.audit(
+        'settings.change',
+        userId: userId,
+        entity: 'settings',
+        entityId: e.key,
+        details: '${e.key}: ${_short(old)} → ${_short(e.value)}',
+      );
       await db.markDirty('settings', e.key);
       changed++;
     }
@@ -400,39 +413,43 @@ Future<int> saveSettings(AppDatabase db, Map<String, String> values, {String? us
 
 /// Currency settings for a preset.
 Map<String, String> currencySettings(CurrencyConfig c) => {
-      SettingKeys.currencyCode: c.code,
-      SettingKeys.currencySymbol: c.symbol,
-      SettingKeys.currencyDecimals: '${c.decimals}',
-      SettingKeys.currencySymbolBefore: c.symbolBefore ? '1' : '0',
-    };
+  SettingKeys.currencyCode: c.code,
+  SettingKeys.currencySymbol: c.symbol,
+  SettingKeys.currencyDecimals: '${c.decimals}',
+  SettingKeys.currencySymbolBefore: c.symbolBefore ? '1' : '0',
+};
 
 /// Everything to write when switching currency. `pos_banknotes` and
 /// `cash_rounding` are stored in minor units of the OLD currency, so they are
 /// reset to the defaults of the new one (otherwise 1000 сум would turn into
 /// a 10,00 сом. button).
 Map<String, String> currencyChangeSettings(CurrencyConfig c, Map<String, String> current) => {
-      ...currencySettings(c),
-      if ((current[SettingKeys.posBanknotes] ?? '').trim().isNotEmpty) SettingKeys.posBanknotes: '',
-      if ((current[SettingKeys.cashRounding] ?? 'none') != 'none') SettingKeys.cashRounding: 'none',
-    };
+  ...currencySettings(c),
+  if ((current[SettingKeys.posBanknotes] ?? '').trim().isNotEmpty) SettingKeys.posBanknotes: '',
+  if ((current[SettingKeys.cashRounding] ?? 'none') != 'none') SettingKeys.cashRounding: 'none',
+};
 
 const currencyLockedMessage = 'Валюту нельзя менять: в базе уже есть продажи';
 
 /// Switches currency atomically: the "no sales yet" check and the write run
 /// in one transaction, so a sale committed meanwhile by another cashier
 /// cannot slip in between (DECISIONS D-004).
-Future<void> changeCurrency(AppDatabase db, CurrencyConfig c, Map<String, String> current,
-        {String? userId}) =>
-    db.transaction(() async {
-      if (await hasAnySale(db)) throw Exception(currencyLockedMessage);
-      await saveSettings(db, currencyChangeSettings(c, current), userId: userId);
-    });
+Future<void> changeCurrency(
+  AppDatabase db,
+  CurrencyConfig c,
+  Map<String, String> current, {
+  String? userId,
+}) => db.transaction(() async {
+  if (await hasAnySale(db)) throw Exception(currencyLockedMessage);
+  await saveSettings(db, currencyChangeSettings(c, current), userId: userId);
+});
 
 /// Currency is locked as soon as any sale (in any status) exists: amounts
 /// are stored in minor units of the original currency (DECISIONS D-004).
 Future<bool> hasAnySale(AppDatabase db) async {
-  final row = await db.customSelect('SELECT EXISTS(SELECT 1 FROM sales) AS e',
-      readsFrom: {db.sales}).getSingle();
+  final row = await db
+      .customSelect('SELECT EXISTS(SELECT 1 FROM sales) AS e', readsFrom: {db.sales})
+      .getSingle();
   return row.read<int>('e') == 1;
 }
 
@@ -443,14 +460,16 @@ Stream<bool> watchHasAnySale(AppDatabase db) => db
 
 /// Counts for the diagnostics card.
 Future<Map<String, int>> entityCounts(AppDatabase db) async {
-  final row = await db.customSelect(
-    'SELECT '
-    '(SELECT COUNT(*) FROM products WHERE deleted_at IS NULL) AS products, '
-    '(SELECT COUNT(*) FROM customers WHERE deleted_at IS NULL) AS customers, '
-    '(SELECT COUNT(*) FROM sales) AS sales, '
-    '(SELECT COUNT(*) FROM users WHERE deleted_at IS NULL) AS users',
-    readsFrom: {db.products, db.customers, db.sales, db.users},
-  ).getSingle();
+  final row = await db
+      .customSelect(
+        'SELECT '
+        '(SELECT COUNT(*) FROM products WHERE deleted_at IS NULL) AS products, '
+        '(SELECT COUNT(*) FROM customers WHERE deleted_at IS NULL) AS customers, '
+        '(SELECT COUNT(*) FROM sales) AS sales, '
+        '(SELECT COUNT(*) FROM users WHERE deleted_at IS NULL) AS users',
+        readsFrom: {db.products, db.customers, db.sales, db.users},
+      )
+      .getSingle();
   return {
     'products': row.read<int>('products'),
     'customers': row.read<int>('customers'),
@@ -510,40 +529,53 @@ String? validateRegisterName(String? name, Iterable<Register> existing, {String?
   final t = (name ?? '').trim();
   if (t.isEmpty) return 'Введите название кассы';
   if (t.length > 60) return 'Не длиннее 60 символов';
-  final dup = existing.any((r) =>
-      r.id != selfId && r.deletedAt == null && r.name.trim().toLowerCase() == t.toLowerCase());
+  final dup = existing.any(
+    (r) => r.id != selfId && r.deletedAt == null && r.name.trim().toLowerCase() == t.toLowerCase(),
+  );
   if (dup) return 'Касса с таким названием уже есть';
   return null;
 }
 
 /// Creates or renames a register (reference data -> direct drift write).
-Future<String> upsertRegister(AppDatabase db,
-    {String? id, required String name, bool isActive = true, String? userId}) async {
+Future<String> upsertRegister(
+  AppDatabase db, {
+  String? id,
+  required String name,
+  bool isActive = true,
+  String? userId,
+}) async {
   final now = DateTime.now();
   final rid = id ?? newId();
   await db.transaction(() async {
     if (id == null) {
-      await db.into(db.registers).insert(RegistersCompanion.insert(
-          id: rid, name: name.trim(), isActive: Value(isActive)));
+      await db
+          .into(db.registers)
+          .insert(RegistersCompanion.insert(id: rid, name: name.trim(), isActive: Value(isActive)));
     } else {
       if (!isActive && await registerHasOpenShift(db, rid)) throw Exception(registerBusyMessage);
-      await (db.update(db.registers)..where((r) => r.id.equals(rid))).write(RegistersCompanion(
-          name: Value(name.trim()), isActive: Value(isActive), updatedAt: Value(now)));
+      await (db.update(db.registers)..where((r) => r.id.equals(rid))).write(
+        RegistersCompanion(name: Value(name.trim()), isActive: Value(isActive), updatedAt: Value(now)),
+      );
     }
     await db.markDirty('registers', rid);
-    await db.audit(id == null ? 'register.create' : 'register.update',
-        userId: userId, entity: 'registers', entityId: rid,
-        details: '${name.trim()}${isActive ? '' : ' (отключена)'}');
+    await db.audit(
+      id == null ? 'register.create' : 'register.update',
+      userId: userId,
+      entity: 'registers',
+      entityId: rid,
+      details: '${name.trim()}${isActive ? '' : ' (отключена)'}',
+    );
   });
   return rid;
 }
 
 /// True when a shift is currently open on register [registerId].
 Future<bool> registerHasOpenShift(AppDatabase db, String registerId) async {
-  final row = await (db.select(db.shifts)
-        ..where((s) => s.registerId.equals(registerId) & s.status.equals('open'))
-        ..limit(1))
-      .getSingleOrNull();
+  final row =
+      await (db.select(db.shifts)
+            ..where((s) => s.registerId.equals(registerId) & s.status.equals('open'))
+            ..limit(1))
+          .getSingleOrNull();
   return row != null;
 }
 
@@ -556,8 +588,9 @@ Future<void> deleteRegister(AppDatabase db, Register r, {String? userId}) async 
   final now = DateTime.now();
   await db.transaction(() async {
     if (await registerHasOpenShift(db, r.id)) throw Exception(registerBusyMessage);
-    await (db.update(db.registers)..where((t) => t.id.equals(r.id))).write(RegistersCompanion(
-        deletedAt: Value(now), isActive: const Value(false), updatedAt: Value(now)));
+    await (db.update(db.registers)..where((t) => t.id.equals(r.id))).write(
+      RegistersCompanion(deletedAt: Value(now), isActive: const Value(false), updatedAt: Value(now)),
+    );
     await db.markDirty('registers', r.id, op: 'delete');
     await db.audit('register.delete', userId: userId, entity: 'registers', entityId: r.id, details: r.name);
   });
