@@ -62,6 +62,7 @@ class CheckoutRequest {
     this.debtDueDate,
     this.now,
     this.discountApprovedBy,
+    this.applyCashRounding = false,
   });
 
   final List<CheckoutLine> lines;
@@ -80,6 +81,9 @@ class CheckoutRequest {
   /// User id of a manager who approved manual discounts above the cashier's
   /// limit (verified by PIN in the UI). The service re-checks the limit.
   final String? discountApprovedBy;
+  /// Round the total down by setting `cash_rounding` (step in minor units).
+  /// Honoured only when every payment is cash (D-015).
+  final bool applyCashRounding;
 }
 
 class CheckoutResult {
@@ -143,7 +147,13 @@ class SaleService {
     final products = productCache ?? await _loadProducts(r.lines.map((l) => l.productId));
     final promos = await activePromotions(r.now);
     final customerPct = await _customerPct(r.customerId);
-    return _price(r, products, promos, customerPct);
+    return _price(r, products, promos, customerPct, roundingStep: await _roundingStep(r));
+  }
+
+  Future<int> _roundingStep(CheckoutRequest r) async {
+    if (!r.applyCashRounding) return 0;
+    if (r.payments.any((p) => p.amount > 0 && p.method != 'cash')) return 0;
+    return int.tryParse(await db.getSetting('cash_rounding') ?? '') ?? 0;
   }
 
   Future<double> _customerPct(String? customerId) async {
@@ -154,7 +164,7 @@ class SaleService {
   }
 
   PricingResult _price(CheckoutRequest r, Map<String, Product> products, List<PromoRule> promos,
-      double customerPct, {bool includeManual = true}) {
+      double customerPct, {bool includeManual = true, int roundingStep = 0}) {
     return PricingEngine.price(
       lines: [
         for (var i = 0; i < r.lines.length; i++)
@@ -173,6 +183,7 @@ class SaleService {
       promoCode: r.promoCode,
       manualOrderDiscountPercent: includeManual ? r.manualOrderDiscountPercent : 0,
       manualOrderDiscountAmount: includeManual ? r.manualOrderDiscountAmount : 0,
+      cashRoundingStep: roundingStep,
     );
   }
 
@@ -221,7 +232,8 @@ class SaleService {
       }
       final promos = await activePromotions(r.now);
       final customerPct = await _customerPct(r.customerId);
-      final priced = _price(r, products, promos, customerPct);
+      final roundingStep = await _roundingStep(r);
+      final priced = _price(r, products, promos, customerPct, roundingStep: roundingStep);
       if (r.promoCode != null && r.promoCode!.trim().isNotEmpty && priced.promoCodeValid != true) {
         throw BusinessException('Промокод недействителен');
       }
@@ -229,8 +241,10 @@ class SaleService {
 
       // --- manual discount limit (defense in depth; UI also checks).
       // Manual part = total discount with manual inputs − without them.
+      // (both sides without cash rounding, which is not a manual discount)
+      final withManual = roundingStep > 0 ? _price(r, products, promos, customerPct) : priced;
       final automatic = _price(r, products, promos, customerPct, includeManual: false);
-      final manualTotal = priced.discountTotal - automatic.discountTotal;
+      final manualTotal = withManual.discountTotal - automatic.discountTotal;
       if (manualTotal > 0 && priced.subtotal > 0) {
         final pct = manualTotal * 100 / priced.subtotal;
         Future<double> limitOf(String id) async =>

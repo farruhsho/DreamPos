@@ -88,12 +88,15 @@ class PricingResult {
     required this.lines,
     required this.appliedPromotions,
     required this.promoCodeValid,
+    this.roundingDiscount = 0,
   });
 
   final List<PricedLine> lines;
   final List<String> appliedPromotions;
   /// null when no code was entered.
   final bool? promoCodeValid;
+  /// Part of the order discount that comes from cash rounding (D-015).
+  final int roundingDiscount;
 
   int get subtotal => lines.fold(0, (s, l) => s + l.line.gross);
   int get discountTotal => lines.fold(0, (s, l) => s + l.discount);
@@ -116,6 +119,7 @@ class PricingEngine {
     String? promoCode,
     double manualOrderDiscountPercent = 0,
     int manualOrderDiscountAmount = 0,
+    int cashRoundingStep = 0,
   }) {
     final applied = <String>{};
 
@@ -216,6 +220,14 @@ class PricingEngine {
     final eligible = priced.where((p) => !p.line.noDiscount && p.total > 0).toList();
     final eligibleNet = eligible.fold(0, (s, l) => s + l.total);
     orderDiscount = min(orderDiscount, eligibleNet);
+    // cash rounding: round the final total DOWN to a multiple of the step
+    var rounding = 0;
+    if (cashRoundingStep > 1) {
+      final finalTotal = net() - orderDiscount;
+      final r = finalTotal % cashRoundingStep;
+      if (r > 0 && orderDiscount + r <= eligibleNet) rounding = r;
+      orderDiscount += rounding;
+    }
     if (orderDiscount > 0 && eligibleNet > 0) {
       var allocated = 0;
       for (final p in eligible) {
@@ -242,6 +254,7 @@ class PricingEngine {
       lines: priced,
       appliedPromotions: applied.toList(),
       promoCodeValid: codeValid,
+      roundingDiscount: rounding,
     );
   }
 

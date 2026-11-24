@@ -6,6 +6,8 @@ import '../../core/db/database.dart';
 import '../../core/money.dart';
 import '../../domain/services/shift_service.dart';
 
+export '../../core/widgets/widgets.dart' show pluralRu;
+
 // ------------------------------------------------------------ denominations
 
 /// Banknotes and coins in MAJOR units per currency code (largest first).
@@ -240,10 +242,3 @@ Stream<List<ShiftHistoryRow>> watchShiftHistory(AppDatabase db, {String? onlyUse
       );
 }
 
-/// Russian plural form: 1 чек, 2 чека, 5 чеков.
-String pluralRu(int n, String one, String few, String many) {
-  final m10 = n.abs() % 10, m100 = n.abs() % 100;
-  if (m10 == 1 && m100 != 11) return one;
-  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
-  return many;
-}

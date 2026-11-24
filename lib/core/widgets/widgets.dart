@@ -45,8 +45,10 @@ class PageScaffold extends StatelessWidget {
         title: subtitle == null
             ? Text(title)
             : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(title),
+                Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
                 Text(subtitle!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: Theme.of(context).colorScheme.onSurfaceVariant)),
               ]),
@@ -203,6 +205,7 @@ Future<bool> confirm(BuildContext context,
     {required String title,
     String? message,
     String ok = 'Подтвердить',
+    String cancel = 'Отмена',
     bool destructive = false}) async {
   final r = await showDialog<bool>(
     context: context,
@@ -210,7 +213,7 @@ Future<bool> confirm(BuildContext context,
       title: Text(title),
       content: message == null ? null : Text(message),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Отмена')),
+        TextButton(onPressed: () => Navigator.pop(c, false), child: Text(cancel)),
         FilledButton(
           style: destructive
               ? FilledButton.styleFrom(backgroundColor: AppColors.danger)
@@ -276,9 +279,11 @@ class MoneyField extends StatefulWidget {
     this.controller,
     this.onSubmitted,
     this.helper,
+    this.enabled = true,
   });
 
   final String label;
+  final bool enabled;
   final int? initial;
   final ValueChanged<int?>? onChanged;
   final String? Function(int?)? validator;
@@ -295,15 +300,26 @@ class MoneyField extends StatefulWidget {
 
 class _MoneyFieldState extends State<MoneyField> {
   late final TextEditingController _c = widget.controller ??
-      TextEditingController(text: widget.initial == null ? '' : Money.toInput(widget.initial!));
+      TextEditingController(
+          text: widget.initial == null ? '' : Money.groupInput(Money.toInput(widget.initial!)));
+
+  @override
+  void dispose() {
+    if (widget.controller == null) _c.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return TextFormField(
       controller: _c,
+      enabled: widget.enabled,
       autofocus: widget.autofocus,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,\s]'))],
+      inputFormatters: [
+        FilteringTextInputFormatter.allow(RegExp(r'[0-9.,\s]')),
+        const MoneyGroupingFormatter(),
+      ],
       decoration: InputDecoration(
         labelText: widget.label,
         suffixText: Money.currency.symbol,
@@ -441,8 +457,11 @@ class StatCard extends StatelessWidget {
     this.color,
     this.hint,
     this.onTap,
+    this.dense = false,
   });
 
+  /// Compact tile for phone grids: no icon, smaller paddings and value.
+  final bool dense;
   final String label;
   final String value;
   final IconData? icon;
@@ -454,14 +473,15 @@ class StatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = Theme.of(context);
     final c = color ?? t.colorScheme.primary;
+    final showIcon = icon != null && !dense;
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(Gap.l),
+          padding: EdgeInsets.all(dense ? Gap.m : Gap.l),
           child: Row(children: [
-            if (icon != null) ...[
+            if (showIcon) ...[
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
@@ -474,14 +494,15 @@ class StatCard extends StatelessWidget {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(label,
                     style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant),
-                    maxLines: 1,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis),
                 const SizedBox(height: 2),
                 FittedBox(
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerLeft,
                   child: Text(value,
-                      style: t.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+                      style: (dense ? t.textTheme.titleMedium : t.textTheme.titleLarge)
+                          ?.copyWith(fontWeight: FontWeight.w700)),
                 ),
                 if (hint != null)
                   Text(hint!,
@@ -519,8 +540,10 @@ class StatusChip extends StatelessWidget {
 
 /// Section with a title inside a card.
 class SectionCard extends StatelessWidget {
-  const SectionCard({super.key, required this.title, required this.child, this.trailing});
+  const SectionCard(
+      {super.key, required this.title, required this.child, this.trailing, this.subtitle});
   final String title;
+  final String? subtitle;
   final Widget child;
   final Widget? trailing;
 
@@ -529,15 +552,25 @@ class SectionCard extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(Gap.l),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Row(children: [
-              Expanded(
-                  child: Text(title,
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w600))),
-              ?trailing,
-            ]),
+            ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 40),
+              child: Row(children: [
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(title,
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w600)),
+                    if (subtitle != null)
+                      Text(subtitle!,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                  ]),
+                ),
+                ?trailing,
+              ]),
+            ),
             const SizedBox(height: Gap.m),
             child,
           ]),
@@ -574,6 +607,35 @@ Future<T?> showFormDialog<T>(BuildContext context,
       ),
     ),
   );
+}
+
+/// Groups digits of a money input as the user types ("1234567" -> "1 234 567").
+class MoneyGroupingFormatter extends TextInputFormatter {
+  const MoneyGroupingFormatter();
+
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    final grouped = Money.groupInput(newValue.text);
+    if (grouped == newValue.text) return newValue;
+    // keep the caret after the same number of digits/separators
+    final before = newValue.selection.end.clamp(0, newValue.text.length);
+    final significant =
+        newValue.text.substring(0, before).replaceAll(RegExp(r'[\s\u00A0]'), '').length;
+    var pos = 0, seen = 0;
+    while (pos < grouped.length && seen < significant) {
+      if (grouped[pos] != ' ') seen++;
+      pos++;
+    }
+    return TextEditingValue(text: grouped, selection: TextSelection.collapsed(offset: pos));
+  }
+}
+
+/// Russian plural: pluralRu(5, 'товар', 'товара', 'товаров') -> 'товаров'.
+String pluralRu(int n, String one, String few, String many) {
+  final m10 = n.abs() % 10, m100 = n.abs() % 100;
+  if (m10 == 1 && m100 != 11) return one;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+  return many;
 }
 
 String formatDate(DateTime d) =>

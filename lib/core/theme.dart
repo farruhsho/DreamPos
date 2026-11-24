@@ -49,7 +49,14 @@ ThemeData buildTheme(Brightness b) {
       elevation: 0,
       scrolledUnderElevation: 1,
       centerTitle: false,
-      titleTextStyle: base.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
+      // NB: base.textTheme has no font sizes yet (geometry is applied by
+      // Theme.of), so sizes must be explicit here.
+      titleTextStyle: TextStyle(
+          fontFamily: AppFonts.sans,
+          fontSize: 20,
+          height: 1.2,
+          fontWeight: FontWeight.w600,
+          color: scheme.onSurface),
     ),
     cardTheme: CardThemeData(
       elevation: 0,
@@ -70,6 +77,9 @@ ThemeData buildTheme(Brightness b) {
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       isDense: true,
+      hintStyle: TextStyle(color: scheme.onSurfaceVariant.withValues(alpha: 0.6)),
+      helperMaxLines: 2,
+      errorMaxLines: 3,
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(

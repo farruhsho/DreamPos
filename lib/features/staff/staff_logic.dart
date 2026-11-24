@@ -9,6 +9,8 @@ import '../../core/security/pin.dart';
 import '../../domain/errors.dart';
 import '../../domain/services/auth_service.dart';
 
+export '../../core/widgets/widgets.dart' show pluralRu;
+
 // ------------------------------------------------------------ owner guard
 
 /// Returns an error if changing [userId] to ([newRole], [newActive]) would
@@ -714,10 +716,3 @@ String auditDetailsText(String action, String? details) {
   return parts.join(' · ');
 }
 
-/// Russian plural form: 1 отметка, 2 отметки, 5 отметок.
-String pluralRu(int n, String one, String few, String many) {
-  final m10 = n.abs() % 10, m100 = n.abs() % 100;
-  if (m10 == 1 && m100 != 11) return one;
-  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
-  return many;
-}

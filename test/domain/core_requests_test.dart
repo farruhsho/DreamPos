@@ -99,4 +99,32 @@ void main() {
     expect(await DbLocation.isSqliteFile(f2), isFalse);
     expect(Value(1).present, isTrue);
   });
+
+  test('cash rounding rounds down only for cash-only payments, lines stay exact', () async {
+    await f.db.setSetting('cash_rounding', '100');
+    final a = await f.product('A', price: 1234, stock: 10);
+    final b = await f.product('B', price: 2345, stock: 10);
+    final sales = SaleService(f.db);
+    CheckoutRequest req(List<PaymentInput> pays) => CheckoutRequest(
+          lines: [
+            CheckoutLine(productId: a.id, qty: 1, unitPrice: 1234),
+            CheckoutLine(productId: b.id, qty: 1, unitPrice: 2345),
+          ],
+          payments: pays,
+          cashierId: f.owner.id,
+          shiftId: f.shift.id,
+          applyCashRounding: true,
+        );
+    final q = await sales.quote(req([PaymentInput('cash', 4000)]));
+    expect(q.total, 3500);
+    expect(q.roundingDiscount, 79);
+    final res = await sales.checkout(req([PaymentInput('cash', 4000)]));
+    expect(res.sale.total, 3500);
+    expect(res.changeDue, 500);
+    final items = await (f.db.select(f.db.saleItems)..where((i) => i.saleId.equals(res.sale.id))).get();
+    expect(items.fold<int>(0, (s, i) => s + i.total), 3500);
+    // card payment: no rounding
+    final res2 = await sales.checkout(req([PaymentInput('card', 3579)]));
+    expect(res2.sale.total, 3579);
+  });
 }

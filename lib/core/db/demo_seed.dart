@@ -74,7 +74,7 @@ class DemoSeeder {
               unit: Value(p[4] as String),
               stockQty: Value((p[5] as num).toDouble()),
               minStock: const Value(5),
-              barcode: Value(p[6] as String),
+              barcode: Value(_ean13(p[6] as String)),
               warrantyMonths: Value(p[7] as int),
               supplierId: Value(supplierId),
               isFavorite: Value(ids.length <= 6),
@@ -127,4 +127,14 @@ class DemoSeeder {
     await auth.createUser(name: 'Менеджер Тимур', role: Role.manager, pin: '2468', maxDiscountPercent: 20);
     await db.setSetting('loyalty_enabled', '1');
   }
+}
+
+/// Replaces the 13th digit with the correct EAN-13 check digit.
+String _ean13(String code) {
+  final d = code.substring(0, 12);
+  var sum = 0;
+  for (var i = 0; i < 12; i++) {
+    sum += int.parse(d[i]) * (i.isEven ? 1 : 3);
+  }
+  return '$d${(10 - sum % 10) % 10}';
 }

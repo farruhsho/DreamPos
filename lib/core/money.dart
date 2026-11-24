@@ -34,7 +34,7 @@ class CurrencyConfig {
   static const presets = <CurrencyConfig>[
     CurrencyConfig(code: 'UZS', symbol: 'сум', decimals: 0),
     CurrencyConfig(code: 'TJS', symbol: 'сом.', decimals: 2),
-    CurrencyConfig(code: 'KZT', symbol: '₸', decimals: 0),
+    CurrencyConfig(code: 'KZT', symbol: 'тг', decimals: 0),
     CurrencyConfig(code: 'KGS', symbol: 'сом', decimals: 2),
     CurrencyConfig(code: 'RUB', symbol: '₽', decimals: 2),
     CurrencyConfig(code: 'USD', symbol: r'$', decimals: 2, symbolBefore: true),
@@ -88,6 +88,21 @@ class Money {
       s = s.replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '');
     }
     return s;
+  }
+
+  /// Groups an editable amount string: "1234567,5" -> "1 234 567,5".
+  static String groupInput(String raw) {
+    final cleaned = raw.replaceAll(RegExp(r'[\s\u00A0]'), '');
+    final m = RegExp(r'^(\d*)([.,]\d*)?$').firstMatch(cleaned);
+    if (m == null) return raw;
+    final intPart = m.group(1)!;
+    final frac = m.group(2) ?? '';
+    final b = StringBuffer();
+    for (var i = 0; i < intPart.length; i++) {
+      if (i > 0 && (intPart.length - i) % 3 == 0) b.write(' ');
+      b.write(intPart[i]);
+    }
+    return '$b$frac';
   }
 
   /// Rounds percent of an amount, half-up.
