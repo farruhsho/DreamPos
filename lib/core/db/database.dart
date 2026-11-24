@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:uuid/uuid.dart';
 
+import 'db_location.dart';
 import 'tables.dart';
 
 export 'tables.dart';
@@ -45,7 +46,10 @@ String newId() => _uuid.v4();
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
-  static QueryExecutor _openConnection() => driftDatabase(name: 'dreampos');
+  static QueryExecutor _openConnection() => driftDatabase(
+        name: 'dreampos',
+        native: const DriftNativeOptions(databasePath: DbLocation.dbPath, shareAcrossIsolates: true),
+      );
 
   @override
   int get schemaVersion => 1;
