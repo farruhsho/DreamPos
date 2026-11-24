@@ -1,13 +1,624 @@
+// Receipts history & returns.
+//
+// Tabs: «Чеки» (live list with filters, totals, lazy loading and
+// master-detail) and «Возвраты». Deep link: /sales?receipt=<number> opens
+// that receipt (used by the warranty module).
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../core/money.dart';
+import '../../core/permissions.dart';
+import '../../core/providers.dart';
+import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
+import '../../domain/services/sale_service.dart';
+import 'filter_menu.dart';
+import 'sale_detail.dart';
+import 'sales_logic.dart';
+import 'sales_queries.dart';
 
-class SalesScreen extends StatelessWidget {
+class SalesScreen extends ConsumerStatefulWidget {
   const SalesScreen({super.key});
 
   @override
-  Widget build(BuildContext context) => const PageScaffold(
-        title: 'Чеки',
-        body: EmptyState(icon: Icons.construction, title: 'Раздел в разработке'),
+  ConsumerState<SalesScreen> createState() => _SalesScreenState();
+}
+
+/// A request to open a particular receipt.
+class _Focus {
+  _Focus(this.saleId, this.number);
+  final String saleId;
+  final int number;
+}
+
+class _SalesScreenState extends ConsumerState<SalesScreen> with SingleTickerProviderStateMixin {
+  late final TabController _tabs = TabController(length: 2, vsync: this);
+  String? _handledLink;
+  _Focus? _focus;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    String? receipt;
+    try {
+      receipt = GoRouterState.of(context).uri.queryParameters['receipt'];
+    } catch (_) {
+      receipt = null; // not under go_router (tests)
+    }
+    if (receipt == null) {
+      _handledLink = null; // allow the same link to be opened again later
+    } else if (receipt != _handledLink) {
+      _handledLink = receipt;
+      _openByNumber(receipt);
+    }
+  }
+
+  Future<void> _openByNumber(String raw) async {
+    final n = int.tryParse(raw);
+    if (n == null) return;
+    final sale = await findSaleByNumber(ref.read(databaseProvider), n);
+    if (!mounted) return;
+    if (sale == null) return showError(context, 'Чек №$n не найден');
+    _tabs.index = 0;
+    setState(() => _focus = _Focus(sale.id, sale.number));
+  }
+
+  @override
+  void dispose() {
+    _tabs.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    ref.watch(settingsProvider); // keeps Money.currency in sync
+    return PageScaffold(
+      title: 'Чеки',
+      padding: EdgeInsets.zero,
+      bottom: TabBar(
+        controller: _tabs,
+        isScrollable: true,
+        tabAlignment: TabAlignment.start,
+        tabs: const [
+          Tab(icon: Icon(Icons.receipt_long_outlined), text: 'Чеки'),
+          Tab(icon: Icon(Icons.assignment_return_outlined), text: 'Возвраты'),
+        ],
+      ),
+      body: TabBarView(
+        controller: _tabs,
+        children: [
+          _SalesTab(focus: _focus),
+          const _ReturnsTab(),
+        ],
+      ),
+    );
+  }
+}
+
+// ======================================================================= sales
+
+class _SalesTab extends ConsumerStatefulWidget {
+  const _SalesTab({this.focus});
+  final _Focus? focus;
+
+  @override
+  ConsumerState<_SalesTab> createState() => _SalesTabState();
+}
+
+class _SalesTabState extends ConsumerState<_SalesTab> with AutomaticKeepAliveClientMixin {
+  SalesFilter _filter = const SalesFilter();
+  String? _selected;
+  List<SaleRow>? _last;
+  final _search = TextEditingController();
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.focus != null) _applyFocus(widget.focus!);
+  }
+
+  @override
+  void didUpdateWidget(covariant _SalesTab old) {
+    super.didUpdateWidget(old);
+    // didUpdateWidget is followed by build, so no setState is needed here
+    if (widget.focus != null && widget.focus != old.focus) _applyFocus(widget.focus!);
+  }
+
+  void _applyFocus(_Focus f) {
+    _search.text = '${f.number}';
+    _filter = SalesFilter(period: Period.all, query: '${f.number}');
+    _selected = f.saleId;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !context.isWide) _openNarrow(f.saleId);
+    });
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  void _openNarrow(String id) =>
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => SaleDetailPage(saleId: id)));
+
+  void _select(String id) {
+    if (context.isWide) {
+      setState(() => _selected = id);
+    } else {
+      _openNarrow(id);
+    }
+  }
+
+  SalesFilter _effective(Session s, String? shiftId) => s.can(Perm.viewAllShifts)
+      ? _filter
+      : SalesFilter(
+          period: Period.all,
+          status: _filter.status,
+          method: _filter.method,
+          shiftId: shiftId ?? '-',
+          query: _filter.query,
+          limit: _filter.limit,
+        );
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    final session = ref.watch(sessionProvider);
+    if (session == null) return const SizedBox.shrink();
+    final shift = ref.watch(currentShiftProvider);
+    final restricted = !session.can(Perm.viewAllShifts);
+    if (restricted && shift.isLoading) return const LoadingView();
+    final f = _effective(session, shift.value?.id);
+    final async = ref.watch(salesListProvider(f));
+    if (async.hasValue) _last = async.value;
+    final totals = ref.watch(salesTotalsProvider(f.copyWith(limit: SalesFilter.pageSize))).value;
+    final wide = context.isWide;
+
+    final list = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(padding: const EdgeInsets.fromLTRB(Gap.l, Gap.l, Gap.l, Gap.s), child: _filters(session, restricted)),
+        if (restricted)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: Gap.l),
+            child: Text(
+              shift.value == null
+                  ? 'Смена не открыта. Вы видите только чеки текущей смены.'
+                  : 'Показаны чеки текущей смены №${shift.value!.number}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+        if (totals != null) _TotalsBar(totals: totals),
+        if (async.isLoading && _last != null) const LinearProgressIndicator(minHeight: 2),
+        Expanded(child: _listBody(async, f)),
+      ],
+    );
+
+    if (!wide) return list;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(flex: 5, child: list),
+        const VerticalDivider(width: 1),
+        Expanded(
+          flex: 6,
+          child: _selected == null
+              ? const EmptyState(
+                  icon: Icons.touch_app_outlined,
+                  title: 'Выберите чек',
+                  message: 'Здесь появятся состав чека, оплаты, возвраты и действия',
+                )
+              : SaleDetailView(key: ValueKey(_selected), saleId: _selected!),
+        ),
+      ],
+    );
+  }
+
+  Widget _listBody(AsyncValue<List<SaleRow>> async, SalesFilter f) {
+    final rows = async.value ?? _last;
+    if (rows == null) {
+      if (async.hasError) {
+        return ErrorView(error: async.error!, onRetry: () => ref.invalidate(salesListProvider(f)));
+      }
+      return const LoadingView();
+    }
+    if (rows.isEmpty) {
+      final filtered = _filter.hasFilters;
+      final restricted = f.shiftId != null;
+      return EmptyState(
+        icon: Icons.receipt_long_outlined,
+        title: 'Чеков не найдено',
+        message: filtered
+            ? 'Измените условия поиска или сбросьте фильтры'
+            : restricted
+            ? 'В текущей смене продаж пока нет'
+            : 'За выбранный период продаж нет',
+        action: filtered
+            ? OutlinedButton(
+                onPressed: () => setState(() {
+                  _search.clear();
+                  _filter = SalesFilter(period: _filter.period, custom: _filter.custom);
+                }),
+                child: const Text('Сбросить фильтры'),
+              )
+            : !restricted && _filter.period != Period.all
+            ? OutlinedButton(
+                onPressed: () => setState(() => _filter = _filter.copyWith(period: Period.all)),
+                child: const Text('Показать за всё время'),
+              )
+            : null,
       );
+    }
+    final more = rows.length >= f.limit;
+    return ListView.separated(
+      padding: const EdgeInsets.only(bottom: Gap.xl),
+      itemCount: rows.length + (more ? 1 : 0),
+      separatorBuilder: (_, _) => const Divider(height: 1),
+      itemBuilder: (_, i) {
+        if (i == rows.length) {
+          return Padding(
+            padding: const EdgeInsets.all(Gap.l),
+            child: Center(
+              child: OutlinedButton.icon(
+                onPressed: () =>
+                    setState(() => _filter = _filter.copyWith(limit: _filter.limit + SalesFilter.pageSize)),
+                icon: const Icon(Icons.expand_more),
+                label: const Text('Показать ещё'),
+              ),
+            ),
+          );
+        }
+        final r = rows[i];
+        return _SaleTile(row: r, selected: r.sale.id == _selected, onTap: () => _select(r.sale.id));
+      },
+    );
+  }
+
+  Widget _filters(Session session, bool restricted) {
+    final staff = ref.watch(staffProvider).value ?? const [];
+    final search = SearchField(
+      controller: _search,
+      autofocus: context.isWide,
+      hint: 'Номер чека, клиент или товар',
+      onChanged: (v) => setState(() => _filter = _filter.copyWith(query: v)),
+    );
+    final chips = Wrap(
+      spacing: Gap.s,
+      runSpacing: Gap.s,
+      children: [
+        if (!restricted)
+          PeriodMenu(
+            period: _filter.period,
+            custom: _filter.custom,
+            onChanged: (p, c) => setState(() => _filter = _filter.copyWith(period: p, custom: c)),
+          ),
+        FilterMenu<String>(
+          label: 'Статус',
+          value: _filter.status,
+          options: [(null, 'Все'), for (final s in saleStatuses) (s, saleStatusLabel(s))],
+          onSelected: (v) => setState(() => _filter = _filter.copyWith(status: () => v)),
+        ),
+        FilterMenu<String>(
+          label: 'Оплата',
+          value: _filter.method,
+          options: [(null, 'Любая'), for (final m in paymentMethods) (m, paymentMethodLabel(m))],
+          onSelected: (v) => setState(() => _filter = _filter.copyWith(method: () => v)),
+        ),
+        if (!restricted && staff.isNotEmpty)
+          FilterMenu<String>(
+            label: 'Кассир',
+            value: _filter.cashierId,
+            options: [(null, 'Все'), for (final u in staff) (u.id, u.name)],
+            onSelected: (v) => setState(() => _filter = _filter.copyWith(cashierId: () => v)),
+          ),
+      ],
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        search,
+        const SizedBox(height: Gap.s),
+        chips,
+      ],
+    );
+  }
+}
+
+class _TotalsBar extends StatelessWidget {
+  const _TotalsBar({required this.totals});
+  final SalesTotals totals;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    Widget item(String label, String value, {Color? color}) => Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(label, style: t.textTheme.labelSmall?.copyWith(color: t.colorScheme.onSurfaceVariant)),
+        Text(
+          value,
+          style: TextStyle(fontWeight: FontWeight.w700, color: color),
+        ),
+      ],
+    );
+    return Container(
+      margin: const EdgeInsets.fromLTRB(Gap.l, Gap.s, Gap.l, Gap.s),
+      padding: const EdgeInsets.symmetric(horizontal: Gap.m, vertical: Gap.s),
+      decoration: BoxDecoration(
+        color: t.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Wrap(
+        spacing: Gap.xl,
+        runSpacing: Gap.s,
+        children: [
+          item('Чеков', '${totals.count}'),
+          item('Продажи', Money.format(totals.gross)),
+          if (totals.refunded > 0) item('Возвраты', '−${Money.format(totals.refunded)}', color: AppColors.danger),
+          item('Итого', Money.format(totals.net), color: AppColors.success),
+          if (totals.voided > 0) item('Аннулировано', '${totals.voided}', color: AppColors.danger),
+        ],
+      ),
+    );
+  }
+}
+
+class _SaleTile extends StatelessWidget {
+  const _SaleTile({required this.row, required this.selected, required this.onTap});
+  final SaleRow row;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    final s = row.sale;
+    final color = saleStatusColor(s.status);
+    final now = DateTime.now();
+    final sameDay = s.createdAt.year == now.year && s.createdAt.month == now.month && s.createdAt.day == now.day;
+    final muted = t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant);
+    return ListTile(
+      selected: selected,
+      selectedTileColor: t.colorScheme.primaryContainer.withValues(alpha: 0.35),
+      onTap: onTap,
+      leading: CircleAvatar(
+        backgroundColor: color.withValues(alpha: 0.12),
+        child: Icon(saleStatusIcon(s.status), color: color, size: 20),
+      ),
+      title: Row(
+        children: [
+          Text('№${s.number}', style: const TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(width: Gap.s),
+          Flexible(
+            child: Text(
+              sameDay ? formatTime(s.createdAt) : formatDateTime(s.createdAt),
+              style: muted,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+      subtitle: Text(
+        [
+          ?row.cashierName,
+          ?row.customerName,
+          '${row.itemsCount} поз.',
+          if (row.methods.isNotEmpty) row.methods.map(paymentMethodLabel).join(', '),
+        ].join(' · '),
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+      trailing: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(
+            Money.format(s.total),
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              decoration: s.status == 'voided' ? TextDecoration.lineThrough : null,
+              color: s.status == 'voided' ? t.colorScheme.onSurfaceVariant : null,
+            ),
+          ),
+          if (s.status != 'completed') ...[
+            const SizedBox(height: 2),
+            StatusChip(saleStatusLabel(s.status), color: color),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ======================================================================= returns
+
+class _ReturnsTab extends ConsumerStatefulWidget {
+  const _ReturnsTab();
+  @override
+  ConsumerState<_ReturnsTab> createState() => _ReturnsTabState();
+}
+
+class _ReturnsTabState extends ConsumerState<_ReturnsTab> with AutomaticKeepAliveClientMixin {
+  ReturnsFilter _filter = const ReturnsFilter();
+  String? _selectedSale;
+  String? _selectedReturn;
+  List<ReturnRow>? _last;
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    final session = ref.watch(sessionProvider);
+    if (session == null) return const SizedBox.shrink();
+    final restricted = !session.can(Perm.viewAllShifts);
+    final shift = ref.watch(currentShiftProvider);
+    if (restricted && shift.isLoading) return const LoadingView();
+    // users without "view all shifts" see only returns of the current shift
+    final f = restricted ? _filter.copyWith(shiftId: () => shift.value?.id ?? '-', limit: _filter.limit) : _filter;
+    final async = ref.watch(returnsListProvider(f));
+    final totals = ref.watch(returnsTotalsProvider(f.copyWith(limit: SalesFilter.pageSize))).value;
+    if (async.hasValue) _last = async.value;
+    final rows = async.value ?? _last;
+    final wide = context.isWide;
+
+    Widget body;
+    if (rows == null) {
+      body = async.hasError
+          ? ErrorView(error: async.error!, onRetry: () => ref.invalidate(returnsListProvider(f)))
+          : const LoadingView();
+    } else if (rows.isEmpty) {
+      body = EmptyState(
+        icon: Icons.assignment_return_outlined,
+        title: 'Возвратов нет',
+        message: _filter.query.isNotEmpty || _filter.method != null
+            ? 'Измените условия поиска'
+            : 'Возвраты оформляются из карточки чека во вкладке «Чеки»',
+      );
+    } else {
+      final more = rows.length >= f.limit;
+      body = ListView.separated(
+        padding: const EdgeInsets.only(bottom: Gap.xl),
+        itemCount: rows.length + (more ? 1 : 0),
+        separatorBuilder: (_, _) => const Divider(height: 1),
+        itemBuilder: (_, i) {
+          if (i == rows.length) {
+            return Padding(
+              padding: const EdgeInsets.all(Gap.l),
+              child: Center(
+                child: OutlinedButton.icon(
+                  onPressed: () =>
+                      setState(() => _filter = _filter.copyWith(limit: _filter.limit + SalesFilter.pageSize)),
+                  icon: const Icon(Icons.expand_more),
+                  label: const Text('Показать ещё'),
+                ),
+              ),
+            );
+          }
+          final r = rows[i];
+          final t = Theme.of(context);
+          return ListTile(
+            selected: r.ret.id == _selectedReturn,
+            selectedTileColor: t.colorScheme.primaryContainer.withValues(alpha: 0.35),
+            leading: CircleAvatar(
+              backgroundColor: AppColors.danger.withValues(alpha: 0.12),
+              child: const Icon(Icons.assignment_return, color: AppColors.danger, size: 20),
+            ),
+            title: Text(
+              'Возврат №${r.ret.number} · чек №${r.saleNumber}',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            subtitle: Text(
+              [
+                formatDateTime(r.ret.createdAt),
+                paymentMethodLabel(r.ret.refundMethod),
+                ?r.userName,
+                ?r.customerName,
+                '${r.itemsCount} поз.',
+                if ((r.ret.reason ?? '').isNotEmpty) r.ret.reason!,
+              ].join(' · '),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            trailing: Text(
+              '−${Money.format(r.ret.total)}',
+              style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.danger),
+            ),
+            onTap: () {
+              if (wide) {
+                setState(() {
+                  _selectedSale = r.ret.saleId;
+                  _selectedReturn = r.ret.id;
+                });
+              } else {
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => SaleDetailPage(saleId: r.ret.saleId)));
+              }
+            },
+          );
+        },
+      );
+    }
+
+    final list = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(Gap.l, Gap.l, Gap.l, Gap.s),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SearchField(
+                hint: 'Номер возврата или чека, клиент, причина',
+                onChanged: (v) => setState(() => _filter = _filter.copyWith(query: v)),
+              ),
+              const SizedBox(height: Gap.s),
+              Wrap(
+                spacing: Gap.s,
+                runSpacing: Gap.s,
+                children: [
+                  if (!restricted)
+                    PeriodMenu(
+                      period: _filter.period,
+                      custom: _filter.custom,
+                      onChanged: (p, c) => setState(() => _filter = _filter.copyWith(period: p, custom: c)),
+                    ),
+                  FilterMenu<String>(
+                    label: 'Способ',
+                    value: _filter.method,
+                    options: [
+                      (null, 'Любой'),
+                      for (final m in refundMethodOptions(hasCustomer: true)) (m, paymentMethodLabel(m)),
+                    ],
+                    onSelected: (v) => setState(() => _filter = _filter.copyWith(method: () => v)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        if (restricted)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: Gap.l),
+            child: Text(
+              shift.value == null
+                  ? 'Смена не открыта. Вы видите только возвраты текущей смены.'
+                  : 'Показаны возвраты текущей смены №${shift.value!.number}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+        if (totals != null && totals.count > 0)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(Gap.l, Gap.xs, Gap.l, Gap.s),
+            child: Text(
+              'Возвратов: ${totals.count} · на сумму ${Money.format(totals.sum)}',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+        if (async.isLoading && _last != null) const LinearProgressIndicator(minHeight: 2),
+        Expanded(child: body),
+      ],
+    );
+
+    if (!wide) return list;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(flex: 5, child: list),
+        const VerticalDivider(width: 1),
+        Expanded(
+          flex: 6,
+          child: _selectedSale == null
+              ? const EmptyState(icon: Icons.touch_app_outlined, title: 'Выберите возврат')
+              : SaleDetailView(key: ValueKey(_selectedSale), saleId: _selectedSale!),
+        ),
+      ],
+    );
+  }
 }
