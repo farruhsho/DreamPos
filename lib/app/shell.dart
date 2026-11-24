@@ -6,6 +6,9 @@ import 'package:go_router/go_router.dart';
 import '../core/providers.dart';
 import '../core/theme.dart';
 import '../core/widgets/widgets.dart';
+import '../features/notifications/notification_engine.dart';
+import '../features/staff/time_tab.dart' show ClockButton;
+import 'background_jobs.dart';
 import 'nav.dart';
 
 /// App chrome: navigation rail (wide) / drawer (narrow), user + shift status,
@@ -19,6 +22,9 @@ class AppShell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(sessionProvider);
     if (session == null) return const SizedBox.shrink();
+    // background engines live as long as someone is logged in
+    ref.watch(notificationEngineProvider);
+    ref.watch(backgroundJobsProvider);
     final items = navItems.where((n) => session.can(n.perm)).toList();
     final idx = items.indexWhere((n) => location.startsWith(n.path));
     final wide = MediaQuery.sizeOf(context).width >= Breakpoints.medium;
@@ -191,6 +197,8 @@ class _TopStatusBar extends ConsumerWidget {
                       color: AppColors.success),
             ),
             const Spacer(),
+            const ClockButton(compact: true),
+            const SizedBox(width: Gap.xs),
             IconButton(
               tooltip: 'Уведомления',
               onPressed: () => context.go('/notifications'),

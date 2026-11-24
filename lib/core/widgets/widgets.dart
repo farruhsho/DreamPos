@@ -397,6 +397,7 @@ class _SearchFieldState extends State<SearchField> {
   @override
   void dispose() {
     _t?.cancel();
+    if (widget.controller == null) _c.dispose();
     super.dispose();
   }
 

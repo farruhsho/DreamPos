@@ -3,6 +3,7 @@ import 'package:drift_flutter/drift_flutter.dart';
 import 'package:uuid/uuid.dart';
 
 import 'db_location.dart';
+import 'sql_functions.dart';
 import 'tables.dart';
 
 export 'tables.dart';
@@ -48,16 +49,24 @@ class AppDatabase extends _$AppDatabase {
 
   static QueryExecutor _openConnection() => driftDatabase(
         name: 'dreampos',
-        native: const DriftNativeOptions(databasePath: DbLocation.dbPath, shareAcrossIsolates: true),
+        native: const DriftNativeOptions(
+            databasePath: DbLocation.dbPath, shareAcrossIsolates: true, setup: registerSqlFunctions),
       );
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) async {
           await m.createAll();
+          for (final sql in _indexes) {
+            await customStatement(sql);
+          }
+        },
+        onUpgrade: (m, from, to) async {
+          // v2: report/lookup indexes. All index DDL is IF NOT EXISTS, so
+          // re-running the full list is the simplest correct migration.
           for (final sql in _indexes) {
             await customStatement(sql);
           }
@@ -91,6 +100,13 @@ class AppDatabase extends _$AppDatabase {
     'CREATE UNIQUE INDEX IF NOT EXISTS ux_gift_code ON gift_cards(code)',
     'CREATE INDEX IF NOT EXISTS ix_cash_mov_shift ON cash_movements(shift_id)',
     'CREATE INDEX IF NOT EXISTS ix_returns_sale ON returns(sale_id)',
+    // v2
+    'CREATE INDEX IF NOT EXISTS ix_stock_mov_type ON stock_movements(type, created_at)',
+    'CREATE INDEX IF NOT EXISTS ix_ledger_kind ON customer_ledger(kind, customer_id, created_at)',
+    'CREATE INDEX IF NOT EXISTS ix_returns_shift ON returns(shift_id)',
+    'CREATE INDEX IF NOT EXISTS ix_return_items_return ON return_items(return_id)',
+    'CREATE INDEX IF NOT EXISTS ix_sales_status_created ON sales(status, created_at)',
+    'CREATE INDEX IF NOT EXISTS ix_audit_at ON audit_log(at)',
   ];
 
   // ---------------------------------------------------------------- helpers

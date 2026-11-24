@@ -170,7 +170,7 @@ class PosActions {
     final approver =
         await askManagerApproval(context, cashier: s.user, percent: need, what: what);
     if (approver == null) return (false, null);
-    await _db.audit('discount.override',
+    await _db.audit('discount.approve',
         userId: approver.id,
         entity: 'user',
         entityId: s.user.id,

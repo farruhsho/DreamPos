@@ -36,17 +36,47 @@ class DbLocation {
     return d;
   }
 
+  static Future<bool> isSqliteFile(File f) async {
+    if (await f.length() < 100) return false;
+    final raf = await f.open();
+    try {
+      final head = await raf.read(16);
+      return String.fromCharCodes(head) == 'SQLite format 3\u0000';
+    } finally {
+      await raf.close();
+    }
+  }
+
   /// Returns true if a restore was applied.
   static Future<bool> applyPendingRestore({DateTime? now}) async {
     final restore = await pendingRestoreFile();
     if (!await restore.exists()) return false;
     final db = await dbPath();
     final ts = (now ?? DateTime.now()).toIso8601String().replaceAll(RegExp(r'[:.]'), '-');
+    // 1. refuse anything that is not a SQLite database
+    if (!await isSqliteFile(restore)) {
+      await restore.rename('$db.invalid-restore-$ts');
+      return false;
+    }
+    // 2. move the current DB aside (never deleted)
+    final moved = <String, String>{};
     for (final suffix in ['', '-wal', '-shm']) {
       final f = File('$db$suffix');
-      if (await f.exists()) await f.rename('$db.before-restore-$ts$suffix');
+      if (await f.exists()) {
+        final to = '$db.before-restore-$ts$suffix';
+        await f.rename(to);
+        moved[to] = '$db$suffix';
+      }
     }
-    await restore.rename(db);
+    // 3. activate the backup; roll back the move on failure
+    try {
+      await restore.rename(db);
+    } catch (_) {
+      for (final e in moved.entries) {
+        await File(e.key).rename(e.value);
+      }
+      rethrow;
+    }
     return true;
   }
 }

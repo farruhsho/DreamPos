@@ -1,11 +1,12 @@
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:dreampos/core/db/database.dart';
+import 'package:dreampos/core/db/sql_functions.dart';
 import 'package:dreampos/core/permissions.dart';
 import 'package:dreampos/domain/services/auth_service.dart';
 import 'package:dreampos/domain/services/shift_service.dart';
 
-AppDatabase memoryDb() => AppDatabase(NativeDatabase.memory());
+AppDatabase memoryDb() => AppDatabase(NativeDatabase.memory(setup: registerSqlFunctions));
 
 class Fixture {
   Fixture(this.db);

@@ -27,8 +27,9 @@ class CustomerService {
         if (shiftId == null) throw BusinessException('Для приёма наличных откройте смену');
       }
       final after = c.debtBalance - amount;
+      final ledgerId = newId();
       await db.into(db.customerLedger).insert(CustomerLedgerCompanion.insert(
-            id: newId(),
+            id: ledgerId,
             customerId: customerId,
             kind: 'debt_payment',
             amount: -amount,
@@ -40,6 +41,8 @@ class CustomerService {
           ));
       await (db.update(db.customers)..where((t) => t.id.equals(customerId))).write(
           CustomersCompanion(debtBalance: Value(after), updatedAt: Value(DateTime.now())));
+      await db.markDirty('customers', customerId);
+      await db.markDirty('customer_ledger', ledgerId);
       await db.audit('debt.payment', userId: userId, entity: 'customer', entityId: customerId,
           details: '$amount $method');
     });
@@ -57,8 +60,9 @@ class CustomerService {
       final c = await (db.select(db.customers)..where((t) => t.id.equals(customerId))).getSingle();
       final after = c.bonusBalance + delta;
       if (after < 0) throw BusinessException('Баланс бонусов не может быть отрицательным');
+      final ledgerId = newId();
       await db.into(db.customerLedger).insert(CustomerLedgerCompanion.insert(
-            id: newId(),
+            id: ledgerId,
             customerId: customerId,
             kind: 'bonus_adjust',
             amount: delta,
@@ -67,7 +71,9 @@ class CustomerService {
             note: Value(reason),
           ));
       await (db.update(db.customers)..where((t) => t.id.equals(customerId)))
-          .write(CustomersCompanion(bonusBalance: Value(after)));
+          .write(CustomersCompanion(bonusBalance: Value(after), updatedAt: Value(DateTime.now())));
+      await db.markDirty('customers', customerId);
+      await db.markDirty('customer_ledger', ledgerId);
       await db.audit('bonus.adjust', userId: userId, entity: 'customer', entityId: customerId,
           details: '$delta; $reason');
     });

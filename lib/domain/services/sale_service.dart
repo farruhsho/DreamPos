@@ -20,6 +20,10 @@ String paymentMethodLabel(String m) => switch (m) {
       _ => m,
     };
 
+/// Gift card codes are stored uppercase without separators.
+String normalizeGiftCode(String raw) =>
+    raw.toUpperCase().replaceAll(RegExp(r'[\s\-_]'), '');
+
 class CheckoutLine {
   CheckoutLine({
     required this.productId,
@@ -307,8 +311,9 @@ class SaleService {
       final giftPays = r.payments.where((p) => p.method == 'gift_card' && p.amount > 0).toList();
       final giftCardsUsed = <GiftCard, int>{};
       for (final gp in giftPays) {
-        final code = (gp.reference ?? '').trim();
-        final card = await (db.select(db.giftCards)..where((g) => g.code.equals(code)))
+        final code = normalizeGiftCode(gp.reference ?? '');
+        final card = await (db.select(db.giftCards)
+              ..where((g) => g.code.equals(code) & g.deletedAt.isNull()))
             .getSingleOrNull();
         if (card == null) throw BusinessException('Сертификат $code не найден');
         if (card.status != 'active') throw BusinessException('Сертификат $code не активен');

@@ -328,7 +328,7 @@ class _ApprovalDialogState extends ConsumerState<_ApprovalDialog> {
     });
     String? err;
     try {
-      final u = await ref.read(authServiceProvider).loginWithPin(pin);
+      final u = await ref.read(authServiceProvider).verifyApprover(pin);
       err = u.id == widget.cashier.id
           ? 'Нужен PIN другого сотрудника (менеджера или владельца)'
           : approvalError(u, widget.cashier, widget.percent);

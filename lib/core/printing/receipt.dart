@@ -96,7 +96,12 @@ class ReceiptData {
     }
     if (sale.status == 'voided') b.writeln(center('*** АННУЛИРОВАН ***'));
     b.writeln(line);
-    if ((settings['receipt_footer'] ?? '').isNotEmpty) b.writeln(center(settings['receipt_footer']!));
+    for (final l in (settings['receipt_footer'] ?? '').split('\n')) {
+      if (l.trim().isEmpty) continue;
+      for (var i = 0; i < l.length; i += width) {
+        b.writeln(center(l.substring(i, i + width > l.length ? l.length : i + width).trim()));
+      }
+    }
     return b.toString();
   }
 }

@@ -23,6 +23,8 @@ class AuthService {
     required String pin,
     String? phone,
     double maxDiscountPercent = 0,
+    int salesPlan = 0,
+    double commissionPercent = 0,
     String? actorId,
   }) async {
     final err = PinHasher.validate(pin);
@@ -46,7 +48,10 @@ class AuthService {
             pinSalt: salt,
             maxDiscountPercent: Value(
                 role == Role.owner || role == Role.admin ? 100 : maxDiscountPercent),
+            salesPlan: Value(salesPlan),
+            commissionPercent: Value(commissionPercent),
           ));
+      await db.markDirty('users', id);
       await db.audit('user.create', userId: actorId, entity: 'user', entityId: id,
           details: '${role.name} $name');
       return (db.select(db.users)..where((u) => u.id.equals(id))).getSingle();
@@ -108,6 +113,34 @@ class AuthService {
       throw BusinessException('Слишком много неверных попыток. Подождите $lockMinutes минут',
           code: 'throttle');
     }
+    throw BusinessException('Неверный PIN', code: 'bad_pin');
+  }
+
+  /// Verifies a supervisor PIN for an approval (discount over limit, etc.)
+  /// WITHOUT logging in: no lastLoginAt update, no 'auth.login'. Failures are
+  /// audited as 'auth.approve_fail' and throttled separately from logins.
+  Future<User> verifyApprover(String pin) async {
+    final now = DateTime.now();
+    final since = now.subtract(const Duration(minutes: lockMinutes));
+    final fails = await (db.select(db.auditLog)
+          ..where((a) => a.action.equals('auth.approve_fail') & a.at.isBiggerThanValue(since)))
+        .get();
+    if (fails.length >= maxAttempts) {
+      throw BusinessException('Слишком много неверных попыток. Подождите $lockMinutes минут',
+          code: 'throttle');
+    }
+    final users = await (db.select(db.users)
+          ..where((u) => u.deletedAt.isNull() & u.isActive.equals(true)))
+        .get();
+    for (final u in users) {
+      if (PinHasher.verify(pin, u.pinSalt, u.pinHash)) {
+        if (u.lockedUntil != null && u.lockedUntil!.isAfter(now)) {
+          throw BusinessException('Учётная запись временно заблокирована');
+        }
+        return u;
+      }
+    }
+    await db.audit('auth.approve_fail');
     throw BusinessException('Неверный PIN', code: 'bad_pin');
   }
 

@@ -93,6 +93,8 @@ class StockService {
     required double qty,
     required String reason,
     String? userId,
+    String? refType,
+    String? refId,
   }) async {
     if (qty <= 0) throw BusinessException('Количество должно быть больше нуля');
     await db.transaction(() async {
@@ -100,7 +102,8 @@ class StockService {
           productId: productId,
           delta: -qty,
           type: 'writeoff',
-          refType: 'manual',
+          refType: refType ?? 'manual',
+          refId: refId,
           userId: userId,
           reason: reason,
           enforce: true);

@@ -9,8 +9,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/db/database.dart';
 import '../../core/providers.dart';
 import '../../domain/errors.dart';
+import '../../domain/services/sale_service.dart' show normalizeGiftCode;
 import '../../domain/services/shift_service.dart';
 import 'promotion_logic.dart';
+
+// Single source of truth lives in the domain (checkout uses the same rule).
+export '../../domain/services/sale_service.dart' show normalizeGiftCode;
 
 // ------------------------------------------------------------------ gift codes
 
@@ -25,7 +29,6 @@ String generateGiftCode([Random? random]) {
 }
 
 /// Uppercases and strips spaces/dashes (codes are stored without them).
-String normalizeGiftCode(String s) => s.toUpperCase().replaceAll(RegExp(r'[\s-]'), '');
 
 enum GiftStatus {
   active('Активен'),

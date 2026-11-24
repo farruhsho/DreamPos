@@ -21,6 +21,7 @@ class ShiftReport {
     required this.debtCollectedNonCash,
     required this.supplierCashPaid,
     required this.voidedCount,
+    this.returnedCost = 0,
   });
 
   final Shift shift;
@@ -39,11 +40,14 @@ class ShiftReport {
   final int debtCollectedNonCash;
   final int supplierCashPaid;
   final int voidedCount;
+  /// Cost of goods returned in this shift.
+  final int returnedCost;
 
   int get cashSales => byMethod['cash'] ?? 0;
   int get cashRefunds => refundsByMethod['cash'] ?? 0;
   int get netRevenue => salesTotal - returnsTotal;
-  int get grossProfit => salesTotal - costTotal - (returnsTotal > 0 ? 0 : 0);
+  /// Net gross profit: (sales - cost) - (refunds - cost of returned goods).
+  int get grossProfit => (salesTotal - costTotal) - (returnsTotal - returnedCost);
 
   int get expectedCash =>
       shift.openingCash +
@@ -145,6 +149,16 @@ class ShiftService {
     for (final r in rets) {
       refunds[r.refundMethod] = (refunds[r.refundMethod] ?? 0) + r.total;
     }
+    var returnedCost = 0;
+    if (rets.isNotEmpty) {
+      final row = await db.customSelect(
+        'SELECT COALESCE(SUM(ri.qty * si.unit_cost), 0) AS c FROM return_items ri '
+        'JOIN sale_items si ON si.id = ri.sale_item_id '
+        'WHERE ri.return_id IN (${List.filled(rets.length, '?').join(',')})',
+        variables: [for (final r in rets) Variable.withString(r.id)],
+      ).getSingle();
+      returnedCost = (row.data['c'] as num).round();
+    }
     final moves = await (db.select(db.cashMovements)..where((m) => m.shiftId.equals(shiftId))).get();
     var payIn = 0, payOut = 0;
     for (final m in moves) {
@@ -184,6 +198,7 @@ class ShiftService {
       debtCollectedNonCash: debtNonCash,
       supplierCashPaid: supPays.fold(0, (s, p) => s + p.amount),
       voidedCount: sales.where((s) => s.status == 'voided').length,
+      returnedCost: returnedCost,
     );
   }
 
