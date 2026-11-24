@@ -10,6 +10,14 @@ class AppColors {
   static const info = Color(0xFF0369A1);
 }
 
+/// Bundled font families (see pubspec `fonts:`).
+class AppFonts {
+  static const sans = 'Roboto';
+  /// Use for receipts, codes, aligned numbers. Never 'monospace' (not a real
+  /// family on Windows).
+  static const mono = 'RobotoMono';
+}
+
 class Gap {
   static const xs = 4.0;
   static const s = 8.0;
@@ -27,7 +35,9 @@ class Breakpoints {
 
 ThemeData buildTheme(Brightness b) {
   final scheme = ColorScheme.fromSeed(seedColor: AppColors.brand, brightness: b);
-  final base = ThemeData(colorScheme: scheme, useMaterial3: true, brightness: b);
+  // Bundled Roboto (Apache 2.0): identical Cyrillic typography on all platforms.
+  final base = ThemeData(
+      colorScheme: scheme, useMaterial3: true, brightness: b, fontFamily: 'Roboto');
   final radius = BorderRadius.circular(12);
   return base.copyWith(
     visualDensity: VisualDensity.standard,
@@ -65,7 +75,7 @@ ThemeData buildTheme(Brightness b) {
       style: FilledButton.styleFrom(
         minimumSize: const Size(64, 46),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+        textStyle: const TextStyle(fontFamily: 'Roboto', fontWeight: FontWeight.w600, fontSize: 15),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(

@@ -180,7 +180,7 @@ class _ImportDialogState extends ConsumerState<_ImportDialog> {
           autofocus: true,
           minLines: 8,
           maxLines: 16,
-          style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+          style: const TextStyle(fontFamily: 'RobotoMono', fontSize: 13),
           decoration: const InputDecoration(
             hintText: 'Вставьте данные (Ctrl+V)…',
             alignLabelWithHint: true,

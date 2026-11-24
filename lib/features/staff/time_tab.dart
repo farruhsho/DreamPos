@@ -37,16 +37,46 @@ class _ClockButtonState extends ConsumerState<ClockButton> {
     final clock = ref.read(timeClockProvider);
     final compact = widget.compact;
     if (s == null) {
+      if (compact) {
+        return IconButton.filledTonal(
+          key: const ValueKey('clock_in'),
+          tooltip: 'Отметить начало работы',
+          onPressed: _busy
+              ? null
+              : () => _run(() => clock.clockIn(user.id),
+                  'Начало работы отмечено в ${formatTime(DateTime.now())}'),
+          icon: const Icon(Icons.timer_outlined),
+        );
+      }
       return FilledButton.tonalIcon(
         key: const ValueKey('clock_in'),
         onPressed: _busy
             ? null
-            : () => _run(() => clock.clockIn(user.id), 'Приход отмечен в ${formatTime(DateTime.now())}'),
+            : () => _run(() => clock.clockIn(user.id), 'Начало работы отмечено в ${formatTime(DateTime.now())}'),
         icon: const Icon(Icons.login),
-        label: Text(compact ? 'Приход' : 'Отметить приход'),
+        label: const Text('Отметить начало работы'),
       );
     }
     final dur = DateTime.now().difference(s.startedAt);
+    Future<void> clockOut() async {
+      final ok = await confirm(
+        context,
+        title: 'Отметить уход?',
+        message: 'На работе с ${formatTime(s.startedAt)} (${formatDuration(dur)}).',
+        ok: 'Отметить уход',
+      );
+      if (!ok || !mounted) return;
+      await _run(() => clock.clockOut(user.id), 'Уход отмечен');
+    }
+
+    if (compact) {
+      return IconButton(
+        key: const ValueKey('clock_out'),
+        tooltip: 'На работе с ${formatTime(s.startedAt)} · отметить уход',
+        onPressed: _busy ? null : clockOut,
+        icon: const Icon(Icons.timer, color: AppColors.success),
+      );
+    }
     return OutlinedButton.icon(
       key: const ValueKey('clock_out'),
       onPressed: _busy

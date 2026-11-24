@@ -217,7 +217,7 @@ class _DetailBody extends ConsumerWidget {
           content: SizedBox(
             width: 420,
             child: SingleChildScrollView(
-              child: SelectableText(text, style: const TextStyle(fontFamily: 'monospace', fontSize: 12.5)),
+              child: SelectableText(text, style: const TextStyle(fontFamily: 'RobotoMono', fontSize: 12.5)),
             ),
           ),
           actions: [

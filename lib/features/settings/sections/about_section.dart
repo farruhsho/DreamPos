@@ -92,7 +92,7 @@ class AboutSection extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: SelectableText(text,
-                        style: const TextStyle(fontFamily: 'monospace', fontSize: 12, height: 1.4)),
+                        style: const TextStyle(fontFamily: 'RobotoMono', fontSize: 12, height: 1.4)),
                   ),
                   const SizedBox(height: Gap.m),
                   Wrap(spacing: Gap.s, runSpacing: Gap.s, children: [

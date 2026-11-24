@@ -77,6 +77,17 @@ flutter:
   uses-material-design: true
   assets:
     - assets/fonts/
+  fonts:
+    - family: Roboto
+      fonts:
+        - asset: assets/fonts/Roboto-Regular.ttf
+        - asset: assets/fonts/Roboto-Bold.ttf
+          weight: 700
+    - family: RobotoMono
+      fonts:
+        - asset: assets/fonts/RobotoMono-Regular.ttf
+        - asset: assets/fonts/RobotoMono-Bold.ttf
+          weight: 700
 
   # To add assets to your application, add an assets section, like this:
   # assets:

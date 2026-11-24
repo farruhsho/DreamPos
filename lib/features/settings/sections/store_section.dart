@@ -188,8 +188,8 @@ class _ReceiptPreview extends StatelessWidget {
                 child: Text(
                   text.trimRight(),
                   style: const TextStyle(
-                      fontFamily: 'monospace',
-                      fontFamilyFallback: ['Consolas', 'Courier New', 'RobotoMono'],
+                      fontFamily: 'RobotoMono',
+                      
                       fontSize: 11,
                       height: 1.3,
                       color: Colors.black87),

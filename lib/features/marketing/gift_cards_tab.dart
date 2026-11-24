@@ -160,7 +160,7 @@ class _GiftCardsTabState extends ConsumerState<GiftCardsTab> {
                                 leading: Icon(Icons.card_giftcard, color: giftStatusColor(st)),
                                 title: Wrap(spacing: Gap.s, crossAxisAlignment: WrapCrossAlignment.center, children: [
                                   SelectableText(g.code,
-                                      style: const TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.w600)),
+                                      style: const TextStyle(fontFamily: 'RobotoMono', fontWeight: FontWeight.w600)),
                                   StatusChip(st.label, color: giftStatusColor(st)),
                                 ]),
                                 subtitle: Text([
@@ -320,7 +320,7 @@ class _IssueFormState extends ConsumerState<_IssueForm> {
           TextFormField(
             controller: _code,
             textCapitalization: TextCapitalization.characters,
-            style: const TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.w600, letterSpacing: 1.5),
+            style: const TextStyle(fontFamily: 'RobotoMono', fontWeight: FontWeight.w600, letterSpacing: 1.5),
             inputFormatters: [
               FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9]')),
               TextInputFormatter.withFunction((o, n) => n.copyWith(text: n.text.toUpperCase())),
@@ -476,7 +476,7 @@ class _BalanceCheckState extends ConsumerState<_BalanceCheck> {
                 Row(children: [
                   Expanded(
                       child: Text(g.code,
-                          style: const TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.w700))),
+                          style: const TextStyle(fontFamily: 'RobotoMono', fontWeight: FontWeight.w700))),
                   StatusChip(st.label, color: giftStatusColor(st)),
                 ]),
                 const SizedBox(height: Gap.s),
