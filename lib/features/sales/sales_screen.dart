@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/doc_number.dart';
 import '../../core/money.dart';
 import '../../core/permissions.dart';
 import '../../core/providers.dart';
@@ -30,7 +31,9 @@ class SalesScreen extends ConsumerStatefulWidget {
 class _Focus {
   _Focus(this.saleId, this.number);
   final String saleId;
-  final int number;
+
+  /// Display number («15» / «A-15»).
+  final String number;
 }
 
 class _SalesScreenState extends ConsumerState<SalesScreen> with SingleTickerProviderStateMixin {
@@ -56,13 +59,13 @@ class _SalesScreenState extends ConsumerState<SalesScreen> with SingleTickerProv
   }
 
   Future<void> _openByNumber(String raw) async {
-    final n = int.tryParse(raw);
-    if (n == null) return;
-    final sale = await findSaleByNumber(ref.read(databaseProvider), n);
+    final p = parseDocNo(raw);
+    if (p == null) return;
+    final sale = await findSaleByNumber(ref.read(databaseProvider), p.number, code: p.code);
     if (!mounted) return;
-    if (sale == null) return showError(context, context.l10n.salesReceiptNoNotFound('$n'));
+    if (sale == null) return showError(context, context.l10n.salesReceiptNoNotFound(docNo(p.number, p.code)));
     _tabs.index = 0;
-    setState(() => _focus = _Focus(sale.id, sale.number));
+    setState(() => _focus = _Focus(sale.id, docNo(sale.number, sale.deviceCode)));
   }
 
   @override
@@ -132,8 +135,8 @@ class _SalesTabState extends ConsumerState<_SalesTab> with AutomaticKeepAliveCli
   }
 
   void _applyFocus(_Focus f) {
-    _search.text = '${f.number}';
-    _filter = SalesFilter(period: Period.all, query: '${f.number}');
+    _search.text = f.number;
+    _filter = SalesFilter(period: Period.all, query: f.number);
     _selected = f.saleId;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && !context.isWide) _openNarrow(f.saleId);
@@ -193,7 +196,7 @@ class _SalesTabState extends ConsumerState<_SalesTab> with AutomaticKeepAliveCli
             child: Text(
               shift.value == null
                   ? l.salesNoShiftReceipts
-                  : l.salesShiftReceipts('${shift.value!.number}'),
+                  : l.salesShiftReceipts(docNo(shift.value!.number, shift.value!.deviceCode)),
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),
@@ -414,7 +417,7 @@ class _SaleTile extends StatelessWidget {
       ),
       title: Row(
         children: [
-          Text('№${s.number}', style: const TextStyle(fontWeight: FontWeight.w700)),
+          Text('№${docNo(s.number, s.deviceCode)}', style: const TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(width: Gap.s),
           Flexible(
             child: Text(
@@ -534,7 +537,7 @@ class _ReturnsTabState extends ConsumerState<_ReturnsTab> with AutomaticKeepAliv
               child: const Icon(Icons.assignment_return, color: AppColors.danger, size: 20),
             ),
             title: Text(
-              l.salesReturnTitle('${r.ret.number}', '${r.saleNumber}'),
+              l.salesReturnTitle(docNo(r.ret.number, r.ret.deviceCode), r.saleNo),
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
             subtitle: Text(
@@ -613,7 +616,7 @@ class _ReturnsTabState extends ConsumerState<_ReturnsTab> with AutomaticKeepAliv
             child: Text(
               shift.value == null
                   ? l.salesNoShiftReturns
-                  : l.salesShiftReturns('${shift.value!.number}'),
+                  : l.salesShiftReturns(docNo(shift.value!.number, shift.value!.deviceCode)),
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),

@@ -19,5 +19,14 @@
   "setupDemoHint": "Tizim bilan tanishish uchun mahsulotlar, mijozlar va aksiyalar. Haqiqiy doʻkon uchun yoqmang.",
   "setupStepStore": "Doʻkon",
   "setupStepCurrency": "Valyuta",
-  "setupStepOwner": "Egasi"
+  "setupStepOwner": "Egasi",
+  "setupOr": "yoki",
+  "setupJoinStore": "Mavjud doʻkonga ulanish",
+  "setupJoinStoreHint": "Agar doʻkon boshqa kassada bulutda ishlayotgan boʻlsa: tovarlar, mijozlar va foydalanuvchilar oʻsha yerdan yuklanadi.",
+  "setupJoinTitle": "Doʻkonga ulanish",
+  "setupJoinIntro": "Bulut hisobiga kiring va doʻkonni tanlang. Uning maʼlumotlari va foydalanuvchilari bu kassaga yuklanadi, soʻng PIN-kod bilan kiring.",
+  "setupJoinNewStore": "Yangi doʻkon yaratish",
+  "setupJoinDone": "Doʻkon maʼlumotlari yuklandi. PIN-kod bilan kiring.",
+  "setupJoinPartial": "Kassa ulandi, lekin maʼlumotlarni yuklash tugamadi. Aloqani tekshirib, qayta urinib koʻring.",
+  "setupJoinRetry": "Yuklashni takrorlash"
 }

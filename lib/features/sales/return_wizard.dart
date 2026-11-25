@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/db/database.dart';
+import '../../core/doc_number.dart';
 import '../../core/money.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
@@ -17,7 +18,7 @@ import 'sales_queries.dart';
 /// Opens the wizard (dialog on wide screens, full-screen page on phones).
 /// Returns the created [Return] or null if cancelled.
 Future<Return?> showReturnWizard(BuildContext context, SaleDetail detail) {
-  final title = context.l10n.salesReturnWizardTitle('${detail.sale.number}');
+  final title = context.l10n.salesReturnWizardTitle(docNo(detail.sale.number, detail.sale.deviceCode));
   if (context.isCompact) {
     return Navigator.of(context).push<Return>(
       MaterialPageRoute(

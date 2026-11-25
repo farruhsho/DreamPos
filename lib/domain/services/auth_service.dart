@@ -81,7 +81,12 @@ class AuthService {
   }
 
   /// PIN-only login (fast cashier switching). PINs are unique per active
-  /// user, so the PIN identifies the user.
+  /// user, so the PIN identifies the user. With several registers (D-025)
+  /// two users can end up with one PIN (created / changed on two registers
+  /// before they synced; salted hashes cannot be compared). Such a PIN is
+  /// refused on every register instead of logging in whichever user comes
+  /// first in this database (sales would be credited to different people
+  /// depending on the till): someone else changes one of the PINs.
   Future<User> loginWithPin(String pin) async {
     final now = DateTime.now();
     if (await isThrottled()) {
@@ -91,18 +96,26 @@ class AuthService {
     final users = await (db.select(db.users)
           ..where((u) => u.deletedAt.isNull() & u.isActive.equals(true)))
         .get();
-    for (final u in users) {
-      if (PinHasher.verify(pin, u.pinSalt, u.pinHash)) {
-        if (u.lockedUntil != null && u.lockedUntil!.isAfter(now)) {
-          throw BusinessException(L.current.errAccountLockedTryLater);
-        }
-        await (db.update(db.users)..where((t) => t.id.equals(u.id))).write(UsersCompanion(
-            lastLoginAt: Value(now),
-            failedPinAttempts: const Value(0),
-            lockedUntil: const Value(null)));
-        await db.audit('auth.login', userId: u.id);
-        return u;
+    final matches = [
+      for (final u in users)
+        if (PinHasher.verify(pin, u.pinSalt, u.pinHash)) u,
+    ];
+    if (matches.length > 1) {
+      await db.audit('auth.pin_conflict', details: matches.map((u) => u.name).join(', '));
+      throw BusinessException(L.current.errPinAmbiguous, code: 'pin_conflict');
+    }
+    if (matches.isNotEmpty) {
+      final u = matches.single;
+      if (u.lockedUntil != null && u.lockedUntil!.isAfter(now)) {
+        throw BusinessException(L.current.errAccountLockedTryLater);
       }
+      // Bookkeeping only: a stat part for sync (`statColumns`, schema v7).
+      await (db.update(db.users)..where((t) => t.id.equals(u.id))).write(UsersCompanion(
+          lastLoginAt: Value(now),
+          failedPinAttempts: const Value(0),
+          lockedUntil: const Value(null)));
+      await db.audit('auth.login', userId: u.id);
+      return u;
     }
     // global throttle: count recent failures in audit
     await db.audit('auth.fail');

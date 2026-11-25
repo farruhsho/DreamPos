@@ -652,6 +652,16 @@ class AppLocalizationsKy extends AppLocalizations {
   }
 
   @override
+  String appShiftChipShort(String number) {
+    return 'Смена №$number';
+  }
+
+  @override
+  String appShiftChipNumber(String number) {
+    return '№$number';
+  }
+
+  @override
   String get appProfile => 'Профиль';
 
   @override
@@ -1038,6 +1048,19 @@ class AppLocalizationsKy extends AppLocalizations {
   String get errAdjustmentReasonRequired => 'Түзөтүүнүн себебин көрсөтүңүз';
 
   @override
+  String get errPinAmbiguous =>
+      'Бул PIN-код бир нече кызматкерде бар (кассалар шайкештирилгенден кийин). Башка кызматкер катары кирип, алардын бирине PIN-кодду алмаштырыңыз.';
+
+  @override
+  String get errPaymentOtherRegisterShift =>
+      'Накталай төлөм башка кассанын сменасында киргизилген — аны ошол кассада гана жокко чыгарууга болот';
+
+  @override
+  String errReceiptOpeningNoReversal(String number) {
+    return 'Кириш №$number — шайкештирүүнүн баштапкы калдыгы, аны сторнолоого болбойт';
+  }
+
+  @override
   String get authEnterPin => 'PIN-кодду киргизиңиз';
 
   @override
@@ -1104,6 +1127,37 @@ class AppLocalizationsKy extends AppLocalizations {
 
   @override
   String get setupStepOwner => 'Ээси';
+
+  @override
+  String get setupOr => 'же';
+
+  @override
+  String get setupJoinStore => 'Бар дүкөнгө туташуу';
+
+  @override
+  String get setupJoinStoreHint =>
+      'Эгер дүкөн башка кассада булутта иштеп жатса: товарлар, кардарлар жана колдонуучулар ошол жактан жүктөлөт.';
+
+  @override
+  String get setupJoinTitle => 'Дүкөнгө туташуу';
+
+  @override
+  String get setupJoinIntro =>
+      'Булут аккаунтуна кирип, дүкөндү тандаңыз. Анын маалыматтары жана колдонуучулары бул кассага жүктөлөт, андан кийин PIN-код менен кириңиз.';
+
+  @override
+  String get setupJoinNewStore => 'Жаңы дүкөн түзүү';
+
+  @override
+  String get setupJoinDone =>
+      'Дүкөндүн маалыматтары жүктөлдү. PIN-код менен кириңиз.';
+
+  @override
+  String get setupJoinPartial =>
+      'Касса туташты, бирок маалыматтарды жүктөө бүткөн жок. Байланышты текшерип, кайталаңыз.';
+
+  @override
+  String get setupJoinRetry => 'Жүктөөнү кайталоо';
 
   @override
   String get custCreated => 'Кардар түзүлдү';
@@ -9066,6 +9120,12 @@ class AppLocalizationsKy extends AppLocalizations {
   String get settingsReceiptSample => 'Чектин үлгүсү';
 
   @override
+  String get settingsSecSync => 'Синхрондоо';
+
+  @override
+  String get settingsSecSyncHint => 'Бир нече касса, булут';
+
+  @override
   String get shiftClosingTitle => 'Сменаны жабуу';
 
   @override
@@ -10429,6 +10489,512 @@ class AppLocalizationsKy extends AppLocalizations {
 
   @override
   String get staffSystem => 'система';
+
+  @override
+  String get syncErrNetwork =>
+      'Синхрондоо сервери менен байланыш жок. Интернетти текшериңиз.';
+
+  @override
+  String get syncErrAuth =>
+      'Email же сырсөз туура эмес, же сессия бүттү. Кайра кириңиз.';
+
+  @override
+  String get syncErrForbidden => 'Бул дүкөнгө кирүү укугу жок.';
+
+  @override
+  String get syncErrEnvironmentMismatch =>
+      'Демо-база тестик дүкөнгө гана туташа алат.';
+
+  @override
+  String get syncErrNotEmpty =>
+      'Бул базада маалыматтар бар (товарлар, сатуулар, кардарлар). Аны бар дүкөнгө туташтырууга болбойт: эки база бириктирилбейт. Таза орнотууну колдонуңуз.';
+
+  @override
+  String get syncErrServer => 'Синхрондоо серверинде ката.';
+
+  @override
+  String get syncErrNotConfigured => 'Синхрондоо жөндөлгөн эмес.';
+
+  @override
+  String get syncErrNotSignedIn => 'Адегенде синхрондоо аккаунтуна кириңиз.';
+
+  @override
+  String get syncErrInsecureUrl =>
+      'Сервердин дареги https:// менен башталышы керек.';
+
+  @override
+  String get syncErrInvalidUrl => 'Сервердин дареги туура эмес.';
+
+  @override
+  String get syncErrProtocol => 'Синхрондоо серверинен күтүлбөгөн жооп.';
+
+  @override
+  String get syncErrStoreNotFound => 'Дүкөн табылган жок.';
+
+  @override
+  String get syncErrAlreadyConnected =>
+      'Бул база дүкөнгө туташкан. Адегенде синхрондоону өчүрүңүз.';
+
+  @override
+  String get syncPhaseOff => 'Өчүк';
+
+  @override
+  String get syncPhaseIdle => 'Синхрондолду';
+
+  @override
+  String get syncPhaseSyncing => 'Синхрондоо…';
+
+  @override
+  String get syncPhaseError => 'Синхрондоо катасы';
+
+  @override
+  String get syncPhaseOffline => 'Байланыш жок';
+
+  @override
+  String get syncEnvTest => 'Тестик дүкөн';
+
+  @override
+  String get syncEnvProduction => 'Иштеген дүкөн';
+
+  @override
+  String syncConflictTitle(String subject) {
+    return 'Синхрондоо карама-каршылыгы: $subject';
+  }
+
+  @override
+  String syncConflictSubjectBarcode(String code) {
+    return 'штрихкод $code';
+  }
+
+  @override
+  String syncConflictSubjectCard(String code) {
+    return 'кардар картасы $code';
+  }
+
+  @override
+  String syncConflictSubjectGiftCard(String code) {
+    return 'сертификат $code';
+  }
+
+  @override
+  String syncConflictSubjectStock(String name) {
+    return '«$name» калдыгы';
+  }
+
+  @override
+  String syncConflictSubjectBonus(String name) {
+    return '«$name» бонустары';
+  }
+
+  @override
+  String syncConflictBarcodeBody(String code, String winner, String loser) {
+    return '$code штрихкоду ар башка кассаларда эки товарга берилген. Ал «$winner» товарында калтырылды, «$loser» товарынын штрихкоду тазаланды.';
+  }
+
+  @override
+  String syncConflictCardBody(String code, String winner, String loser) {
+    return '$code карта номери ар башка кассаларда эки кардарга берилген. Ал «$winner» кардарында калтырылды, «$loser» кардарынын карта номери тазаланды.';
+  }
+
+  @override
+  String syncConflictGiftCodeBody(String code, String newCode) {
+    return '$code сертификат коду ар башка кассаларда кайталанды. Дубликат бөгөттөлдү жана $newCode кодун алды.';
+  }
+
+  @override
+  String syncConflictStockBody(String name, String qty) {
+    return '«$name» товарынын калдыгы ар башка кассалардагы сатуулардан кийин терс болуп калды ($qty). Калдыкты текшериңиз.';
+  }
+
+  @override
+  String syncConflictGiftBalanceBody(String code, String amount) {
+    return '$code сертификаты ар башка кассаларда номиналдан ашык сарпталды: баланс $amount.';
+  }
+
+  @override
+  String syncConflictBonusBody(String name, String amount) {
+    return '«$name» кардарынын бонустары ар башка кассалардагы операциялардан кийин терс болуп калды ($amount).';
+  }
+
+  @override
+  String get syncSectionDesc =>
+      'Бир дүкөндүн бир нече кассасы булут аркылуу жалпы товарлар, кардарлар жана сатуулар менен иштейт. Интернет жок болсо да касса иштей берет, өзгөрүүлөр байланыш пайда болгондо жөнөтүлөт.';
+
+  @override
+  String get syncUnavailable =>
+      'Программанын бул версиясында синхрондоо жеткиликсиз.';
+
+  @override
+  String get syncOffTitle => 'Синхрондоо өчүк';
+
+  @override
+  String get syncOffMessage =>
+      'Бул касса өзүнчө иштейт. Бардык кассалар жалпы маалыматтарды көрүшү үчүн аны булуттагы дүкөнгө туташтырыңыз.';
+
+  @override
+  String get syncConnect => 'Туташтыруу';
+
+  @override
+  String get syncSyncNow => 'Азыр синхрондоо';
+
+  @override
+  String get syncDisconnect => 'Ажыратуу';
+
+  @override
+  String get syncSignInAgain => 'Кайра кирүү';
+
+  @override
+  String get syncStoreLabel => 'Дүкөн';
+
+  @override
+  String get syncDeviceCode => 'Кассанын коду';
+
+  @override
+  String syncDeviceCodeExample(String example) {
+    return 'чектердин номерлери: $example';
+  }
+
+  @override
+  String get syncPending => 'Жөнөтүүнү күтүүдө';
+
+  @override
+  String get syncLastSync => 'Акыркы синхрондоо';
+
+  @override
+  String get syncNever => 'азырынча болгон эмес';
+
+  @override
+  String get syncAccount => 'Аккаунт';
+
+  @override
+  String syncNextRetry(String time) {
+    return 'Кийинки аракет: $time';
+  }
+
+  @override
+  String syncDoneToast(String pushed, String pulled) {
+    return 'Синхрондоо бүттү: $pushed жөнөтүлдү, $pulled алынды';
+  }
+
+  @override
+  String get syncDisconnectTitle => 'Синхрондоону ажыратасызбы?';
+
+  @override
+  String syncDisconnectMessage(String store) {
+    return 'Касса «$store» дүкөнү менен маалымат алмашууну токтотот. Бул кассадагы бардык маалыматтар сакталат, чектердин номерлери кайталанбайт. Каалаган убакта кайра туташууга болот.';
+  }
+
+  @override
+  String get syncDisconnectedToast =>
+      'Синхрондоо ажыратылды. Кассадагы маалыматтар сакталды.';
+
+  @override
+  String get syncConnectTitle => 'Булутка туташуу';
+
+  @override
+  String get syncSignInIntro =>
+      'Сервердин дарегин жана дүкөн ээсинин аккаунтун киргизиңиз.';
+
+  @override
+  String get syncServerUrl => 'Сервердин дареги *';
+
+  @override
+  String get syncServerUrlHint => 'https://…supabase.co';
+
+  @override
+  String get syncAnonKey => 'Кирүү ачкычы (anon key) *';
+
+  @override
+  String get syncEmail => 'Email *';
+
+  @override
+  String get syncPassword => 'Сырсөз *';
+
+  @override
+  String get syncPasswordShow => 'Сырсөздү көрсөтүү';
+
+  @override
+  String get syncPasswordHide => 'Сырсөздү жашыруу';
+
+  @override
+  String get syncPasswordNote => 'Сырсөз кассада сакталбайт.';
+
+  @override
+  String get syncSignIn => 'Кирүү';
+
+  @override
+  String get syncInvalidEmail => 'Email туура эмес';
+
+  @override
+  String syncSignedInAs(String email) {
+    return 'Кирдиңиз: $email';
+  }
+
+  @override
+  String get syncChooseAction => 'Бул касса менен эмне кылабыз?';
+
+  @override
+  String get syncCreateStore => 'Булутта дүкөн түзүү';
+
+  @override
+  String get syncCreateStoreHint =>
+      'Бул касса биринчи болот. Анын бардык маалыматтары булутка жүктөлөт.';
+
+  @override
+  String get syncJoinStore => 'Бар дүкөнгө туташтыруу';
+
+  @override
+  String get syncJoinStoreHint =>
+      'Дүкөндүн маалыматтары бул кассага жүктөлөт. Бош база үчүн гана.';
+
+  @override
+  String get syncStoreName => 'Дүкөндүн аталышы *';
+
+  @override
+  String get syncEnvironment => 'Дүкөндүн түрү';
+
+  @override
+  String get syncEnvTestHint =>
+      'Үйрөнүү жана текшерүү үчүн. Демо-база ушуга гана туташат.';
+
+  @override
+  String get syncEnvProductionHint =>
+      'Чыныгы иш үчүн. Түрүн кийин өзгөртүүгө болбойт.';
+
+  @override
+  String get syncEnvProductionDemo => 'Демо-база үчүн жеткиликсиз';
+
+  @override
+  String get syncCreateAndUpload => 'Түзүү жана жүктөө';
+
+  @override
+  String get syncChooseStore => 'Дүкөндү тандаңыз';
+
+  @override
+  String get syncNoStores =>
+      'Бул аккаунтта дүкөндөр жок. Биринчи кассада дүкөн түзүңүз же ээсинен сизди кошууну сураныңыз.';
+
+  @override
+  String get syncUploading => 'Маалыматтар булутка жүктөлүүдө…';
+
+  @override
+  String get syncDownloading => 'Дүкөндүн маалыматтары жүктөлүүдө…';
+
+  @override
+  String syncConnectedToast(String store, String code) {
+    return 'Касса «$store» дүкөнүнө туташты. Кассанын коду: $code';
+  }
+
+  @override
+  String get syncIntegrityTitle => 'Бүтүндүктү текшерүү';
+
+  @override
+  String get syncIntegrityDesc =>
+      'Калдыктарды, карыздарды, бонустарды жана баланстарды кыймыл журналдары менен салыштырат. Эч нерсени өзгөртпөйт.';
+
+  @override
+  String get syncIntegrityRun => 'Текшерүү';
+
+  @override
+  String get syncIntegrityNotRun => 'Текшерүү азырынча жүргүзүлгөн эмес.';
+
+  @override
+  String get syncIntegrityOk =>
+      'Айырмачылыктар жок: бардык калдыктар жана баланстар журналдарга дал келет.';
+
+  @override
+  String syncIntegrityFound(String count) {
+    return 'Табылган айырмачылыктар: $count';
+  }
+
+  @override
+  String syncIntegrityValues(String cached, String derived) {
+    return 'сакталган $cached · журнал боюнча $derived';
+  }
+
+  @override
+  String get syncCacheStock => 'Товардын калдыгы';
+
+  @override
+  String get syncCacheDebt => 'Кардардын карызы';
+
+  @override
+  String get syncCacheBonus => 'Кардардын бонустары';
+
+  @override
+  String get syncCacheSupplierBalance => 'Жеткирүүчүнүн балансы';
+
+  @override
+  String get syncCacheGiftBalance => 'Сертификаттын балансы';
+
+  @override
+  String get syncCacheGiftStatus => 'Сертификаттын абалы';
+
+  @override
+  String get syncCachePoPaid => 'Буйрутма боюнча төлөнгөн';
+
+  @override
+  String get syncCachePoReceived => 'Буйрутманын позициясы боюнча алынган';
+
+  @override
+  String get syncCacheSaleRefunded => 'Чек боюнча кайтарылган';
+
+  @override
+  String get syncCacheSaleStatus => 'Чектин абалы';
+
+  @override
+  String get syncCacheReturnedQty => 'Чектин позициясы боюнча кайтарылган';
+
+  @override
+  String get syncConflictsTitle => 'Синхрондоо чыр-чатактары';
+
+  @override
+  String get syncConflictsSubtitle =>
+      'Кассалар ортосунда маалымат алмашууда автоматтык түрдө чечилген учурлар';
+
+  @override
+  String get syncConflictsEmpty => 'Чыр-чатактар жок';
+
+  @override
+  String get syncConflictsShowResolved => 'Каралгандарды көрсөтүү';
+
+  @override
+  String get syncConflictsMarkAll => 'Баарын каралды деп белгилөө';
+
+  @override
+  String get syncConflictMarkRead => 'Каралды деп белгилөө';
+
+  @override
+  String get syncConflictKindBarcode => 'Штрихкод кайталанды';
+
+  @override
+  String get syncConflictKindCard => 'Картанын номери кайталанды';
+
+  @override
+  String get syncConflictKindGiftCode => 'Сертификаттын коду кайталанды';
+
+  @override
+  String get syncConflictKindStock => 'Терс калдык';
+
+  @override
+  String get syncConflictKindGiftBalance => 'Сертификаттын терс балансы';
+
+  @override
+  String get syncConflictKindBonus => 'Терс бонустар';
+
+  @override
+  String get syncConflictKindNormalize => 'Жаңыртууда теңештирүү';
+
+  @override
+  String get syncConflictKindOther => 'Чыр-чатак';
+
+  @override
+  String syncIndicatorTooltip(String state, String count) {
+    return '$state. Жөнөтүүнү күтүүдө: $count. Синхрондоо үчүн басыңыз.';
+  }
+
+  @override
+  String syncSubjectReceipt(String number) {
+    return 'Чек №$number';
+  }
+
+  @override
+  String syncSubjectOrder(String number) {
+    return 'Буйрутма №$number';
+  }
+
+  @override
+  String get syncErrTestData =>
+      'Бул база тестик дүкөнгө туташкан болчу жана башка кассалардын тестик маалыматтары болушу мүмкүн. Андан иштеген дүкөн түзүүгө болбойт: тестик маалыматтары жок базаны колдонуңуз.';
+
+  @override
+  String syncConflictSubjectSale(String number) {
+    return 'чек №$number';
+  }
+
+  @override
+  String syncConflictSubjectDocNumber(String number) {
+    return 'документтин номери $number';
+  }
+
+  @override
+  String get syncConflictSubjectDevice => 'кассанын коду';
+
+  @override
+  String syncConflictNumberBody(String number, String newNumber) {
+    return '$number номери эки башка документте чыкты (мисалы, туташкан кассада резервдик көчүрмө калыбына келтирилгенден кийин). Жаңыраак документ $newNumber номерин алды.';
+  }
+
+  @override
+  String syncConflictVoidReturnBody(String number, String amount) {
+    return '№$number чек бир кассада жокко чыгарылды, ал эми башкасында ал боюнча $amount кайтаруу катталды. Акча жана товар эки жолу эсепке алынды: кассаны жана калдыктарды текшериңиз.';
+  }
+
+  @override
+  String syncConflictOverReturnBody(
+    String number,
+    String refunded,
+    String total,
+  ) {
+    return '№$number чек боюнча ар башка кассаларда сатылгандан көбүрөөк кайтарылды: чектин суммасы $total болгондо $refunded кайтарылды. Кассаны жана калдыктарды текшериңиз.';
+  }
+
+  @override
+  String syncConflictIdentityBody(String oldCode, String newCode) {
+    return 'Бул база иштей берген $oldCode кассасынын көчүрмөсү болуп чыкты (резервдик көчүрмө калыбына келтирилген же база башка компьютерге көчүрүлгөн). Көчүрмөдө жок маалыматтар булуттан жүктөлдү, ал эми касса документтердин номерлери кайталанбашы үчүн жаңы $newCode кодун алды.';
+  }
+
+  @override
+  String get syncConflictKindNumber => 'Документтин номери кайталанды';
+
+  @override
+  String get syncConflictKindVoidReturn =>
+      'Жокко чыгарылган чек боюнча кайтаруу';
+
+  @override
+  String get syncConflictKindOverReturn => 'Кайтаруу сатуудан көп';
+
+  @override
+  String get syncConflictKindIdentity => 'Кассанын базасынын көчүрмөсү';
+
+  @override
+  String get syncConflictKindDoubleVoid =>
+      'Сертификат эки жолу жокко чыгарылды';
+
+  @override
+  String syncConflictDoubleVoidBody(
+    String code,
+    String number,
+    String amount,
+    String shift,
+  ) {
+    return '$code сертификатын сатуу (№$number) эки кассада жокко чыгарылды жана акча ($amount) эки жолу кайтарылды. Бир гана жокко чыгаруу эсепке алынды: №$shift сменанын отчетунда бул кайтаруу жок. Кассаны текшериңиз.';
+  }
+
+  @override
+  String get syncConflictKindVoidRedeem =>
+      'Жокко чыгарылган сертификат менен төлөм';
+
+  @override
+  String syncConflictVoidRedeemBody(String code, String amount) {
+    return '$code сертификаты бир кассада жокко чыгарылды (акча кайтарылды), ал эми башкасында ал менен $amount төлөндү. Сумма эки жолу эсепке алынды: кассаны текшериңиз.';
+  }
+
+  @override
+  String syncJoinRejoinHint(String name) {
+    return 'Базада маалыматтар бар, ошондуктан бул касса ажыратылган «$name» дүкөнүнө гана туташууга болот.';
+  }
+
+  @override
+  String get syncConflictKindJoinUsers => 'Бул кассанын кызматкерлери өчүрүлдү';
+
+  @override
+  String get syncConflictSubjectJoinUsers => 'бул кассанын кызматкерлери';
+
+  @override
+  String syncConflictJoinUsersBody(String names) {
+    return 'Дүкөнгө туташканда бул кассада туташууга чейин түзүлгөн кызматкерлер өчүрүлдү: $names. Алардын PIN-коддору дүкөн кызматкерлеринин PIN-коддору менен дал келиши мүмкүн эле. Дүкөн кызматкерлеринин PIN-коддору менен кириңиз; керектүү кызматкерди жаңы PIN-код менен кайра күйгүзүүгө болот.';
+  }
 
   @override
   String get warrantyTitle => 'Кепилдик';

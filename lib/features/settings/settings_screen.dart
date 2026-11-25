@@ -15,6 +15,7 @@ import 'sections/devices_section.dart';
 import 'sections/loyalty_section.dart';
 import 'sections/sales_section.dart';
 import 'sections/store_section.dart';
+import 'sections/sync_section.dart';
 import 'settings_providers.dart';
 import 'settings_widgets.dart';
 
@@ -24,6 +25,7 @@ enum SettingsSection {
   sales(Icons.shopping_cart_outlined),
   loyalty(Icons.loyalty_outlined),
   devices(Icons.devices_outlined),
+  sync(Icons.cloud_sync_outlined),
   appearance(Icons.palette_outlined),
   backup(Icons.backup_outlined),
   data(Icons.dataset_outlined),
@@ -38,6 +40,7 @@ enum SettingsSection {
     sales => l.settingsSecSales,
     loyalty => l.settingsSecLoyalty,
     devices => l.settingsSecDevices,
+    sync => l.settingsSecSync,
     appearance => l.settingsSecAppearance,
     backup => l.settingsSecBackup,
     data => l.settingsSecData,
@@ -50,6 +53,7 @@ enum SettingsSection {
     sales => l.settingsSecSalesHint,
     loyalty => l.settingsSecLoyaltyHint,
     devices => l.settingsSecDevicesHint,
+    sync => l.settingsSecSyncHint,
     appearance => l.settingsSecAppearanceHint,
     backup => l.settingsSecBackupHint,
     data => l.settingsSecDataHint,
@@ -65,6 +69,7 @@ enum SettingsSection {
     sales => const SalesSection(),
     loyalty => const LoyaltySection(),
     devices => const DevicesSection(),
+    sync => const SyncSection(),
     appearance => const AppearanceSection(),
     backup => const BackupSection(),
     data => const DataSection(),

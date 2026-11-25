@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,6 +17,10 @@ import '../l10n/l10n.dart';
 import 'db/database.dart';
 import 'money.dart';
 import 'permissions.dart';
+import 'sync/supabase_transport.dart';
+import 'sync/sync_tables.dart' show deviceCodeSettingKey;
+import 'sync/sync_service.dart';
+import 'sync/transport.dart';
 
 /// Overridden in main() with the real database (and in tests with memory).
 final databaseProvider = Provider<AppDatabase>((ref) => throw UnimplementedError());
@@ -32,6 +38,56 @@ final receiptServiceProvider = Provider((ref) => ReceiptService(
     ));
 
 final giftCardServiceProvider = Provider((ref) => GiftCardService(ref.watch(databaseProvider)));
+
+// ------------------------------------------------------------------ sync (D-025)
+
+/// Creates the server transport for a configured endpoint: the Supabase
+/// transport (GoTrue + PostgREST RPC, `sync/supabase_transport.dart`) in the
+/// app. Null inside `flutter test`, so no test can ever reach a real server
+/// unless it overrides this provider (tests pass a fake server:
+/// `(endpoint) => server.client()`, or a MockClient-backed
+/// `SupabaseTransport`).
+final syncTransportFactoryProvider =
+    Provider<SyncTransportFactory?>((ref) => runningInFlutterTest ? null : SupabaseTransport.new);
+
+/// Periodic/debounced sync. Off inside `flutter test` unless overridden.
+final syncSchedulerEnabledProvider = Provider<bool>((ref) => !runningInFlutterTest);
+
+/// The sync engine (one per database). Not configured = does nothing.
+final syncServiceProvider = Provider<SyncService>((ref) {
+  final s = SyncService(
+    ref.watch(databaseProvider),
+    transportFactory: ref.watch(syncTransportFactoryProvider),
+    schedulerEnabled: ref.watch(syncSchedulerEnabledProvider),
+  );
+  ref.onDispose(s.dispose);
+  return s;
+});
+
+/// Live sync status (off / idle / syncing / error / offline, pending count,
+/// last sync, last error, store name, environment, device code). Building it
+/// runs `SyncService.init()` (loads state; starts the scheduler only when
+/// connected).
+class SyncStatusNotifier extends Notifier<SyncStatus> {
+  @override
+  SyncStatus build() {
+    final s = ref.watch(syncServiceProvider);
+    final sub = s.statusStream.listen((v) {
+      if (ref.mounted) state = v;
+    });
+    ref.onDispose(sub.cancel);
+    unawaited(s.init());
+    return s.status;
+  }
+}
+
+final syncStatusProvider = NotifierProvider<SyncStatusNotifier, SyncStatus>(SyncStatusNotifier.new);
+
+/// Transport of the configured endpoint, null until signed in / configured.
+final syncTransportProvider = Provider<SyncTransport?>((ref) {
+  ref.watch(syncStatusProvider);
+  return ref.watch(syncServiceProvider).transport;
+});
 
 /// All settings as a live map.
 final settingsProvider = StreamProvider<Map<String, String>>((ref) {
@@ -130,14 +186,34 @@ final setupDoneProvider = FutureProvider<bool>((ref) async {
   return done == '1';
 });
 
-/// Live current open shift (single-register mode: latest open shift).
-final currentShiftProvider = StreamProvider<Shift?>((ref) {
+/// This register's device code (`A`, `B`…; null while sync is off).
+final deviceCodeProvider = StreamProvider<String?>((ref) {
+  return ref.watch(databaseProvider).watchSettings().map((s) {
+    final v = s[deviceCodeSettingKey]?.trim();
+    return v == null || v.isEmpty ? null : v;
+  }).distinct();
+});
+
+/// Open shifts this database kept as its own after its code changed
+/// ([AppDatabase.ownShiftsSettingKey]).
+final ownShiftsProvider = StreamProvider<Set<String>>((ref) {
+  return ref
+      .watch(databaseProvider)
+      .watchSettings()
+      .map((s) => s[AppDatabase.ownShiftsSettingKey] ?? '')
+      .distinct()
+      .map(AppDatabase.parseOwnShifts);
+});
+
+/// Live current open shift of THIS register: the latest open shift; with
+/// sync on, the latest open shift with this register's code (other
+/// registers' shifts are synced here too, D-025) or one this database kept
+/// as its own when its code changed (same rule as ShiftService.currentShift).
+final currentShiftProvider = StreamProvider<Shift?>((ref) async* {
   final db = ref.watch(databaseProvider);
-  final q = db.select(db.shifts)
-    ..where((s) => s.status.equals('open'))
-    ..orderBy([(s) => OrderingTerm.desc(s.openedAt)])
-    ..limit(1);
-  return q.watchSingleOrNull();
+  final code = await ref.watch(deviceCodeProvider.future);
+  final own = await ref.watch(ownShiftsProvider.future);
+  yield* db.currentShiftQuery(code, own).watchSingleOrNull();
 });
 
 final unreadNotificationsProvider = StreamProvider<int>((ref) {

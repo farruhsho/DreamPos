@@ -1194,6 +1194,18 @@ abstract class AppLocalizations {
   /// **'Смена №{number} · с {time}'**
   String appShiftChip(String number, String time);
 
+  /// No description provided for @appShiftChipShort.
+  ///
+  /// In ru, this message translates to:
+  /// **'Смена №{number}'**
+  String appShiftChipShort(String number);
+
+  /// No description provided for @appShiftChipNumber.
+  ///
+  /// In ru, this message translates to:
+  /// **'№{number}'**
+  String appShiftChipNumber(String number);
+
   /// No description provided for @appProfile.
   ///
   /// In ru, this message translates to:
@@ -1824,6 +1836,24 @@ abstract class AppLocalizations {
   /// **'Укажите причину корректировки'**
   String get errAdjustmentReasonRequired;
 
+  /// No description provided for @errPinAmbiguous.
+  ///
+  /// In ru, this message translates to:
+  /// **'Этот PIN-код есть у нескольких сотрудников (после синхронизации касс). Войдите другим сотрудником и смените PIN одному из них.'**
+  String get errPinAmbiguous;
+
+  /// No description provided for @errPaymentOtherRegisterShift.
+  ///
+  /// In ru, this message translates to:
+  /// **'Оплата наличными внесена в смене другой кассы — отменить её можно только на той кассе'**
+  String get errPaymentOtherRegisterShift;
+
+  /// No description provided for @errReceiptOpeningNoReversal.
+  ///
+  /// In ru, this message translates to:
+  /// **'Приход №{number} — начальный остаток синхронизации, его нельзя сторнировать'**
+  String errReceiptOpeningNoReversal(String number);
+
   /// No description provided for @authEnterPin.
   ///
   /// In ru, this message translates to:
@@ -1949,6 +1979,60 @@ abstract class AppLocalizations {
   /// In ru, this message translates to:
   /// **'Владелец'**
   String get setupStepOwner;
+
+  /// No description provided for @setupOr.
+  ///
+  /// In ru, this message translates to:
+  /// **'или'**
+  String get setupOr;
+
+  /// No description provided for @setupJoinStore.
+  ///
+  /// In ru, this message translates to:
+  /// **'Подключиться к существующему магазину'**
+  String get setupJoinStore;
+
+  /// No description provided for @setupJoinStoreHint.
+  ///
+  /// In ru, this message translates to:
+  /// **'Если магазин уже работает в облаке на другой кассе: товары, клиенты и пользователи загрузятся оттуда.'**
+  String get setupJoinStoreHint;
+
+  /// No description provided for @setupJoinTitle.
+  ///
+  /// In ru, this message translates to:
+  /// **'Подключение к магазину'**
+  String get setupJoinTitle;
+
+  /// No description provided for @setupJoinIntro.
+  ///
+  /// In ru, this message translates to:
+  /// **'Войдите в аккаунт облака и выберите магазин. Его данные и пользователи загрузятся на эту кассу, затем войдите по PIN-коду.'**
+  String get setupJoinIntro;
+
+  /// No description provided for @setupJoinNewStore.
+  ///
+  /// In ru, this message translates to:
+  /// **'Создать новый магазин'**
+  String get setupJoinNewStore;
+
+  /// No description provided for @setupJoinDone.
+  ///
+  /// In ru, this message translates to:
+  /// **'Данные магазина загружены. Войдите по PIN-коду.'**
+  String get setupJoinDone;
+
+  /// No description provided for @setupJoinPartial.
+  ///
+  /// In ru, this message translates to:
+  /// **'Касса подключена, но загрузка данных не завершилась. Проверьте связь и повторите.'**
+  String get setupJoinPartial;
+
+  /// No description provided for @setupJoinRetry.
+  ///
+  /// In ru, this message translates to:
+  /// **'Повторить загрузку'**
+  String get setupJoinRetry;
 
   /// No description provided for @custCreated.
   ///
@@ -15099,6 +15183,18 @@ abstract class AppLocalizations {
   /// **'Образец чека'**
   String get settingsReceiptSample;
 
+  /// No description provided for @settingsSecSync.
+  ///
+  /// In ru, this message translates to:
+  /// **'Синхронизация'**
+  String get settingsSecSync;
+
+  /// No description provided for @settingsSecSyncHint.
+  ///
+  /// In ru, this message translates to:
+  /// **'Несколько касс, облако'**
+  String get settingsSecSyncHint;
+
   /// No description provided for @shiftClosingTitle.
   ///
   /// In ru, this message translates to:
@@ -17594,6 +17690,831 @@ abstract class AppLocalizations {
   /// In ru, this message translates to:
   /// **'система'**
   String get staffSystem;
+
+  /// No description provided for @syncErrNetwork.
+  ///
+  /// In ru, this message translates to:
+  /// **'Нет связи с сервером синхронизации. Проверьте интернет.'**
+  String get syncErrNetwork;
+
+  /// No description provided for @syncErrAuth.
+  ///
+  /// In ru, this message translates to:
+  /// **'Неверный email или пароль, либо сессия истекла. Войдите снова.'**
+  String get syncErrAuth;
+
+  /// No description provided for @syncErrForbidden.
+  ///
+  /// In ru, this message translates to:
+  /// **'Нет доступа к этому магазину.'**
+  String get syncErrForbidden;
+
+  /// No description provided for @syncErrEnvironmentMismatch.
+  ///
+  /// In ru, this message translates to:
+  /// **'Демо-база может подключаться только к тестовому магазину.'**
+  String get syncErrEnvironmentMismatch;
+
+  /// No description provided for @syncErrNotEmpty.
+  ///
+  /// In ru, this message translates to:
+  /// **'В этой базе уже есть данные (товары, продажи, клиенты). Подключить её к существующему магазину нельзя: две базы не объединяются. Используйте чистую установку.'**
+  String get syncErrNotEmpty;
+
+  /// No description provided for @syncErrServer.
+  ///
+  /// In ru, this message translates to:
+  /// **'Ошибка сервера синхронизации.'**
+  String get syncErrServer;
+
+  /// No description provided for @syncErrNotConfigured.
+  ///
+  /// In ru, this message translates to:
+  /// **'Синхронизация не настроена.'**
+  String get syncErrNotConfigured;
+
+  /// No description provided for @syncErrNotSignedIn.
+  ///
+  /// In ru, this message translates to:
+  /// **'Сначала войдите в аккаунт синхронизации.'**
+  String get syncErrNotSignedIn;
+
+  /// No description provided for @syncErrInsecureUrl.
+  ///
+  /// In ru, this message translates to:
+  /// **'Адрес сервера должен начинаться с https://.'**
+  String get syncErrInsecureUrl;
+
+  /// No description provided for @syncErrInvalidUrl.
+  ///
+  /// In ru, this message translates to:
+  /// **'Неверный адрес сервера.'**
+  String get syncErrInvalidUrl;
+
+  /// No description provided for @syncErrProtocol.
+  ///
+  /// In ru, this message translates to:
+  /// **'Неожиданный ответ сервера синхронизации.'**
+  String get syncErrProtocol;
+
+  /// No description provided for @syncErrStoreNotFound.
+  ///
+  /// In ru, this message translates to:
+  /// **'Магазин не найден.'**
+  String get syncErrStoreNotFound;
+
+  /// No description provided for @syncErrAlreadyConnected.
+  ///
+  /// In ru, this message translates to:
+  /// **'Эта база уже подключена к магазину. Сначала отключите синхронизацию.'**
+  String get syncErrAlreadyConnected;
+
+  /// No description provided for @syncPhaseOff.
+  ///
+  /// In ru, this message translates to:
+  /// **'Выключена'**
+  String get syncPhaseOff;
+
+  /// No description provided for @syncPhaseIdle.
+  ///
+  /// In ru, this message translates to:
+  /// **'Синхронизировано'**
+  String get syncPhaseIdle;
+
+  /// No description provided for @syncPhaseSyncing.
+  ///
+  /// In ru, this message translates to:
+  /// **'Синхронизация…'**
+  String get syncPhaseSyncing;
+
+  /// No description provided for @syncPhaseError.
+  ///
+  /// In ru, this message translates to:
+  /// **'Ошибка синхронизации'**
+  String get syncPhaseError;
+
+  /// No description provided for @syncPhaseOffline.
+  ///
+  /// In ru, this message translates to:
+  /// **'Нет связи'**
+  String get syncPhaseOffline;
+
+  /// No description provided for @syncEnvTest.
+  ///
+  /// In ru, this message translates to:
+  /// **'Тестовый магазин'**
+  String get syncEnvTest;
+
+  /// No description provided for @syncEnvProduction.
+  ///
+  /// In ru, this message translates to:
+  /// **'Рабочий магазин'**
+  String get syncEnvProduction;
+
+  /// Title of a local notification about a sync conflict; subject is one of the syncConflictSubject* texts.
+  ///
+  /// In ru, this message translates to:
+  /// **'Конфликт синхронизации: {subject}'**
+  String syncConflictTitle(String subject);
+
+  /// No description provided for @syncConflictSubjectBarcode.
+  ///
+  /// In ru, this message translates to:
+  /// **'штрихкод {code}'**
+  String syncConflictSubjectBarcode(String code);
+
+  /// No description provided for @syncConflictSubjectCard.
+  ///
+  /// In ru, this message translates to:
+  /// **'карта клиента {code}'**
+  String syncConflictSubjectCard(String code);
+
+  /// No description provided for @syncConflictSubjectGiftCard.
+  ///
+  /// In ru, this message translates to:
+  /// **'сертификат {code}'**
+  String syncConflictSubjectGiftCard(String code);
+
+  /// No description provided for @syncConflictSubjectStock.
+  ///
+  /// In ru, this message translates to:
+  /// **'остаток «{name}»'**
+  String syncConflictSubjectStock(String name);
+
+  /// No description provided for @syncConflictSubjectBonus.
+  ///
+  /// In ru, this message translates to:
+  /// **'бонусы «{name}»'**
+  String syncConflictSubjectBonus(String name);
+
+  /// No description provided for @syncConflictBarcodeBody.
+  ///
+  /// In ru, this message translates to:
+  /// **'Штрихкод {code} был назначен двум товарам на разных кассах. Он оставлен у товара «{winner}», у товара «{loser}» штрихкод очищен.'**
+  String syncConflictBarcodeBody(String code, String winner, String loser);
+
+  /// No description provided for @syncConflictCardBody.
+  ///
+  /// In ru, this message translates to:
+  /// **'Номер карты {code} был назначен двум клиентам на разных кассах. Он оставлен у клиента «{winner}», у клиента «{loser}» номер карты очищен.'**
+  String syncConflictCardBody(String code, String winner, String loser);
+
+  /// No description provided for @syncConflictGiftCodeBody.
+  ///
+  /// In ru, this message translates to:
+  /// **'Код сертификата {code} совпал на разных кассах. Дубликат заблокирован и получил код {newCode}.'**
+  String syncConflictGiftCodeBody(String code, String newCode);
+
+  /// No description provided for @syncConflictStockBody.
+  ///
+  /// In ru, this message translates to:
+  /// **'Остаток товара «{name}» стал отрицательным ({qty}) после продаж на разных кассах. Проверьте остаток.'**
+  String syncConflictStockBody(String name, String qty);
+
+  /// No description provided for @syncConflictGiftBalanceBody.
+  ///
+  /// In ru, this message translates to:
+  /// **'Сертификат {code} списан на разных кассах больше номинала: баланс {amount}.'**
+  String syncConflictGiftBalanceBody(String code, String amount);
+
+  /// No description provided for @syncConflictBonusBody.
+  ///
+  /// In ru, this message translates to:
+  /// **'Бонусы клиента «{name}» стали отрицательными ({amount}) после операций на разных кассах.'**
+  String syncConflictBonusBody(String name, String amount);
+
+  /// No description provided for @syncSectionDesc.
+  ///
+  /// In ru, this message translates to:
+  /// **'Несколько касс одного магазина работают с общими товарами, клиентами и продажами через облако. Без интернета касса продолжает работать, изменения отправятся при появлении связи.'**
+  String get syncSectionDesc;
+
+  /// No description provided for @syncUnavailable.
+  ///
+  /// In ru, this message translates to:
+  /// **'В этой версии программы синхронизация недоступна.'**
+  String get syncUnavailable;
+
+  /// No description provided for @syncOffTitle.
+  ///
+  /// In ru, this message translates to:
+  /// **'Синхронизация выключена'**
+  String get syncOffTitle;
+
+  /// No description provided for @syncOffMessage.
+  ///
+  /// In ru, this message translates to:
+  /// **'Эта касса работает отдельно. Подключите её к магазину в облаке, чтобы все кассы видели общие данные.'**
+  String get syncOffMessage;
+
+  /// No description provided for @syncConnect.
+  ///
+  /// In ru, this message translates to:
+  /// **'Подключить'**
+  String get syncConnect;
+
+  /// No description provided for @syncSyncNow.
+  ///
+  /// In ru, this message translates to:
+  /// **'Синхронизировать сейчас'**
+  String get syncSyncNow;
+
+  /// No description provided for @syncDisconnect.
+  ///
+  /// In ru, this message translates to:
+  /// **'Отключить'**
+  String get syncDisconnect;
+
+  /// No description provided for @syncSignInAgain.
+  ///
+  /// In ru, this message translates to:
+  /// **'Войти снова'**
+  String get syncSignInAgain;
+
+  /// No description provided for @syncStoreLabel.
+  ///
+  /// In ru, this message translates to:
+  /// **'Магазин'**
+  String get syncStoreLabel;
+
+  /// No description provided for @syncDeviceCode.
+  ///
+  /// In ru, this message translates to:
+  /// **'Код кассы'**
+  String get syncDeviceCode;
+
+  /// No description provided for @syncDeviceCodeExample.
+  ///
+  /// In ru, this message translates to:
+  /// **'номера чеков: {example}'**
+  String syncDeviceCodeExample(String example);
+
+  /// No description provided for @syncPending.
+  ///
+  /// In ru, this message translates to:
+  /// **'Ожидают отправки'**
+  String get syncPending;
+
+  /// No description provided for @syncLastSync.
+  ///
+  /// In ru, this message translates to:
+  /// **'Последняя синхронизация'**
+  String get syncLastSync;
+
+  /// No description provided for @syncNever.
+  ///
+  /// In ru, this message translates to:
+  /// **'ещё не было'**
+  String get syncNever;
+
+  /// No description provided for @syncAccount.
+  ///
+  /// In ru, this message translates to:
+  /// **'Аккаунт'**
+  String get syncAccount;
+
+  /// No description provided for @syncNextRetry.
+  ///
+  /// In ru, this message translates to:
+  /// **'Следующая попытка в {time}'**
+  String syncNextRetry(String time);
+
+  /// No description provided for @syncDoneToast.
+  ///
+  /// In ru, this message translates to:
+  /// **'Синхронизация завершена: отправлено {pushed}, получено {pulled}'**
+  String syncDoneToast(String pushed, String pulled);
+
+  /// No description provided for @syncDisconnectTitle.
+  ///
+  /// In ru, this message translates to:
+  /// **'Отключить синхронизацию?'**
+  String get syncDisconnectTitle;
+
+  /// No description provided for @syncDisconnectMessage.
+  ///
+  /// In ru, this message translates to:
+  /// **'Касса перестанет обмениваться данными с магазином «{store}». Все данные на этой кассе сохранятся, номера чеков останутся уникальными. Подключиться снова можно в любой момент.'**
+  String syncDisconnectMessage(String store);
+
+  /// No description provided for @syncDisconnectedToast.
+  ///
+  /// In ru, this message translates to:
+  /// **'Синхронизация отключена. Данные на кассе сохранены.'**
+  String get syncDisconnectedToast;
+
+  /// No description provided for @syncConnectTitle.
+  ///
+  /// In ru, this message translates to:
+  /// **'Подключение к облаку'**
+  String get syncConnectTitle;
+
+  /// No description provided for @syncSignInIntro.
+  ///
+  /// In ru, this message translates to:
+  /// **'Введите адрес сервера и данные аккаунта владельца магазина.'**
+  String get syncSignInIntro;
+
+  /// No description provided for @syncServerUrl.
+  ///
+  /// In ru, this message translates to:
+  /// **'Адрес сервера *'**
+  String get syncServerUrl;
+
+  /// No description provided for @syncServerUrlHint.
+  ///
+  /// In ru, this message translates to:
+  /// **'https://…supabase.co'**
+  String get syncServerUrlHint;
+
+  /// No description provided for @syncAnonKey.
+  ///
+  /// In ru, this message translates to:
+  /// **'Ключ доступа (anon key) *'**
+  String get syncAnonKey;
+
+  /// No description provided for @syncEmail.
+  ///
+  /// In ru, this message translates to:
+  /// **'Email *'**
+  String get syncEmail;
+
+  /// No description provided for @syncPassword.
+  ///
+  /// In ru, this message translates to:
+  /// **'Пароль *'**
+  String get syncPassword;
+
+  /// No description provided for @syncPasswordShow.
+  ///
+  /// In ru, this message translates to:
+  /// **'Показать пароль'**
+  String get syncPasswordShow;
+
+  /// No description provided for @syncPasswordHide.
+  ///
+  /// In ru, this message translates to:
+  /// **'Скрыть пароль'**
+  String get syncPasswordHide;
+
+  /// No description provided for @syncPasswordNote.
+  ///
+  /// In ru, this message translates to:
+  /// **'Пароль не сохраняется на кассе.'**
+  String get syncPasswordNote;
+
+  /// No description provided for @syncSignIn.
+  ///
+  /// In ru, this message translates to:
+  /// **'Войти'**
+  String get syncSignIn;
+
+  /// No description provided for @syncInvalidEmail.
+  ///
+  /// In ru, this message translates to:
+  /// **'Неверный email'**
+  String get syncInvalidEmail;
+
+  /// No description provided for @syncSignedInAs.
+  ///
+  /// In ru, this message translates to:
+  /// **'Вход выполнен: {email}'**
+  String syncSignedInAs(String email);
+
+  /// No description provided for @syncChooseAction.
+  ///
+  /// In ru, this message translates to:
+  /// **'Что сделать с этой кассой?'**
+  String get syncChooseAction;
+
+  /// No description provided for @syncCreateStore.
+  ///
+  /// In ru, this message translates to:
+  /// **'Создать магазин в облаке'**
+  String get syncCreateStore;
+
+  /// No description provided for @syncCreateStoreHint.
+  ///
+  /// In ru, this message translates to:
+  /// **'Эта касса станет первой. Все её данные будут загружены в облако.'**
+  String get syncCreateStoreHint;
+
+  /// No description provided for @syncJoinStore.
+  ///
+  /// In ru, this message translates to:
+  /// **'Подключить к существующему'**
+  String get syncJoinStore;
+
+  /// No description provided for @syncJoinStoreHint.
+  ///
+  /// In ru, this message translates to:
+  /// **'Данные магазина будут загружены на эту кассу. Только для пустой базы.'**
+  String get syncJoinStoreHint;
+
+  /// No description provided for @syncStoreName.
+  ///
+  /// In ru, this message translates to:
+  /// **'Название магазина *'**
+  String get syncStoreName;
+
+  /// No description provided for @syncEnvironment.
+  ///
+  /// In ru, this message translates to:
+  /// **'Тип магазина'**
+  String get syncEnvironment;
+
+  /// No description provided for @syncEnvTestHint.
+  ///
+  /// In ru, this message translates to:
+  /// **'Для обучения и проверки. Демо-база может подключаться только сюда.'**
+  String get syncEnvTestHint;
+
+  /// No description provided for @syncEnvProductionHint.
+  ///
+  /// In ru, this message translates to:
+  /// **'Для реальной работы. Тип нельзя изменить позже.'**
+  String get syncEnvProductionHint;
+
+  /// No description provided for @syncEnvProductionDemo.
+  ///
+  /// In ru, this message translates to:
+  /// **'Недоступно для демо-базы'**
+  String get syncEnvProductionDemo;
+
+  /// No description provided for @syncCreateAndUpload.
+  ///
+  /// In ru, this message translates to:
+  /// **'Создать и загрузить'**
+  String get syncCreateAndUpload;
+
+  /// No description provided for @syncChooseStore.
+  ///
+  /// In ru, this message translates to:
+  /// **'Выберите магазин'**
+  String get syncChooseStore;
+
+  /// No description provided for @syncNoStores.
+  ///
+  /// In ru, this message translates to:
+  /// **'У этого аккаунта нет магазинов. Создайте магазин на первой кассе или попросите владельца добавить вас.'**
+  String get syncNoStores;
+
+  /// No description provided for @syncUploading.
+  ///
+  /// In ru, this message translates to:
+  /// **'Загружаем данные в облако…'**
+  String get syncUploading;
+
+  /// No description provided for @syncDownloading.
+  ///
+  /// In ru, this message translates to:
+  /// **'Загружаем данные магазина…'**
+  String get syncDownloading;
+
+  /// No description provided for @syncConnectedToast.
+  ///
+  /// In ru, this message translates to:
+  /// **'Касса подключена к магазину «{store}». Код кассы: {code}'**
+  String syncConnectedToast(String store, String code);
+
+  /// No description provided for @syncIntegrityTitle.
+  ///
+  /// In ru, this message translates to:
+  /// **'Проверка целостности'**
+  String get syncIntegrityTitle;
+
+  /// No description provided for @syncIntegrityDesc.
+  ///
+  /// In ru, this message translates to:
+  /// **'Сверяет остатки, долги, бонусы и балансы с журналами движений. Ничего не меняет.'**
+  String get syncIntegrityDesc;
+
+  /// No description provided for @syncIntegrityRun.
+  ///
+  /// In ru, this message translates to:
+  /// **'Проверить'**
+  String get syncIntegrityRun;
+
+  /// No description provided for @syncIntegrityNotRun.
+  ///
+  /// In ru, this message translates to:
+  /// **'Проверка ещё не запускалась.'**
+  String get syncIntegrityNotRun;
+
+  /// No description provided for @syncIntegrityOk.
+  ///
+  /// In ru, this message translates to:
+  /// **'Расхождений нет: все остатки и балансы совпадают с журналами.'**
+  String get syncIntegrityOk;
+
+  /// No description provided for @syncIntegrityFound.
+  ///
+  /// In ru, this message translates to:
+  /// **'Найдено расхождений: {count}'**
+  String syncIntegrityFound(String count);
+
+  /// No description provided for @syncIntegrityValues.
+  ///
+  /// In ru, this message translates to:
+  /// **'сохранено {cached} · по журналу {derived}'**
+  String syncIntegrityValues(String cached, String derived);
+
+  /// No description provided for @syncCacheStock.
+  ///
+  /// In ru, this message translates to:
+  /// **'Остаток товара'**
+  String get syncCacheStock;
+
+  /// No description provided for @syncCacheDebt.
+  ///
+  /// In ru, this message translates to:
+  /// **'Долг клиента'**
+  String get syncCacheDebt;
+
+  /// No description provided for @syncCacheBonus.
+  ///
+  /// In ru, this message translates to:
+  /// **'Бонусы клиента'**
+  String get syncCacheBonus;
+
+  /// No description provided for @syncCacheSupplierBalance.
+  ///
+  /// In ru, this message translates to:
+  /// **'Баланс поставщика'**
+  String get syncCacheSupplierBalance;
+
+  /// No description provided for @syncCacheGiftBalance.
+  ///
+  /// In ru, this message translates to:
+  /// **'Баланс сертификата'**
+  String get syncCacheGiftBalance;
+
+  /// No description provided for @syncCacheGiftStatus.
+  ///
+  /// In ru, this message translates to:
+  /// **'Статус сертификата'**
+  String get syncCacheGiftStatus;
+
+  /// No description provided for @syncCachePoPaid.
+  ///
+  /// In ru, this message translates to:
+  /// **'Оплачено по заказу'**
+  String get syncCachePoPaid;
+
+  /// No description provided for @syncCachePoReceived.
+  ///
+  /// In ru, this message translates to:
+  /// **'Получено по позиции заказа'**
+  String get syncCachePoReceived;
+
+  /// No description provided for @syncCacheSaleRefunded.
+  ///
+  /// In ru, this message translates to:
+  /// **'Возвращено по чеку'**
+  String get syncCacheSaleRefunded;
+
+  /// No description provided for @syncCacheSaleStatus.
+  ///
+  /// In ru, this message translates to:
+  /// **'Статус чека'**
+  String get syncCacheSaleStatus;
+
+  /// No description provided for @syncCacheReturnedQty.
+  ///
+  /// In ru, this message translates to:
+  /// **'Возвращено по позиции чека'**
+  String get syncCacheReturnedQty;
+
+  /// No description provided for @syncConflictsTitle.
+  ///
+  /// In ru, this message translates to:
+  /// **'Конфликты синхронизации'**
+  String get syncConflictsTitle;
+
+  /// No description provided for @syncConflictsSubtitle.
+  ///
+  /// In ru, this message translates to:
+  /// **'Что пришлось решить автоматически при обмене данными между кассами'**
+  String get syncConflictsSubtitle;
+
+  /// No description provided for @syncConflictsEmpty.
+  ///
+  /// In ru, this message translates to:
+  /// **'Конфликтов нет'**
+  String get syncConflictsEmpty;
+
+  /// No description provided for @syncConflictsShowResolved.
+  ///
+  /// In ru, this message translates to:
+  /// **'Показать просмотренные'**
+  String get syncConflictsShowResolved;
+
+  /// No description provided for @syncConflictsMarkAll.
+  ///
+  /// In ru, this message translates to:
+  /// **'Отметить все просмотренными'**
+  String get syncConflictsMarkAll;
+
+  /// No description provided for @syncConflictMarkRead.
+  ///
+  /// In ru, this message translates to:
+  /// **'Отметить просмотренным'**
+  String get syncConflictMarkRead;
+
+  /// No description provided for @syncConflictKindBarcode.
+  ///
+  /// In ru, this message translates to:
+  /// **'Совпадение штрихкода'**
+  String get syncConflictKindBarcode;
+
+  /// No description provided for @syncConflictKindCard.
+  ///
+  /// In ru, this message translates to:
+  /// **'Совпадение номера карты'**
+  String get syncConflictKindCard;
+
+  /// No description provided for @syncConflictKindGiftCode.
+  ///
+  /// In ru, this message translates to:
+  /// **'Совпадение кода сертификата'**
+  String get syncConflictKindGiftCode;
+
+  /// No description provided for @syncConflictKindStock.
+  ///
+  /// In ru, this message translates to:
+  /// **'Отрицательный остаток'**
+  String get syncConflictKindStock;
+
+  /// No description provided for @syncConflictKindGiftBalance.
+  ///
+  /// In ru, this message translates to:
+  /// **'Отрицательный баланс сертификата'**
+  String get syncConflictKindGiftBalance;
+
+  /// No description provided for @syncConflictKindBonus.
+  ///
+  /// In ru, this message translates to:
+  /// **'Отрицательные бонусы'**
+  String get syncConflictKindBonus;
+
+  /// No description provided for @syncConflictKindNormalize.
+  ///
+  /// In ru, this message translates to:
+  /// **'Выравнивание при обновлении'**
+  String get syncConflictKindNormalize;
+
+  /// No description provided for @syncConflictKindOther.
+  ///
+  /// In ru, this message translates to:
+  /// **'Конфликт'**
+  String get syncConflictKindOther;
+
+  /// No description provided for @syncIndicatorTooltip.
+  ///
+  /// In ru, this message translates to:
+  /// **'{state}. Ожидают отправки: {count}. Нажмите, чтобы синхронизировать.'**
+  String syncIndicatorTooltip(String state, String count);
+
+  /// No description provided for @syncSubjectReceipt.
+  ///
+  /// In ru, this message translates to:
+  /// **'Чек №{number}'**
+  String syncSubjectReceipt(String number);
+
+  /// No description provided for @syncSubjectOrder.
+  ///
+  /// In ru, this message translates to:
+  /// **'Заказ №{number}'**
+  String syncSubjectOrder(String number);
+
+  /// No description provided for @syncErrTestData.
+  ///
+  /// In ru, this message translates to:
+  /// **'Эта база была подключена к тестовому магазину и может содержать тестовые данные других касс. Создать из неё рабочий магазин нельзя: используйте базу без тестовых данных.'**
+  String get syncErrTestData;
+
+  /// No description provided for @syncConflictSubjectSale.
+  ///
+  /// In ru, this message translates to:
+  /// **'чек №{number}'**
+  String syncConflictSubjectSale(String number);
+
+  /// No description provided for @syncConflictSubjectDocNumber.
+  ///
+  /// In ru, this message translates to:
+  /// **'номер документа {number}'**
+  String syncConflictSubjectDocNumber(String number);
+
+  /// No description provided for @syncConflictSubjectDevice.
+  ///
+  /// In ru, this message translates to:
+  /// **'код кассы'**
+  String get syncConflictSubjectDevice;
+
+  /// No description provided for @syncConflictNumberBody.
+  ///
+  /// In ru, this message translates to:
+  /// **'Номер {number} оказался у двух разных документов (например, после восстановления резервной копии на подключённой кассе). Более новый документ получил номер {newNumber}.'**
+  String syncConflictNumberBody(String number, String newNumber);
+
+  /// No description provided for @syncConflictVoidReturnBody.
+  ///
+  /// In ru, this message translates to:
+  /// **'Чек №{number} аннулирован на одной кассе, а на другой по нему оформлен возврат на {amount}. Деньги и товар учтены дважды: проверьте кассу и остатки.'**
+  String syncConflictVoidReturnBody(String number, String amount);
+
+  /// No description provided for @syncConflictOverReturnBody.
+  ///
+  /// In ru, this message translates to:
+  /// **'По чеку №{number} на разных кассах вернули больше, чем было продано: возвраты на {refunded} при сумме чека {total}. Проверьте кассу и остатки.'**
+  String syncConflictOverReturnBody(
+    String number,
+    String refunded,
+    String total,
+  );
+
+  /// No description provided for @syncConflictIdentityBody.
+  ///
+  /// In ru, this message translates to:
+  /// **'Эта база оказалась копией кассы {oldCode}, которая продолжала работать (восстановлена резервная копия или база скопирована на другой компьютер). Данные, которых не было в копии, загружены из облака, а касса получила новый код {newCode}, чтобы номера документов не повторялись.'**
+  String syncConflictIdentityBody(String oldCode, String newCode);
+
+  /// No description provided for @syncConflictKindNumber.
+  ///
+  /// In ru, this message translates to:
+  /// **'Совпадение номера документа'**
+  String get syncConflictKindNumber;
+
+  /// No description provided for @syncConflictKindVoidReturn.
+  ///
+  /// In ru, this message translates to:
+  /// **'Возврат по аннулированному чеку'**
+  String get syncConflictKindVoidReturn;
+
+  /// No description provided for @syncConflictKindOverReturn.
+  ///
+  /// In ru, this message translates to:
+  /// **'Возврат больше продажи'**
+  String get syncConflictKindOverReturn;
+
+  /// No description provided for @syncConflictKindIdentity.
+  ///
+  /// In ru, this message translates to:
+  /// **'Копия базы кассы'**
+  String get syncConflictKindIdentity;
+
+  /// No description provided for @syncConflictKindDoubleVoid.
+  ///
+  /// In ru, this message translates to:
+  /// **'Двойное аннулирование сертификата'**
+  String get syncConflictKindDoubleVoid;
+
+  /// No description provided for @syncConflictDoubleVoidBody.
+  ///
+  /// In ru, this message translates to:
+  /// **'Продажа сертификата {code} (№{number}) аннулирована на двух кассах, и деньги ({amount}) вернули дважды. Учтено одно аннулирование: в отчёте смены №{shift} этого возврата нет. Проверьте кассу.'**
+  String syncConflictDoubleVoidBody(
+    String code,
+    String number,
+    String amount,
+    String shift,
+  );
+
+  /// No description provided for @syncConflictKindVoidRedeem.
+  ///
+  /// In ru, this message translates to:
+  /// **'Оплата аннулированным сертификатом'**
+  String get syncConflictKindVoidRedeem;
+
+  /// No description provided for @syncConflictVoidRedeemBody.
+  ///
+  /// In ru, this message translates to:
+  /// **'Сертификат {code} аннулирован на одной кассе (деньги возвращены), а на другой им оплатили {amount}. Сумма учтена дважды: проверьте кассу.'**
+  String syncConflictVoidRedeemBody(String code, String amount);
+
+  /// No description provided for @syncJoinRejoinHint.
+  ///
+  /// In ru, this message translates to:
+  /// **'В базе уже есть данные, поэтому подключиться можно только к магазину «{name}», от которого эта касса была отключена.'**
+  String syncJoinRejoinHint(String name);
+
+  /// No description provided for @syncConflictKindJoinUsers.
+  ///
+  /// In ru, this message translates to:
+  /// **'Сотрудники этой кассы отключены'**
+  String get syncConflictKindJoinUsers;
+
+  /// No description provided for @syncConflictSubjectJoinUsers.
+  ///
+  /// In ru, this message translates to:
+  /// **'сотрудники этой кассы'**
+  String get syncConflictSubjectJoinUsers;
+
+  /// No description provided for @syncConflictJoinUsersBody.
+  ///
+  /// In ru, this message translates to:
+  /// **'При подключении к магазину сотрудники, созданные на этой кассе до подключения, отключены: {names}. Их PIN-коды могли совпасть с PIN-кодами сотрудников магазина. Входите PIN-кодами сотрудников магазина; нужного сотрудника можно включить заново с новым PIN-кодом.'**
+  String syncConflictJoinUsersBody(String names);
 
   /// No description provided for @warrantyTitle.
   ///

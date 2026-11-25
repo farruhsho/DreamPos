@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/db/database.dart';
+import '../../core/doc_number.dart';
 import '../../core/money.dart';
 import '../../core/permissions.dart';
 import '../../core/providers.dart';
@@ -447,7 +448,7 @@ class _Orders extends ConsumerWidget {
               itemBuilder: (_, i) {
                 final o = list[i];
                 return ListTile(
-                  title: Text(l.purOrderNumber('${o.number}')),
+                  title: Text(l.purOrderNumber(docNo(o.number, o.deviceCode))),
                   subtitle: Text(formatDate(o.createdAt)),
                   // Amount right-aligned next to the status, like other lists.
                   trailing: Row(

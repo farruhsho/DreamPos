@@ -389,7 +389,7 @@ void main() {
     final db = AppDatabase(NativeDatabase(file, setup: registerSqlFunctions));
     addTearDown(db.close);
     final version = await db.customSelect('PRAGMA user_version').getSingle();
-    expect(version.data.values.first, 4);
+    expect(version.data.values.first, 7);
     final idx = await db
         .customSelect("SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE '%gift_sale%'")
         .get();
@@ -442,6 +442,6 @@ void main() {
     addTearDown(db.close);
     expect(await db.select(db.giftCardSalePayments).get(), isEmpty);
     final version = await db.customSelect('PRAGMA user_version').getSingle();
-    expect(version.data.values.first, 4);
+    expect(version.data.values.first, 7);
   });
 }

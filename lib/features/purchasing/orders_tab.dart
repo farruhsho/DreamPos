@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/db/database.dart';
+import '../doc_number_sql.dart';
 import '../../core/money.dart';
 import '../../core/permissions.dart';
 import '../../core/providers.dart';
@@ -31,7 +32,7 @@ StatusChip poStatusChip(String s) => StatusChip(poStatusLabels[s] ?? s, color: p
 Future<String?> showPoEditor(BuildContext context, {PurchaseOrder? order, String? supplierId}) =>
     showFormDialog<String>(
       context,
-      title: order == null ? context.l10n.purNewPo : context.l10n.purOrderNumber('${order.number}'),
+      title: order == null ? context.l10n.purNewPo : context.l10n.purOrderNumber(docNo(order.number, order.deviceCode)),
       width: 960,
       child: PoEditor(order: order, supplierId: supplierId),
     );
@@ -141,7 +142,8 @@ class _OrdersTabState extends ConsumerState<OrdersTab> {
                       if (_status != null && shownStatus(o) != _status) return false;
                     }
                     if (q.isEmpty) return true;
-                    return '${o.number}'.contains(q) || (names[o.supplierId] ?? '').toLowerCase().contains(q);
+                    return docNo(o.number, o.deviceCode).toLowerCase().contains(q) ||
+                        docNoMatches(o.number, o.deviceCode, q) || (names[o.supplierId] ?? '').toLowerCase().contains(q);
                   }).toList();
                   if (orders.isEmpty) {
                     return EmptyState(
@@ -160,7 +162,7 @@ class _OrdersTabState extends ConsumerState<OrdersTab> {
                       return ListTile(
                         selected: wide && o.id == _selected,
                         title: Text(
-                          l.purOrderListTitle('${o.number}', names[o.supplierId] ?? '—'),
+                          l.purOrderListTitle(docNo(o.number, o.deviceCode), names[o.supplierId] ?? '—'),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -240,7 +242,7 @@ class OrderDetail extends ConsumerWidget {
                       () => ref
                           .read(purchasingRepoProvider)
                           .markOrdered(o.id, userId: ref.read(sessionProvider)?.user.id),
-                      success: l.purOrderSent('${o.number}'),
+                      success: l.purOrderSent(docNo(o.number, o.deviceCode)),
                     ),
                     icon: const Icon(Icons.send_outlined),
                     label: Text(l.purMarkOrdered),
@@ -351,7 +353,7 @@ class OrderDetail extends ConsumerWidget {
                         children: [
                           Row(
                             children: [
-                              Flexible(child: Text(l.purOrderNumber('${o.number}'), style: t.textTheme.headlineSmall)),
+                              Flexible(child: Text(l.purOrderNumber(docNo(o.number, o.deviceCode)), style: t.textTheme.headlineSmall)),
                               const SizedBox(width: Gap.s),
                               poStatusChip(shownStatus),
                             ],
@@ -415,7 +417,7 @@ class OrderDetail extends ConsumerWidget {
     final l = context.l10n;
     final reason = await promptText(
       context,
-      title: partial ? l.purCloseOrderTitle('${o.number}') : l.purCancelOrderTitle('${o.number}'),
+      title: partial ? l.purCloseOrderTitle(docNo(o.number, o.deviceCode)) : l.purCancelOrderTitle(docNo(o.number, o.deviceCode)),
       label: l.commonReason,
       required: false,
     );
@@ -485,7 +487,7 @@ class _ReceiptTile extends StatelessWidget {
         reversed ? Icons.undo : Icons.move_to_inbox_outlined,
         color: reversed ? AppColors.danger : AppColors.success,
       ),
-      title: Text(l.purReceiptNumber('${r.number}'), style: TextStyle(decoration: reversed ? TextDecoration.lineThrough : null)),
+      title: Text(l.purReceiptNumber(docNo(r.number, r.deviceCode)), style: TextStyle(decoration: reversed ? TextDecoration.lineThrough : null)),
       subtitle: Text(
         [formatDateTime(r.createdAt), if (r.supplierInvoice != null) l.purInvoiceShort(r.supplierInvoice!)].join(' · '),
         maxLines: 1,
@@ -948,7 +950,7 @@ class _PoEditorState extends ConsumerState<PoEditor> {
 Future<void> showReceiveDialog(BuildContext context, PurchaseOrder o) =>
     showFormDialog<void>(
       context,
-      title: context.l10n.purReceiveTitle('${o.number}'),
+      title: context.l10n.purReceiveTitle(docNo(o.number, o.deviceCode)),
       width: 860,
       child: _ReceiveForm(o),
     );
@@ -1041,7 +1043,7 @@ class _ReceiveFormState extends ConsumerState<_ReceiveForm> {
       if (!mounted) return;
       showSuccess(
         context,
-        loc.purReceiptPosted('${r.receipt.number}', Money.format(r.result.value)) +
+        loc.purReceiptPosted(docNo(r.receipt.number, deviceCodeOf(ref.read(settingsProvider).value)), Money.format(r.result.value)) +
             (r.result.fullyReceived ? loc.purFullyReceivedSuffix : ''),
       );
       Navigator.pop(context);

@@ -653,6 +653,16 @@ class AppLocalizationsUz extends AppLocalizations {
   }
 
   @override
+  String appShiftChipShort(String number) {
+    return 'Smena №$number';
+  }
+
+  @override
+  String appShiftChipNumber(String number) {
+    return '№$number';
+  }
+
+  @override
   String get appProfile => 'Profil';
 
   @override
@@ -1041,6 +1051,19 @@ class AppLocalizationsUz extends AppLocalizations {
   String get errAdjustmentReasonRequired => 'Tuzatish sababini koʻrsating';
 
   @override
+  String get errPinAmbiguous =>
+      'Bu PIN-kod bir nechta xodimda bor (kassalar sinxronlangandan keyin). Boshqa xodim sifatida kiring va ulardan biriga PIN-kodni almashtiring.';
+
+  @override
+  String get errPaymentOtherRegisterShift =>
+      'Naqd toʻlov boshqa kassaning smenasida kiritilgan — uni faqat oʻsha kassada bekor qilish mumkin';
+
+  @override
+  String errReceiptOpeningNoReversal(String number) {
+    return 'Kirim №$number — sinxronlash boshlangʻich qoldigʻi, uni storno qilib boʻlmaydi';
+  }
+
+  @override
   String get authEnterPin => 'PIN-kodni kiriting';
 
   @override
@@ -1107,6 +1130,37 @@ class AppLocalizationsUz extends AppLocalizations {
 
   @override
   String get setupStepOwner => 'Egasi';
+
+  @override
+  String get setupOr => 'yoki';
+
+  @override
+  String get setupJoinStore => 'Mavjud doʻkonga ulanish';
+
+  @override
+  String get setupJoinStoreHint =>
+      'Agar doʻkon boshqa kassada bulutda ishlayotgan boʻlsa: tovarlar, mijozlar va foydalanuvchilar oʻsha yerdan yuklanadi.';
+
+  @override
+  String get setupJoinTitle => 'Doʻkonga ulanish';
+
+  @override
+  String get setupJoinIntro =>
+      'Bulut hisobiga kiring va doʻkonni tanlang. Uning maʼlumotlari va foydalanuvchilari bu kassaga yuklanadi, soʻng PIN-kod bilan kiring.';
+
+  @override
+  String get setupJoinNewStore => 'Yangi doʻkon yaratish';
+
+  @override
+  String get setupJoinDone =>
+      'Doʻkon maʼlumotlari yuklandi. PIN-kod bilan kiring.';
+
+  @override
+  String get setupJoinPartial =>
+      'Kassa ulandi, lekin maʼlumotlarni yuklash tugamadi. Aloqani tekshirib, qayta urinib koʻring.';
+
+  @override
+  String get setupJoinRetry => 'Yuklashni takrorlash';
 
   @override
   String get custCreated => 'Mijoz yaratildi';
@@ -9085,6 +9139,12 @@ class AppLocalizationsUz extends AppLocalizations {
   String get settingsReceiptSample => 'Chek namunasi';
 
   @override
+  String get settingsSecSync => 'Sinxronlash';
+
+  @override
+  String get settingsSecSyncHint => 'Bir nechta kassa, bulut';
+
+  @override
   String get shiftClosingTitle => 'Smenani yopish';
 
   @override
@@ -10450,6 +10510,512 @@ class AppLocalizationsUz extends AppLocalizations {
 
   @override
   String get staffSystem => 'tizim';
+
+  @override
+  String get syncErrNetwork =>
+      'Sinxronlash serveri bilan aloqa yoʻq. Internetni tekshiring.';
+
+  @override
+  String get syncErrAuth =>
+      'Email yoki parol notoʻgʻri yoki sessiya tugagan. Qaytadan kiring.';
+
+  @override
+  String get syncErrForbidden => 'Bu doʻkonga kirish huquqi yoʻq.';
+
+  @override
+  String get syncErrEnvironmentMismatch =>
+      'Demo-baza faqat test doʻkoniga ulanishi mumkin.';
+
+  @override
+  String get syncErrNotEmpty =>
+      'Bu bazada allaqachon maʼlumotlar bor (tovarlar, sotuvlar, mijozlar). Uni mavjud doʻkonga ulab boʻlmaydi: ikki baza birlashtirilmaydi. Toza oʻrnatishdan foydalaning.';
+
+  @override
+  String get syncErrServer => 'Sinxronlash serverida xatolik.';
+
+  @override
+  String get syncErrNotConfigured => 'Sinxronlash sozlanmagan.';
+
+  @override
+  String get syncErrNotSignedIn => 'Avval sinxronlash hisobiga kiring.';
+
+  @override
+  String get syncErrInsecureUrl =>
+      'Server manzili https:// bilan boshlanishi kerak.';
+
+  @override
+  String get syncErrInvalidUrl => 'Server manzili notoʻgʻri.';
+
+  @override
+  String get syncErrProtocol => 'Sinxronlash serveridan kutilmagan javob.';
+
+  @override
+  String get syncErrStoreNotFound => 'Doʻkon topilmadi.';
+
+  @override
+  String get syncErrAlreadyConnected =>
+      'Bu baza allaqachon doʻkonga ulangan. Avval sinxronlashni oʻchiring.';
+
+  @override
+  String get syncPhaseOff => 'Oʻchirilgan';
+
+  @override
+  String get syncPhaseIdle => 'Sinxronlangan';
+
+  @override
+  String get syncPhaseSyncing => 'Sinxronlanmoqda…';
+
+  @override
+  String get syncPhaseError => 'Sinxronlash xatosi';
+
+  @override
+  String get syncPhaseOffline => 'Aloqa yoʻq';
+
+  @override
+  String get syncEnvTest => 'Test doʻkoni';
+
+  @override
+  String get syncEnvProduction => 'Ishchi doʻkon';
+
+  @override
+  String syncConflictTitle(String subject) {
+    return 'Sinxronlash ziddiyati: $subject';
+  }
+
+  @override
+  String syncConflictSubjectBarcode(String code) {
+    return 'shtrix-kod $code';
+  }
+
+  @override
+  String syncConflictSubjectCard(String code) {
+    return 'mijoz kartasi $code';
+  }
+
+  @override
+  String syncConflictSubjectGiftCard(String code) {
+    return 'sertifikat $code';
+  }
+
+  @override
+  String syncConflictSubjectStock(String name) {
+    return '“$name” qoldigʻi';
+  }
+
+  @override
+  String syncConflictSubjectBonus(String name) {
+    return '“$name” bonuslari';
+  }
+
+  @override
+  String syncConflictBarcodeBody(String code, String winner, String loser) {
+    return '$code shtrix-kodi turli kassalarda ikki tovarga berilgan. U “$winner” tovarida qoldirildi, “$loser” tovarining shtrix-kodi tozalandi.';
+  }
+
+  @override
+  String syncConflictCardBody(String code, String winner, String loser) {
+    return '$code karta raqami turli kassalarda ikki mijozga berilgan. U “$winner” mijozida qoldirildi, “$loser” mijozining karta raqami tozalandi.';
+  }
+
+  @override
+  String syncConflictGiftCodeBody(String code, String newCode) {
+    return '$code sertifikat kodi turli kassalarda takrorlandi. Dublikat bloklandi va $newCode kodini oldi.';
+  }
+
+  @override
+  String syncConflictStockBody(String name, String qty) {
+    return '“$name” tovarining qoldigʻi turli kassalardagi sotuvlardan keyin manfiy boʻldi ($qty). Qoldiqni tekshiring.';
+  }
+
+  @override
+  String syncConflictGiftBalanceBody(String code, String amount) {
+    return '$code sertifikati turli kassalarda nominaldan koʻp sarflandi: balans $amount.';
+  }
+
+  @override
+  String syncConflictBonusBody(String name, String amount) {
+    return '“$name” mijozining bonuslari turli kassalardagi amallardan keyin manfiy boʻldi ($amount).';
+  }
+
+  @override
+  String get syncSectionDesc =>
+      'Bitta doʻkonning bir nechta kassasi bulut orqali umumiy tovarlar, mijozlar va sotuvlar bilan ishlaydi. Internet boʻlmasa ham kassa ishlayveradi, oʻzgarishlar aloqa paydo boʻlganda yuboriladi.';
+
+  @override
+  String get syncUnavailable =>
+      'Dasturning bu versiyasida sinxronlash mavjud emas.';
+
+  @override
+  String get syncOffTitle => 'Sinxronlash oʻchirilgan';
+
+  @override
+  String get syncOffMessage =>
+      'Bu kassa alohida ishlaydi. Barcha kassalar umumiy maʼlumotlarni koʻrishi uchun uni bulutdagi doʻkonga ulang.';
+
+  @override
+  String get syncConnect => 'Ulash';
+
+  @override
+  String get syncSyncNow => 'Hozir sinxronlash';
+
+  @override
+  String get syncDisconnect => 'Uzish';
+
+  @override
+  String get syncSignInAgain => 'Qayta kirish';
+
+  @override
+  String get syncStoreLabel => 'Doʻkon';
+
+  @override
+  String get syncDeviceCode => 'Kassa kodi';
+
+  @override
+  String syncDeviceCodeExample(String example) {
+    return 'chek raqamlari: $example';
+  }
+
+  @override
+  String get syncPending => 'Yuborilishi kutilmoqda';
+
+  @override
+  String get syncLastSync => 'Oxirgi sinxronlash';
+
+  @override
+  String get syncNever => 'hali boʻlmagan';
+
+  @override
+  String get syncAccount => 'Hisob';
+
+  @override
+  String syncNextRetry(String time) {
+    return 'Keyingi urinish: $time';
+  }
+
+  @override
+  String syncDoneToast(String pushed, String pulled) {
+    return 'Sinxronlash tugadi: $pushed ta yuborildi, $pulled ta olindi';
+  }
+
+  @override
+  String get syncDisconnectTitle => 'Sinxronlashni uzasizmi?';
+
+  @override
+  String syncDisconnectMessage(String store) {
+    return 'Kassa “$store” doʻkoni bilan maʼlumot almashishni toʻxtatadi. Bu kassadagi barcha maʼlumotlar saqlanadi, chek raqamlari takrorlanmaydi. Istalgan vaqtda qayta ulanish mumkin.';
+  }
+
+  @override
+  String get syncDisconnectedToast =>
+      'Sinxronlash uzildi. Kassadagi maʼlumotlar saqlandi.';
+
+  @override
+  String get syncConnectTitle => 'Bulutga ulanish';
+
+  @override
+  String get syncSignInIntro =>
+      'Server manzili va doʻkon egasining hisob maʼlumotlarini kiriting.';
+
+  @override
+  String get syncServerUrl => 'Server manzili *';
+
+  @override
+  String get syncServerUrlHint => 'https://…supabase.co';
+
+  @override
+  String get syncAnonKey => 'Kirish kaliti (anon key) *';
+
+  @override
+  String get syncEmail => 'Email *';
+
+  @override
+  String get syncPassword => 'Parol *';
+
+  @override
+  String get syncPasswordShow => 'Parolni koʻrsatish';
+
+  @override
+  String get syncPasswordHide => 'Parolni yashirish';
+
+  @override
+  String get syncPasswordNote => 'Parol kassada saqlanmaydi.';
+
+  @override
+  String get syncSignIn => 'Kirish';
+
+  @override
+  String get syncInvalidEmail => 'Email notoʻgʻri';
+
+  @override
+  String syncSignedInAs(String email) {
+    return 'Kirildi: $email';
+  }
+
+  @override
+  String get syncChooseAction => 'Bu kassa bilan nima qilamiz?';
+
+  @override
+  String get syncCreateStore => 'Bulutda doʻkon yaratish';
+
+  @override
+  String get syncCreateStoreHint =>
+      'Bu kassa birinchi boʻladi. Uning barcha maʼlumotlari bulutga yuklanadi.';
+
+  @override
+  String get syncJoinStore => 'Mavjud doʻkonga ulash';
+
+  @override
+  String get syncJoinStoreHint =>
+      'Doʻkon maʼlumotlari bu kassaga yuklanadi. Faqat boʻsh baza uchun.';
+
+  @override
+  String get syncStoreName => 'Doʻkon nomi *';
+
+  @override
+  String get syncEnvironment => 'Doʻkon turi';
+
+  @override
+  String get syncEnvTestHint =>
+      'Oʻrganish va tekshirish uchun. Demo-baza faqat bunga ulanadi.';
+
+  @override
+  String get syncEnvProductionHint =>
+      'Haqiqiy ish uchun. Turini keyin oʻzgartirib boʻlmaydi.';
+
+  @override
+  String get syncEnvProductionDemo => 'Demo-baza uchun mavjud emas';
+
+  @override
+  String get syncCreateAndUpload => 'Yaratish va yuklash';
+
+  @override
+  String get syncChooseStore => 'Doʻkonni tanlang';
+
+  @override
+  String get syncNoStores =>
+      'Bu hisobda doʻkonlar yoʻq. Birinchi kassada doʻkon yarating yoki egasidan sizni qoʻshishni soʻrang.';
+
+  @override
+  String get syncUploading => 'Maʼlumotlar bulutga yuklanmoqda…';
+
+  @override
+  String get syncDownloading => 'Doʻkon maʼlumotlari yuklanmoqda…';
+
+  @override
+  String syncConnectedToast(String store, String code) {
+    return 'Kassa “$store” doʻkoniga ulandi. Kassa kodi: $code';
+  }
+
+  @override
+  String get syncIntegrityTitle => 'Yaxlitlikni tekshirish';
+
+  @override
+  String get syncIntegrityDesc =>
+      'Qoldiqlar, qarzlar, bonuslar va balanslarni harakat jurnallari bilan solishtiradi. Hech narsani oʻzgartirmaydi.';
+
+  @override
+  String get syncIntegrityRun => 'Tekshirish';
+
+  @override
+  String get syncIntegrityNotRun => 'Tekshiruv hali oʻtkazilmagan.';
+
+  @override
+  String get syncIntegrityOk =>
+      'Farqlar yoʻq: barcha qoldiq va balanslar jurnallarga mos.';
+
+  @override
+  String syncIntegrityFound(String count) {
+    return 'Topilgan farqlar: $count';
+  }
+
+  @override
+  String syncIntegrityValues(String cached, String derived) {
+    return 'saqlangan $cached · jurnal boʻyicha $derived';
+  }
+
+  @override
+  String get syncCacheStock => 'Tovar qoldigʻi';
+
+  @override
+  String get syncCacheDebt => 'Mijoz qarzi';
+
+  @override
+  String get syncCacheBonus => 'Mijoz bonuslari';
+
+  @override
+  String get syncCacheSupplierBalance => 'Taʼminotchi balansi';
+
+  @override
+  String get syncCacheGiftBalance => 'Sertifikat balansi';
+
+  @override
+  String get syncCacheGiftStatus => 'Sertifikat holati';
+
+  @override
+  String get syncCachePoPaid => 'Buyurtma boʻyicha toʻlangan';
+
+  @override
+  String get syncCachePoReceived => 'Buyurtma pozitsiyasi boʻyicha olingan';
+
+  @override
+  String get syncCacheSaleRefunded => 'Chek boʻyicha qaytarilgan';
+
+  @override
+  String get syncCacheSaleStatus => 'Chek holati';
+
+  @override
+  String get syncCacheReturnedQty => 'Chek pozitsiyasi boʻyicha qaytarilgan';
+
+  @override
+  String get syncConflictsTitle => 'Sinxronlash ziddiyatlari';
+
+  @override
+  String get syncConflictsSubtitle =>
+      'Kassalar oʻrtasida maʼlumot almashishda avtomatik hal qilingan holatlar';
+
+  @override
+  String get syncConflictsEmpty => 'Ziddiyatlar yoʻq';
+
+  @override
+  String get syncConflictsShowResolved => 'Koʻrilganlarni koʻrsatish';
+
+  @override
+  String get syncConflictsMarkAll => 'Hammasini koʻrilgan deb belgilash';
+
+  @override
+  String get syncConflictMarkRead => 'Koʻrilgan deb belgilash';
+
+  @override
+  String get syncConflictKindBarcode => 'Shtrix-kod takrorlandi';
+
+  @override
+  String get syncConflictKindCard => 'Karta raqami takrorlandi';
+
+  @override
+  String get syncConflictKindGiftCode => 'Sertifikat kodi takrorlandi';
+
+  @override
+  String get syncConflictKindStock => 'Manfiy qoldiq';
+
+  @override
+  String get syncConflictKindGiftBalance => 'Sertifikatning manfiy balansi';
+
+  @override
+  String get syncConflictKindBonus => 'Manfiy bonuslar';
+
+  @override
+  String get syncConflictKindNormalize => 'Yangilashda tekislash';
+
+  @override
+  String get syncConflictKindOther => 'Ziddiyat';
+
+  @override
+  String syncIndicatorTooltip(String state, String count) {
+    return '$state. Yuborilishi kutilmoqda: $count. Sinxronlash uchun bosing.';
+  }
+
+  @override
+  String syncSubjectReceipt(String number) {
+    return 'Chek №$number';
+  }
+
+  @override
+  String syncSubjectOrder(String number) {
+    return 'Buyurtma №$number';
+  }
+
+  @override
+  String get syncErrTestData =>
+      'Bu baza test doʻkoniga ulangan edi va boshqa kassalarning test maʼlumotlarini oʻz ichiga olishi mumkin. Undan ishchi doʻkon yaratib boʻlmaydi: test maʼlumotlarisiz bazadan foydalaning.';
+
+  @override
+  String syncConflictSubjectSale(String number) {
+    return 'chek №$number';
+  }
+
+  @override
+  String syncConflictSubjectDocNumber(String number) {
+    return 'hujjat raqami $number';
+  }
+
+  @override
+  String get syncConflictSubjectDevice => 'kassa kodi';
+
+  @override
+  String syncConflictNumberBody(String number, String newNumber) {
+    return '$number raqami ikki xil hujjatda chiqdi (masalan, ulangan kassada zaxira nusxa tiklangandan keyin). Yangiroq hujjat $newNumber raqamini oldi.';
+  }
+
+  @override
+  String syncConflictVoidReturnBody(String number, String amount) {
+    return 'Chek №$number bir kassada bekor qilindi, boshqasida esa u boʻyicha $amount qaytarish rasmiylashtirildi. Pul va tovar ikki marta hisobga olindi: kassa va qoldiqlarni tekshiring.';
+  }
+
+  @override
+  String syncConflictOverReturnBody(
+    String number,
+    String refunded,
+    String total,
+  ) {
+    return 'Chek №$number boʻyicha turli kassalarda sotilganidan koʻproq qaytarildi: chek summasi $total boʻlgani holda $refunded qaytarildi. Kassa va qoldiqlarni tekshiring.';
+  }
+
+  @override
+  String syncConflictIdentityBody(String oldCode, String newCode) {
+    return 'Bu baza ishlashda davom etgan $oldCode kassasining nusxasi boʻlib chiqdi (zaxira nusxa tiklangan yoki baza boshqa kompyuterga koʻchirilgan). Nusxada boʻlmagan maʼlumotlar bulutdan yuklandi, kassa esa hujjat raqamlari takrorlanmasligi uchun yangi $newCode kodini oldi.';
+  }
+
+  @override
+  String get syncConflictKindNumber => 'Hujjat raqami takrorlandi';
+
+  @override
+  String get syncConflictKindVoidReturn =>
+      'Bekor qilingan chek boʻyicha qaytarish';
+
+  @override
+  String get syncConflictKindOverReturn => 'Qaytarish sotuvdan koʻp';
+
+  @override
+  String get syncConflictKindIdentity => 'Kassa bazasining nusxasi';
+
+  @override
+  String get syncConflictKindDoubleVoid =>
+      'Sertifikat ikki marta bekor qilindi';
+
+  @override
+  String syncConflictDoubleVoidBody(
+    String code,
+    String number,
+    String amount,
+    String shift,
+  ) {
+    return '$code sertifikat sotuvi (№$number) ikki kassada bekor qilindi va pul ($amount) ikki marta qaytarildi. Faqat bitta bekor qilish hisobga olindi: №$shift smena hisobotida bu qaytarish yoʻq. Kassani tekshiring.';
+  }
+
+  @override
+  String get syncConflictKindVoidRedeem =>
+      'Bekor qilingan sertifikat bilan toʻlov';
+
+  @override
+  String syncConflictVoidRedeemBody(String code, String amount) {
+    return '$code sertifikati bir kassada bekor qilindi (pul qaytarildi), boshqasida esa u bilan $amount toʻlandi. Summa ikki marta hisobga olindi: kassani tekshiring.';
+  }
+
+  @override
+  String syncJoinRejoinHint(String name) {
+    return 'Bazada allaqachon maʼlumotlar bor, shuning uchun faqat bu kassa uzilgan “$name” doʻkoniga ulanish mumkin.';
+  }
+
+  @override
+  String get syncConflictKindJoinUsers => 'Bu kassaning xodimlari oʻchirildi';
+
+  @override
+  String get syncConflictSubjectJoinUsers => 'bu kassaning xodimlari';
+
+  @override
+  String syncConflictJoinUsersBody(String names) {
+    return 'Doʻkonga ulanishda bu kassada ulanishdan oldin yaratilgan xodimlar oʻchirildi: $names. Ularning PIN-kodlari doʻkon xodimlarining PIN-kodlari bilan mos kelishi mumkin edi. Doʻkon xodimlarining PIN-kodlari bilan kiring; kerakli xodimni yangi PIN-kod bilan qayta yoqish mumkin.';
+  }
 
   @override
   String get warrantyTitle => 'Kafolat';

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/db/database.dart';
+import '../../core/doc_number.dart';
 import '../../core/money.dart';
 import '../../core/permissions.dart';
 import '../../core/providers.dart';
@@ -168,18 +169,25 @@ class _HistoryTile extends StatelessWidget {
       onTap: onTap,
       leading: CircleAvatar(
         backgroundColor: (open ? AppColors.success : t.colorScheme.primary).withValues(alpha: 0.12),
-        child: Text(
-          '${s.number}',
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            color: open ? AppColors.success : t.colorScheme.primary,
+        // «A-15» with sync on: shrink instead of overflowing the circle
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: Text(
+              docNo(s.number, s.deviceCode),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: open ? AppColors.success : t.colorScheme.primary,
+              ),
+            ),
           ),
         ),
       ),
       title: Row(
         children: [
-          Flexible(child: Text(l.shiftNumber('${s.number}'), overflow: TextOverflow.ellipsis)),
+          Flexible(child: Text(l.shiftNumber(docNo(s.number, s.deviceCode)), overflow: TextOverflow.ellipsis)),
           const SizedBox(width: Gap.s),
           if (open) StatusChip(l.shiftStatusOpen, color: AppColors.success),
         ],

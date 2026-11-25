@@ -6,6 +6,7 @@ import 'package:drift/drift.dart';
 
 import '../../l10n/l10n.dart';
 import '../../core/db/database.dart';
+import '../../core/doc_number.dart';
 import '../errors.dart';
 import 'sale_service.dart' show normalizeGiftCode;
 
@@ -234,6 +235,7 @@ class GiftCardService {
       await db.into(db.giftCardSales).insert(GiftCardSalesCompanion.insert(
             id: saleId,
             number: number,
+            deviceCode: Value(await db.deviceCode()),
             giftCardId: cardId,
             amount: r.amount,
             shiftId: Value(shift.id),
@@ -287,7 +289,9 @@ class GiftCardService {
   Future<bool> _isUsed(GiftCard card) async {
     if (card.balance != card.initialAmount || card.status == 'used') return true;
     final pays = await (db.select(db.salePayments)
-          ..where((p) => p.method.equals('gift_card') & p.reference.equals(card.code))
+          ..where((p) =>
+              p.method.equals('gift_card') &
+              (p.giftCardId.equals(card.id) | (p.giftCardId.isNull() & p.reference.equals(card.code))))
           ..limit(1))
         .get();
     return pays.isNotEmpty;
@@ -314,7 +318,7 @@ class GiftCardService {
       final sale = await (db.select(db.giftCardSales)..where((s) => s.id.equals(giftSaleId))).getSingleOrNull();
       if (sale == null || sale.deletedAt != null) throw BusinessException(L.current.errDocumentNotFound);
       if (sale.status != GiftSaleStatus.completed) {
-        throw BusinessException(L.current.errGiftSaleNumberVoided('${sale.number}'));
+        throw BusinessException(L.current.errGiftSaleNumberVoided(docNo(sale.number, sale.deviceCode)));
       }
       final card = await (db.select(db.giftCards)..where((g) => g.id.equals(sale.giftCardId))).getSingle();
       if (await _isUsed(card)) {

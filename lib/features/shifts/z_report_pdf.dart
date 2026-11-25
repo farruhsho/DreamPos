@@ -1,4 +1,5 @@
 // X/Z report PDF output: 80mm roll and A4 (fonts via PdfFonts, offline).
+import '../../core/doc_number.dart';
 import 'dart:typed_data';
 
 import 'package:pdf/pdf.dart';
@@ -13,7 +14,7 @@ import 'report_data.dart';
 
 Future<Uint8List> buildZReportRollPdf(ZReportData d, {double widthMm = 80}) async {
   final font = await PdfFonts.mono();
-  final doc = pw.Document(title: L.printable(d.printL10n.shiftZTitleA4(d.title, '${d.figures.shift.number}')));
+  final doc = pw.Document(title: L.printable(d.printL10n.shiftZTitleA4(d.title, docNo(d.figures.shift.number, d.figures.shift.deviceCode))));
   final chars = widthMm >= 80 ? 42 : 32;
   doc.addPage(
     pw.Page(
@@ -31,7 +32,7 @@ Future<Uint8List> buildZReportA4Pdf(ZReportData d) async {
   final theme = await PdfFonts.theme();
   final l = d.printL10n;
   final p = L.printable;
-  final doc = pw.Document(title: p(l.shiftZTitleA4(d.title, '${d.figures.shift.number}')), theme: theme);
+  final doc = pw.Document(title: p(l.shiftZTitleA4(d.title, docNo(d.figures.shift.number, d.figures.shift.deviceCode))), theme: theme);
   final store = d.settings['store_name'] ?? '';
   doc.addPage(
     pw.MultiPage(
@@ -40,7 +41,7 @@ Future<Uint8List> buildZReportA4Pdf(ZReportData d) async {
       build: (_) => [
         if (store.isNotEmpty) pw.Text(p(store), style: const pw.TextStyle(fontSize: 11)),
         pw.Text(
-          p(l.shiftZTitleA4(d.title, '${d.figures.shift.number}')),
+          p(l.shiftZTitleA4(d.title, docNo(d.figures.shift.number, d.figures.shift.deviceCode))),
           style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
         ),
         pw.SizedBox(height: 4),
@@ -100,7 +101,7 @@ Future<Uint8List> buildZReportA4Pdf(ZReportData d) async {
 
 Future<void> printZReport(AppDatabase db, String shiftId, {required bool a4, bool showProfit = false}) async {
   final d = await ZReportData.load(db, shiftId, showProfit: showProfit);
-  final name = L.printable(d.printL10n.shiftZFileName(d.title, '${d.figures.shift.number}'));
+  final name = L.printable(d.printL10n.shiftZFileName(d.title, docNo(d.figures.shift.number, d.figures.shift.deviceCode)));
   if (a4) {
     await Printing.layoutPdf(name: name, format: PdfPageFormat.a4, onLayout: (_) => buildZReportA4Pdf(d));
   } else {

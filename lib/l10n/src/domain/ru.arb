@@ -101,5 +101,8 @@
   "errPaymentAlreadyCancelled": "Оплата уже отменена",
   "errPaymentShiftClosed": "Смена оплаты закрыта — отмена невозможна",
   "errAdjustmentZero": "Сумма корректировки не может быть нулевой",
-  "errAdjustmentReasonRequired": "Укажите причину корректировки"
+  "errAdjustmentReasonRequired": "Укажите причину корректировки",
+  "errPinAmbiguous": "Этот PIN-код есть у нескольких сотрудников (после синхронизации касс). Войдите другим сотрудником и смените PIN одному из них.",
+  "errPaymentOtherRegisterShift": "Оплата наличными внесена в смене другой кассы — отменить её можно только на той кассе",
+  "errReceiptOpeningNoReversal": "Приход №{number} — начальный остаток синхронизации, его нельзя сторнировать"
 }

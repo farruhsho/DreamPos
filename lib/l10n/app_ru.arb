@@ -381,6 +381,22 @@
       }
     }
   },
+  "appShiftChipShort": "Смена №{number}",
+  "@appShiftChipShort": {
+    "placeholders": {
+      "number": {
+        "type": "String"
+      }
+    }
+  },
+  "appShiftChipNumber": "№{number}",
+  "@appShiftChipNumber": {
+    "placeholders": {
+      "number": {
+        "type": "String"
+      }
+    }
+  },
   "appProfile": "Профиль",
   "appLockSwitch": "Заблокировать / сменить кассира",
   "domCustomerDiscount": "Скидка клиента",
@@ -693,6 +709,16 @@
   "errPaymentShiftClosed": "Смена оплаты закрыта — отмена невозможна",
   "errAdjustmentZero": "Сумма корректировки не может быть нулевой",
   "errAdjustmentReasonRequired": "Укажите причину корректировки",
+  "errPinAmbiguous": "Этот PIN-код есть у нескольких сотрудников (после синхронизации касс). Войдите другим сотрудником и смените PIN одному из них.",
+  "errPaymentOtherRegisterShift": "Оплата наличными внесена в смене другой кассы — отменить её можно только на той кассе",
+  "errReceiptOpeningNoReversal": "Приход №{number} — начальный остаток синхронизации, его нельзя сторнировать",
+  "@errReceiptOpeningNoReversal": {
+    "placeholders": {
+      "number": {
+        "type": "String"
+      }
+    }
+  },
   "authEnterPin": "Введите PIN-код",
   "authDemoMode": "Демо-режим",
   "setupDefaultReceiptFooter": "Спасибо за покупку!",
@@ -721,6 +747,15 @@
   "setupStepStore": "Магазин",
   "setupStepCurrency": "Валюта",
   "setupStepOwner": "Владелец",
+  "setupOr": "или",
+  "setupJoinStore": "Подключиться к существующему магазину",
+  "setupJoinStoreHint": "Если магазин уже работает в облаке на другой кассе: товары, клиенты и пользователи загрузятся оттуда.",
+  "setupJoinTitle": "Подключение к магазину",
+  "setupJoinIntro": "Войдите в аккаунт облака и выберите магазин. Его данные и пользователи загрузятся на эту кассу, затем войдите по PIN-коду.",
+  "setupJoinNewStore": "Создать новый магазин",
+  "setupJoinDone": "Данные магазина загружены. Войдите по PIN-коду.",
+  "setupJoinPartial": "Касса подключена, но загрузка данных не завершилась. Проверьте связь и повторите.",
+  "setupJoinRetry": "Повторить загрузку",
   "custCreated": "Клиент создан",
   "custNoneToExport": "Нет клиентов для экспорта",
   "custCsvCopied": "Скопировано {count} клиентов в формате CSV — вставьте в Excel",
@@ -7362,6 +7397,8 @@
   "settingsAutoPrintHint": "Сразу после оплаты, без вопроса кассиру",
   "settingsStoreDesc": "Реквизиты магазина и оформление чека. Изменения сразу видны в образце чека.",
   "settingsReceiptSample": "Образец чека",
+  "settingsSecSync": "Синхронизация",
+  "settingsSecSyncHint": "Несколько касс, облако",
   "shiftClosingTitle": "Закрытие смены",
   "shiftClosed": "Смена закрыта",
   "shiftCloseConfirmTitle": "Закрыть смену?",
@@ -8143,6 +8180,437 @@
     }
   },
   "staffSystem": "система",
+  "syncErrNetwork": "Нет связи с сервером синхронизации. Проверьте интернет.",
+  "syncErrAuth": "Неверный email или пароль, либо сессия истекла. Войдите снова.",
+  "syncErrForbidden": "Нет доступа к этому магазину.",
+  "syncErrEnvironmentMismatch": "Демо-база может подключаться только к тестовому магазину.",
+  "syncErrNotEmpty": "В этой базе уже есть данные (товары, продажи, клиенты). Подключить её к существующему магазину нельзя: две базы не объединяются. Используйте чистую установку.",
+  "syncErrServer": "Ошибка сервера синхронизации.",
+  "syncErrNotConfigured": "Синхронизация не настроена.",
+  "syncErrNotSignedIn": "Сначала войдите в аккаунт синхронизации.",
+  "syncErrInsecureUrl": "Адрес сервера должен начинаться с https://.",
+  "syncErrInvalidUrl": "Неверный адрес сервера.",
+  "syncErrProtocol": "Неожиданный ответ сервера синхронизации.",
+  "syncErrStoreNotFound": "Магазин не найден.",
+  "syncErrAlreadyConnected": "Эта база уже подключена к магазину. Сначала отключите синхронизацию.",
+  "syncPhaseOff": "Выключена",
+  "syncPhaseIdle": "Синхронизировано",
+  "syncPhaseSyncing": "Синхронизация…",
+  "syncPhaseError": "Ошибка синхронизации",
+  "syncPhaseOffline": "Нет связи",
+  "syncEnvTest": "Тестовый магазин",
+  "syncEnvProduction": "Рабочий магазин",
+  "syncConflictTitle": "Конфликт синхронизации: {subject}",
+  "@syncConflictTitle": {
+    "description": "Title of a local notification about a sync conflict; subject is one of the syncConflictSubject* texts.",
+    "placeholders": {
+      "subject": {
+        "type": "String"
+      }
+    }
+  },
+  "syncConflictSubjectBarcode": "штрихкод {code}",
+  "@syncConflictSubjectBarcode": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "syncConflictSubjectCard": "карта клиента {code}",
+  "@syncConflictSubjectCard": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "syncConflictSubjectGiftCard": "сертификат {code}",
+  "@syncConflictSubjectGiftCard": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "syncConflictSubjectStock": "остаток «{name}»",
+  "@syncConflictSubjectStock": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "syncConflictSubjectBonus": "бонусы «{name}»",
+  "@syncConflictSubjectBonus": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "syncConflictBarcodeBody": "Штрихкод {code} был назначен двум товарам на разных кассах. Он оставлен у товара «{winner}», у товара «{loser}» штрихкод очищен.",
+  "@syncConflictBarcodeBody": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      },
+      "winner": {
+        "type": "String"
+      },
+      "loser": {
+        "type": "String"
+      }
+    }
+  },
+  "syncConflictCardBody": "Номер карты {code} был назначен двум клиентам на разных кассах. Он оставлен у клиента «{winner}», у клиента «{loser}» номер карты очищен.",
+  "@syncConflictCardBody": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      },
+      "winner": {
+        "type": "String"
+      },
+      "loser": {
+        "type": "String"
+      }
+    }
+  },
+  "syncConflictGiftCodeBody": "Код сертификата {code} совпал на разных кассах. Дубликат заблокирован и получил код {newCode}.",
+  "@syncConflictGiftCodeBody": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      },
+      "newCode": {
+        "type": "String"
+      }
+    }
+  },
+  "syncConflictStockBody": "Остаток товара «{name}» стал отрицательным ({qty}) после продаж на разных кассах. Проверьте остаток.",
+  "@syncConflictStockBody": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "qty": {
+        "type": "String"
+      }
+    }
+  },
+  "syncConflictGiftBalanceBody": "Сертификат {code} списан на разных кассах больше номинала: баланс {amount}.",
+  "@syncConflictGiftBalanceBody": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      },
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "syncConflictBonusBody": "Бонусы клиента «{name}» стали отрицательными ({amount}) после операций на разных кассах.",
+  "@syncConflictBonusBody": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "syncSectionDesc": "Несколько касс одного магазина работают с общими товарами, клиентами и продажами через облако. Без интернета касса продолжает работать, изменения отправятся при появлении связи.",
+  "syncUnavailable": "В этой версии программы синхронизация недоступна.",
+  "syncOffTitle": "Синхронизация выключена",
+  "syncOffMessage": "Эта касса работает отдельно. Подключите её к магазину в облаке, чтобы все кассы видели общие данные.",
+  "syncConnect": "Подключить",
+  "syncSyncNow": "Синхронизировать сейчас",
+  "syncDisconnect": "Отключить",
+  "syncSignInAgain": "Войти снова",
+  "syncStoreLabel": "Магазин",
+  "syncDeviceCode": "Код кассы",
+  "syncDeviceCodeExample": "номера чеков: {example}",
+  "@syncDeviceCodeExample": {
+    "placeholders": {
+      "example": {
+        "type": "String"
+      }
+    }
+  },
+  "syncPending": "Ожидают отправки",
+  "syncLastSync": "Последняя синхронизация",
+  "syncNever": "ещё не было",
+  "syncAccount": "Аккаунт",
+  "syncNextRetry": "Следующая попытка в {time}",
+  "@syncNextRetry": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "syncDoneToast": "Синхронизация завершена: отправлено {pushed}, получено {pulled}",
+  "@syncDoneToast": {
+    "placeholders": {
+      "pushed": {
+        "type": "String"
+      },
+      "pulled": {
+        "type": "String"
+      }
+    }
+  },
+  "syncDisconnectTitle": "Отключить синхронизацию?",
+  "syncDisconnectMessage": "Касса перестанет обмениваться данными с магазином «{store}». Все данные на этой кассе сохранятся, номера чеков останутся уникальными. Подключиться снова можно в любой момент.",
+  "@syncDisconnectMessage": {
+    "placeholders": {
+      "store": {
+        "type": "String"
+      }
+    }
+  },
+  "syncDisconnectedToast": "Синхронизация отключена. Данные на кассе сохранены.",
+  "syncConnectTitle": "Подключение к облаку",
+  "syncSignInIntro": "Введите адрес сервера и данные аккаунта владельца магазина.",
+  "syncServerUrl": "Адрес сервера *",
+  "syncServerUrlHint": "https://…supabase.co",
+  "syncAnonKey": "Ключ доступа (anon key) *",
+  "syncEmail": "Email *",
+  "syncPassword": "Пароль *",
+  "syncPasswordShow": "Показать пароль",
+  "syncPasswordHide": "Скрыть пароль",
+  "syncPasswordNote": "Пароль не сохраняется на кассе.",
+  "syncSignIn": "Войти",
+  "syncInvalidEmail": "Неверный email",
+  "syncSignedInAs": "Вход выполнен: {email}",
+  "@syncSignedInAs": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "syncChooseAction": "Что сделать с этой кассой?",
+  "syncCreateStore": "Создать магазин в облаке",
+  "syncCreateStoreHint": "Эта касса станет первой. Все её данные будут загружены в облако.",
+  "syncJoinStore": "Подключить к существующему",
+  "syncJoinStoreHint": "Данные магазина будут загружены на эту кассу. Только для пустой базы.",
+  "syncStoreName": "Название магазина *",
+  "syncEnvironment": "Тип магазина",
+  "syncEnvTestHint": "Для обучения и проверки. Демо-база может подключаться только сюда.",
+  "syncEnvProductionHint": "Для реальной работы. Тип нельзя изменить позже.",
+  "syncEnvProductionDemo": "Недоступно для демо-базы",
+  "syncCreateAndUpload": "Создать и загрузить",
+  "syncChooseStore": "Выберите магазин",
+  "syncNoStores": "У этого аккаунта нет магазинов. Создайте магазин на первой кассе или попросите владельца добавить вас.",
+  "syncUploading": "Загружаем данные в облако…",
+  "syncDownloading": "Загружаем данные магазина…",
+  "syncConnectedToast": "Касса подключена к магазину «{store}». Код кассы: {code}",
+  "@syncConnectedToast": {
+    "placeholders": {
+      "store": {
+        "type": "String"
+      },
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "syncIntegrityTitle": "Проверка целостности",
+  "syncIntegrityDesc": "Сверяет остатки, долги, бонусы и балансы с журналами движений. Ничего не меняет.",
+  "syncIntegrityRun": "Проверить",
+  "syncIntegrityNotRun": "Проверка ещё не запускалась.",
+  "syncIntegrityOk": "Расхождений нет: все остатки и балансы совпадают с журналами.",
+  "syncIntegrityFound": "Найдено расхождений: {count}",
+  "@syncIntegrityFound": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "syncIntegrityValues": "сохранено {cached} · по журналу {derived}",
+  "@syncIntegrityValues": {
+    "placeholders": {
+      "cached": {
+        "type": "String"
+      },
+      "derived": {
+        "type": "String"
+      }
+    }
+  },
+  "syncCacheStock": "Остаток товара",
+  "syncCacheDebt": "Долг клиента",
+  "syncCacheBonus": "Бонусы клиента",
+  "syncCacheSupplierBalance": "Баланс поставщика",
+  "syncCacheGiftBalance": "Баланс сертификата",
+  "syncCacheGiftStatus": "Статус сертификата",
+  "syncCachePoPaid": "Оплачено по заказу",
+  "syncCachePoReceived": "Получено по позиции заказа",
+  "syncCacheSaleRefunded": "Возвращено по чеку",
+  "syncCacheSaleStatus": "Статус чека",
+  "syncCacheReturnedQty": "Возвращено по позиции чека",
+  "syncConflictsTitle": "Конфликты синхронизации",
+  "syncConflictsSubtitle": "Что пришлось решить автоматически при обмене данными между кассами",
+  "syncConflictsEmpty": "Конфликтов нет",
+  "syncConflictsShowResolved": "Показать просмотренные",
+  "syncConflictsMarkAll": "Отметить все просмотренными",
+  "syncConflictMarkRead": "Отметить просмотренным",
+  "syncConflictKindBarcode": "Совпадение штрихкода",
+  "syncConflictKindCard": "Совпадение номера карты",
+  "syncConflictKindGiftCode": "Совпадение кода сертификата",
+  "syncConflictKindStock": "Отрицательный остаток",
+  "syncConflictKindGiftBalance": "Отрицательный баланс сертификата",
+  "syncConflictKindBonus": "Отрицательные бонусы",
+  "syncConflictKindNormalize": "Выравнивание при обновлении",
+  "syncConflictKindOther": "Конфликт",
+  "syncIndicatorTooltip": "{state}. Ожидают отправки: {count}. Нажмите, чтобы синхронизировать.",
+  "@syncIndicatorTooltip": {
+    "placeholders": {
+      "state": {
+        "type": "String"
+      },
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "syncSubjectReceipt": "Чек №{number}",
+  "@syncSubjectReceipt": {
+    "placeholders": {
+      "number": {
+        "type": "String"
+      }
+    }
+  },
+  "syncSubjectOrder": "Заказ №{number}",
+  "@syncSubjectOrder": {
+    "placeholders": {
+      "number": {
+        "type": "String"
+      }
+    }
+  },
+  "syncErrTestData": "Эта база была подключена к тестовому магазину и может содержать тестовые данные других касс. Создать из неё рабочий магазин нельзя: используйте базу без тестовых данных.",
+  "syncConflictSubjectSale": "чек №{number}",
+  "@syncConflictSubjectSale": {
+    "placeholders": {
+      "number": {
+        "type": "String"
+      }
+    }
+  },
+  "syncConflictSubjectDocNumber": "номер документа {number}",
+  "@syncConflictSubjectDocNumber": {
+    "placeholders": {
+      "number": {
+        "type": "String"
+      }
+    }
+  },
+  "syncConflictSubjectDevice": "код кассы",
+  "syncConflictNumberBody": "Номер {number} оказался у двух разных документов (например, после восстановления резервной копии на подключённой кассе). Более новый документ получил номер {newNumber}.",
+  "@syncConflictNumberBody": {
+    "placeholders": {
+      "number": {
+        "type": "String"
+      },
+      "newNumber": {
+        "type": "String"
+      }
+    }
+  },
+  "syncConflictVoidReturnBody": "Чек №{number} аннулирован на одной кассе, а на другой по нему оформлен возврат на {amount}. Деньги и товар учтены дважды: проверьте кассу и остатки.",
+  "@syncConflictVoidReturnBody": {
+    "placeholders": {
+      "number": {
+        "type": "String"
+      },
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "syncConflictOverReturnBody": "По чеку №{number} на разных кассах вернули больше, чем было продано: возвраты на {refunded} при сумме чека {total}. Проверьте кассу и остатки.",
+  "@syncConflictOverReturnBody": {
+    "placeholders": {
+      "number": {
+        "type": "String"
+      },
+      "refunded": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
+  "syncConflictIdentityBody": "Эта база оказалась копией кассы {oldCode}, которая продолжала работать (восстановлена резервная копия или база скопирована на другой компьютер). Данные, которых не было в копии, загружены из облака, а касса получила новый код {newCode}, чтобы номера документов не повторялись.",
+  "@syncConflictIdentityBody": {
+    "placeholders": {
+      "oldCode": {
+        "type": "String"
+      },
+      "newCode": {
+        "type": "String"
+      }
+    }
+  },
+  "syncConflictKindNumber": "Совпадение номера документа",
+  "syncConflictKindVoidReturn": "Возврат по аннулированному чеку",
+  "syncConflictKindOverReturn": "Возврат больше продажи",
+  "syncConflictKindIdentity": "Копия базы кассы",
+  "syncConflictKindDoubleVoid": "Двойное аннулирование сертификата",
+  "syncConflictDoubleVoidBody": "Продажа сертификата {code} (№{number}) аннулирована на двух кассах, и деньги ({amount}) вернули дважды. Учтено одно аннулирование: в отчёте смены №{shift} этого возврата нет. Проверьте кассу.",
+  "@syncConflictDoubleVoidBody": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      },
+      "number": {
+        "type": "String"
+      },
+      "amount": {
+        "type": "String"
+      },
+      "shift": {
+        "type": "String"
+      }
+    }
+  },
+  "syncConflictKindVoidRedeem": "Оплата аннулированным сертификатом",
+  "syncConflictVoidRedeemBody": "Сертификат {code} аннулирован на одной кассе (деньги возвращены), а на другой им оплатили {amount}. Сумма учтена дважды: проверьте кассу.",
+  "@syncConflictVoidRedeemBody": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      },
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "syncJoinRejoinHint": "В базе уже есть данные, поэтому подключиться можно только к магазину «{name}», от которого эта касса была отключена.",
+  "@syncJoinRejoinHint": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "syncConflictKindJoinUsers": "Сотрудники этой кассы отключены",
+  "syncConflictSubjectJoinUsers": "сотрудники этой кассы",
+  "syncConflictJoinUsersBody": "При подключении к магазину сотрудники, созданные на этой кассе до подключения, отключены: {names}. Их PIN-коды могли совпасть с PIN-кодами сотрудников магазина. Входите PIN-кодами сотрудников магазина; нужного сотрудника можно включить заново с новым PIN-кодом.",
+  "@syncConflictJoinUsersBody": {
+    "placeholders": {
+      "names": {
+        "type": "String"
+      }
+    }
+  },
   "warrantyTitle": "Гарантия",
   "warrantySubtitle": "Гарантийные и сервисные заявки",
   "warrantyStatusReceived": "Принят",

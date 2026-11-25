@@ -6,6 +6,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
 import '../../core/db/database.dart';
+import '../../core/doc_number.dart';
 import '../../core/money.dart';
 import '../../core/printing/pdf_fonts.dart';
 import '../../core/providers.dart';
@@ -206,7 +207,7 @@ class _PayDebtFormState extends ConsumerState<_PayDebtForm> {
             Text(l.custShiftClosedCash, style: const TextStyle(color: AppColors.danger)),
           ] else if (_method == 'cash' && shift != null) ...[
             const SizedBox(height: Gap.s),
-            Text(l.custCashToShift('${shift.number}'),
+            Text(l.custCashToShift(docNo(shift.number, shift.deviceCode)),
                 style: t.textTheme.bodySmall?.copyWith(color: t.colorScheme.onSurfaceVariant)),
           ],
           const SizedBox(height: Gap.l),

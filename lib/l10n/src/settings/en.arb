@@ -260,5 +260,7 @@
   "settingsAutoPrint": "Print receipt automatically",
   "settingsAutoPrintHint": "Right after payment, without asking the cashier",
   "settingsStoreDesc": "Store details and receipt layout. Changes show up in the sample receipt at once.",
-  "settingsReceiptSample": "Sample receipt"
+  "settingsReceiptSample": "Sample receipt",
+  "settingsSecSync": "Sync",
+  "settingsSecSyncHint": "Several registers, cloud"
 }

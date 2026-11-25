@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/db/database.dart';
+import '../../core/doc_number.dart';
 import '../../core/money.dart';
 import '../../core/permissions.dart';
 import '../../core/printing/receipt.dart';
@@ -127,10 +128,10 @@ class _DetailBody extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(l.salesReceiptNo('${s.number}'), style: t.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
+                  Text(l.salesReceiptNo(docNo(s.number, s.deviceCode)), style: t.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
                   const SizedBox(height: 2),
                   Text(
-                    [formatDateTime(s.createdAt), if (d.shift != null) l.salesShiftNo('${d.shift!.number}')].join(' · '),
+                    [formatDateTime(s.createdAt), if (d.shift != null) l.salesShiftNo(docNo(d.shift!.number, d.shift!.deviceCode))].join(' · '),
                     style: t.textTheme.bodyMedium?.copyWith(color: t.colorScheme.onSurfaceVariant),
                   ),
                 ],
@@ -211,7 +212,7 @@ class _DetailBody extends ConsumerWidget {
   Future<void> _startReturn(BuildContext context, WidgetRef ref) async {
     final ret = await showReturnWizard(context, d);
     if (ret == null || !context.mounted) return;
-    await showReturnDone(context, ref, ret, d.sale.number);
+    await showReturnDone(context, ref, ret, docNo(d.sale.number, d.sale.deviceCode));
   }
 
   Future<void> _preview(BuildContext context, WidgetRef ref) async {
@@ -224,7 +225,7 @@ class _DetailBody extends ConsumerWidget {
         context: context,
         builder: (c) => AlertDialog(
           insetPadding: const EdgeInsets.symmetric(horizontal: Gap.l, vertical: Gap.xl),
-          title: Text(l.salesReceiptNo('${d.sale.number}')),
+          title: Text(l.salesReceiptNo(docNo(d.sale.number, d.sale.deviceCode))),
           content: SizedBox(
             width: 420,
             child: SingleChildScrollView(
@@ -270,14 +271,14 @@ class _DetailBody extends ConsumerWidget {
     final l = context.l10n;
     final reason = await promptText(
       context,
-      title: l.salesVoidPromptTitle('${d.sale.number}'),
+      title: l.salesVoidPromptTitle(docNo(d.sale.number, d.sale.deviceCode)),
       label: l.salesReasonRequiredLabel,
     );
     if (reason == null || reason.trim().isEmpty || !context.mounted) return;
     final ok = await confirm(
       context,
       title: l.salesVoidConfirmTitle,
-      message: l.salesVoidConfirmMessage('${d.sale.number}', Money.format(d.sale.total)),
+      message: l.salesVoidConfirmMessage(docNo(d.sale.number, d.sale.deviceCode), Money.format(d.sale.total)),
       ok: l.salesVoid,
       destructive: true,
     );
@@ -288,20 +289,21 @@ class _DetailBody extends ConsumerWidget {
       () => ref
           .read(saleServiceProvider)
           .voidSale(d.sale.id, userId: ref.read(sessionProvider)!.user.id, reason: reason.trim(), shiftId: shift?.id),
-      success: l.salesVoidDone('${d.sale.number}'),
+      success: l.salesVoidDone(docNo(d.sale.number, d.sale.deviceCode)),
     );
   }
 }
 
 /// Success dialog after a return: summary, print slip, warranty hint.
-Future<void> showReturnDone(BuildContext context, WidgetRef ref, Return ret, int saleNumber) {
+/// [saleNo]: display number of the sale («15» / «A-15»).
+Future<void> showReturnDone(BuildContext context, WidgetRef ref, Return ret, String saleNo) {
   final db = ref.read(databaseProvider);
   final l = context.l10n;
   return showDialog<void>(
     context: context,
     builder: (c) => AlertDialog(
       icon: const Icon(Icons.check_circle, color: AppColors.success, size: 40),
-      title: Text(l.salesReturnDoneTitle('${ret.number}')),
+      title: Text(l.salesReturnDoneTitle(docNo(ret.number, ret.deviceCode))),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -324,7 +326,7 @@ Future<void> showReturnDone(BuildContext context, WidgetRef ref, Return ret, int
           TextButton(
             onPressed: () {
               Navigator.pop(c);
-              context.go('/warranty?receipt=$saleNumber');
+              context.go('/warranty?receipt=${Uri.encodeQueryComponent(saleNo)}');
             },
             child: Text(l.salesWarrantyClaim),
           ),
@@ -426,7 +428,7 @@ class _ReturnBlock extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  l.salesReturnHeader('${r.ret.number}', formatDateTime(r.ret.createdAt)),
+                  l.salesReturnHeader(docNo(r.ret.number, r.ret.deviceCode), formatDateTime(r.ret.createdAt)),
                   style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
               ),

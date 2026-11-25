@@ -7,6 +7,7 @@ import 'package:printing/printing.dart';
 import '../../domain/services/sale_service.dart' show paymentMethodLabel;
 import '../../l10n/l10n.dart';
 import '../db/database.dart';
+import '../doc_number.dart';
 import '../money.dart';
 import '../widgets/widgets.dart' show formatDateTime;
 import 'pdf_fonts.dart';
@@ -95,7 +96,7 @@ class GiftReceiptData {
     if ((settings['store_phone'] ?? '').isNotEmpty) b.writeln(center(l.corePrintPhone(settings['store_phone']!)));
     if ((settings['store_tax_id'] ?? '').isNotEmpty) b.writeln(center(l.corePrintTaxId(settings['store_tax_id']!)));
     b.writeln(line);
-    b.writeln(center(copy ? l.coreGiftSlipCopyTitle('${sale.number}') : l.coreGiftSlipTitle('${sale.number}')));
+    b.writeln(center(copy ? l.coreGiftSlipCopyTitle(docNo(sale.number, sale.deviceCode)) : l.coreGiftSlipTitle(docNo(sale.number, sale.deviceCode))));
     b.writeln(center(formatDateTime(sale.createdAt)));
     if (cashier != null) b.writeln(l.corePrintCashier(cashier!.name));
     if (customer != null) b.writeln(l.corePrintCustomer(customer!.name));
@@ -178,7 +179,7 @@ Future<void> printGiftReceipt(AppDatabase db, String giftSaleId, {bool copy = fa
   final data = await GiftReceiptData.load(db, giftSaleId, copy: copy);
   final width = double.tryParse(data.settings['receipt_width_mm'] ?? '') ?? 80;
   await Printing.layoutPdf(
-    name: L.forReceipt(data.settings).corePrintJobGift('${data.sale.number}'),
+    name: L.forReceipt(data.settings).corePrintJobGift(docNo(data.sale.number, data.sale.deviceCode)),
     format: PdfPageFormat(width * PdfPageFormat.mm, double.infinity),
     onLayout: (_) => buildGiftReceiptPdf(data, widthMm: width),
   );

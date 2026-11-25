@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/doc_number.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
@@ -56,7 +57,7 @@ class _WarrantyScreenState extends ConsumerState<WarrantyScreen> {
     }
     final print = await confirm(
       context,
-      title: context.l10n.warrantyClaimAccepted('${claim.number}'),
+      title: context.l10n.warrantyClaimAccepted(docNo(claim.number, claim.deviceCode)),
       message: context.l10n.warrantyPrintActQuestion,
       ok: context.l10n.warrantyPrintAct,
     );
@@ -234,7 +235,7 @@ class _ClaimTile extends StatelessWidget {
         child: Icon(Icons.verified_user_outlined, color: color, size: 20),
       ),
       title: Text(
-        '№${c.number} · ${row.productName ?? l.warrantyNoProduct}',
+        '№${docNo(c.number, c.deviceCode)} · ${row.productName ?? l.warrantyNoProduct}',
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
         style: const TextStyle(fontWeight: FontWeight.w600),
@@ -244,7 +245,7 @@ class _ClaimTile extends StatelessWidget {
           formatDate(c.createdAt),
           ?row.customerName,
           if (c.serialNumber != null) 'S/N ${c.serialNumber}',
-          if (row.saleNumber != null) l.warrantyReceiptShort('${row.saleNumber}'),
+          if (row.saleNumber != null) l.warrantyReceiptShort(row.saleNo!),
           c.problem,
         ].join(' · '),
         maxLines: 2,

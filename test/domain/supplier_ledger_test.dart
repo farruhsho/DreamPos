@@ -43,8 +43,9 @@ void main() {
   Future<void> expectConsistent(String id) async {
     final rows = await ledgerOf(id);
     final s = await reloadS(id);
-    expect(s.balance, rows.isEmpty ? 0 : rows.last.balanceAfter, reason: 'balance == last balanceAfter');
+    // D-021 as relaxed by D-025: the invariant is cache == Σ amounts.
     expect(rows.fold<int>(0, (a, e) => a + e.amount), s.balance, reason: 'Σ amounts == balance');
+    // On one register balanceAfter is still the running balance.
     var running = 0;
     for (final e in rows) {
       running += e.amount;
@@ -248,7 +249,7 @@ void main() {
       final cols = await db.customSelect('PRAGMA table_info(supplier_payments)').get();
       expect(cols.map((r) => r.read<String>('name')), containsAll(['cancelled_at', 'cancel_reason']));
       final version = await db.customSelect('PRAGMA user_version').getSingle();
-      expect(version.data.values.first, 4);
+      expect(version.data.values.first, 7);
     });
 
     test('a v2 database is upgraded: tables, columns, indexes, opening entries', () async {
@@ -291,7 +292,7 @@ void main() {
       expect(byS.containsKey(zero), isFalse);
 
       final version = await db.customSelect('PRAGMA user_version').getSingle();
-      expect(version.data.values.first, 4);
+      expect(version.data.values.first, 7);
       final idx = await db
           .customSelect("SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'ix_%'")
           .get();
@@ -319,6 +320,8 @@ void main() {
           .getSingle();
       expect(sup.balance, 12500);
       expect(last.balanceAfter, sup.balance);
+      expect((await db.select(db.supplierLedger).get()).where((l) => l.supplierId == owes).fold<int>(0, (a, e) => a + e.amount),
+          sup.balance);
     });
   });
 }

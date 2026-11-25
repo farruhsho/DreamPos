@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/db/database.dart';
+import '../../core/doc_number.dart';
 import '../../core/money.dart';
 import '../../core/permissions.dart';
 import '../../core/printing/gift_receipt.dart';
@@ -63,13 +64,13 @@ class _GiftCardDetailState extends ConsumerState<GiftCardDetail> {
     final l = context.l10n;
     final reason = await promptText(
       context,
-      title: l.mktVoidSaleTitle('${sale.number}'),
+      title: l.mktVoidSaleTitle(docNo(sale.number, sale.deviceCode)),
       label: l.mktReasonRequired,
     );
     if (reason == null || !mounted) return;
     final ok = await confirm(
       context,
-      title: l.mktVoidSaleQuestion('${sale.number}'),
+      title: l.mktVoidSaleQuestion(docNo(sale.number, sale.deviceCode)),
       message: l.mktVoidSaleMessage(row.code, Money.format(sale.amount), giftPaymentsText(row.payments, l)),
       ok: l.mktVoid,
       destructive: true,
@@ -81,7 +82,7 @@ class _GiftCardDetailState extends ConsumerState<GiftCardDetail> {
       () => ref
           .read(giftCardServiceProvider)
           .voidSale(sale.id, reason: reason, userId: ref.read(sessionProvider)!.user.id, shiftId: shift?.id),
-      success: l.mktSaleVoided('${sale.number}'),
+      success: l.mktSaleVoided(docNo(sale.number, sale.deviceCode)),
     );
   });
 
@@ -249,7 +250,7 @@ class _SaleDocument extends ConsumerWidget {
               children: [
                 Expanded(
                   child: Text(
-                    l.mktSaleNumber('${s.number}'),
+                    l.mktSaleNumber(docNo(s.number, s.deviceCode)),
                     style: t.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
                   ),
                 ),

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/db/database.dart';
+import '../../core/doc_number.dart';
 import '../../core/money.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
@@ -229,7 +230,7 @@ String _supplierOf(GoodsReceipt r, Map<String, String> names, AppLocalizations l
     r.supplierId == null ? l.invNoSupplier : names[r.supplierId] ?? l.invDeletedSupplier;
 
 String? _sourceOf(ReceiptListRow row, AppLocalizations l) =>
-    row.orderNumber != null ? l.invOrderRef('${row.orderNumber}') : (row.receipt.orderId != null ? l.invOrder : null);
+    row.orderNumber != null ? l.invOrderRef(row.orderNo!) : (row.receipt.orderId != null ? l.invOrder : null);
 
 class _ReceiptsTable extends StatelessWidget {
   const _ReceiptsTable({required this.rows, required this.suppliers});
@@ -301,7 +302,7 @@ class _ReceiptsTable extends StatelessWidget {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: Gap.l, vertical: Gap.m),
                     child: cells(
-                      no: txt(l.invNumber('${r.number}'), style: const TextStyle(fontWeight: FontWeight.w700)),
+                      no: txt(l.invNumber(docNo(r.number, r.deviceCode)), style: const TextStyle(fontWeight: FontWeight.w700)),
                       date: txt(formatDateTime(r.createdAt)),
                       supplier: txt(_supplierOf(r, suppliers, l)),
                       invoice: txt(r.supplierInvoice ?? '—', style: TextStyle(color: r.supplierInvoice == null ? muted : null)),
@@ -363,7 +364,7 @@ class _ReceiptsCards extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          l.invReceiptRef('${r.number}'),
+                          l.invReceiptRef(docNo(r.number, r.deviceCode)),
                           style: t.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
                         ),
                       ),

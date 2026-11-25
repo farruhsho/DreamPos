@@ -1,3 +1,4 @@
+import '../../core/doc_number.dart';
 import 'dart:typed_data';
 
 import 'package:pdf/pdf.dart';
@@ -41,7 +42,7 @@ Future<Uint8List> buildPoPdf({
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
                 pw.Text(
-                  pr(l.purPoTitle('${order.number}')),
+                  pr(l.purPoTitle(docNo(order.number, order.deviceCode))),
                   style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
                 ),
                 pw.Text(
@@ -149,10 +150,10 @@ Future<Uint8List> _load(AppDatabase db, String orderId) async {
 }
 
 Future<void> printPo(AppDatabase db, PurchaseOrder o) => Printing.layoutPdf(
-  name: L.current.purPoPrintName('${o.number}'),
+  name: L.current.purPoPrintName(docNo(o.number, o.deviceCode)),
   format: PdfPageFormat.a4,
   onLayout: (_) => _load(db, o.id),
 );
 
 Future<void> sharePo(AppDatabase db, PurchaseOrder o) async =>
-    Printing.sharePdf(bytes: await _load(db, o.id), filename: 'zakaz_${o.number}.pdf');
+    Printing.sharePdf(bytes: await _load(db, o.id), filename: 'zakaz_${docNo(o.number, o.deviceCode)}.pdf');

@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:drift/drift.dart';
 
 import '../../core/db/database.dart';
+import '../../core/doc_number.dart';
 import '../../core/money.dart';
 import '../../l10n/l10n.dart';
 import '../errors.dart';
@@ -358,6 +359,7 @@ class SaleService {
       await db.into(db.sales).insert(SalesCompanion.insert(
             id: saleId,
             number: number,
+            deviceCode: Value(await db.deviceCode()),
             shiftId: Value(r.shiftId),
             registerId: Value(r.registerId),
             cashierId: Value(r.cashierId),
@@ -418,13 +420,14 @@ class SaleService {
       }
 
       // payments: store APPLIED amounts (cash minus change)
-      Future<void> addPayment(String method, int amount, [String? ref]) =>
+      Future<void> addPayment(String method, int amount, [String? ref, String? giftCardId]) =>
           db.into(db.salePayments).insert(SalePaymentsCompanion.insert(
                 id: newId(),
                 saleId: saleId,
                 method: method,
                 amount: amount,
                 reference: Value(ref),
+                giftCardId: Value(giftCardId),
                 createdAt: Value(now),
                 updatedAt: Value(now),
               ));
@@ -433,12 +436,12 @@ class SaleService {
         if ((byMethod[m] ?? 0) > 0) await addPayment(m, byMethod[m]!);
       }
       for (final e in giftCardsUsed.entries) {
-        await addPayment('gift_card', e.value, e.key.code);
+        await addPayment('gift_card', e.value, e.key.code, e.key.id);
         final newBal = e.key.balance - e.value;
         await (db.update(db.giftCards)..where((g) => g.id.equals(e.key.id))).write(
             GiftCardsCompanion(
                 balance: Value(newBal),
-                status: Value(newBal == 0 ? 'used' : 'active'),
+                status: Value(newBal <= 0 ? 'used' : 'active'),
                 updatedAt: Value(now)));
       }
 
@@ -591,6 +594,7 @@ class SaleService {
       await db.into(db.returns).insert(ReturnsCompanion.insert(
             id: returnId,
             number: number,
+            deviceCode: Value(await db.deviceCode()),
             saleId: saleId,
             shiftId: Value(shiftId),
             userId: Value(userId),
@@ -702,6 +706,7 @@ class SaleService {
           if (p.method == 'bonus') bonus += p.amount;
         }
         bonus = max(0, bonus - sale.bonusEarned);
+        final note = 'Аннулирование чека №${docNo(sale.number, sale.deviceCode)}';
         await db.into(db.customerLedger).insert(CustomerLedgerCompanion.insert(
               id: newId(),
               customerId: c.id,
@@ -711,8 +716,23 @@ class SaleService {
               refType: const Value('void'),
               refId: Value(saleId),
               userId: Value(userId),
-              note: Value('Аннулирование чека №${sale.number}'),
+              note: Value(note),
             ));
+        // Bonus change of the void is a ledger row too, so bonusBalance ==
+        // Σ bonus ledger amounts (D-025; before v5 it was cache-only).
+        if (bonus != c.bonusBalance) {
+          await db.into(db.customerLedger).insert(CustomerLedgerCompanion.insert(
+                id: newId(),
+                customerId: c.id,
+                kind: 'bonus_adjust',
+                amount: bonus - c.bonusBalance,
+                balanceAfter: bonus,
+                refType: const Value('void'),
+                refId: Value(saleId),
+                userId: Value(userId),
+                note: Value(note),
+              ));
+        }
         await (db.update(db.customers)..where((t) => t.id.equals(c.id))).write(CustomersCompanion(
             debtBalance: Value(debt),
             bonusBalance: Value(bonus),
@@ -720,10 +740,28 @@ class SaleService {
             visits: Value(max(0, c.visits - 1))));
       }
       for (final p in payments.where((p) => p.method == 'gift_card' && p.reference != null)) {
-        final g = await (db.select(db.giftCards)..where((t) => t.code.equals(p.reference!))).getSingleOrNull();
+        // By id: the code can change after a sync collision (D-025).
+        final g = await (db.select(db.giftCards)
+              ..where((t) => p.giftCardId != null ? t.id.equals(p.giftCardId!) : t.code.equals(p.reference!)))
+            .getSingleOrNull();
         if (g != null) {
+          // Same rule as SyncAggregates (D-025): a card whose own sale was
+          // voided (possibly on another register) has balance 0 and stays
+          // blocked; a blocked or expired card keeps its status (the owner's
+          // block is not undone); otherwise the status follows the balance,
+          // which after offline double spending can still be ≤ 0 («used»).
+          final giftSaleVoided = await (db.select(db.giftCardSales)
+                ..where((s) => s.giftCardId.equals(g.id) & s.status.equals('voided') & s.deletedAt.isNull())
+                ..limit(1))
+              .getSingleOrNull();
+          final refunded = giftSaleVoided != null ? 0 : g.balance + p.amount;
+          final status = giftSaleVoided != null
+              ? 'blocked'
+              : (g.status == 'active' || g.status == 'used')
+                  ? (refunded <= 0 ? 'used' : 'active')
+                  : g.status;
           await (db.update(db.giftCards)..where((t) => t.id.equals(g.id)))
-              .write(GiftCardsCompanion(balance: Value(g.balance + p.amount), status: const Value('active')));
+              .write(GiftCardsCompanion(balance: Value(refunded), status: Value(status)));
         }
       }
       await (db.update(db.sales)..where((s) => s.id.equals(saleId))).write(SalesCompanion(

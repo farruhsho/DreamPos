@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/db/database.dart';
 import '../../core/providers.dart';
+import '../doc_number_sql.dart';
 import 'sales_logic.dart';
 
 class SaleRow {
@@ -65,10 +66,10 @@ _Where _salesWhere(SalesFilter f, DateTime now) {
   final q = f.query.trim();
   if (q.isNotEmpty) {
     final or = <String>[];
-    final n = int.tryParse(q.replaceAll('№', '').replaceAll('#', '').trim());
-    if (n != null) {
-      or.add('s.number = ?');
-      vars.add(Variable.withInt(n));
+    final no = docNoWhere('s', q);
+    if (no != null) {
+      or.add(no.sql);
+      vars.addAll(no.vars);
     }
     for (final like in likeVariants(q)) {
       or.add('c.name LIKE ?');
@@ -254,13 +255,33 @@ final saleDetailProvider = StreamProvider.autoDispose.family<SaleDetail?, String
   (ref, id) => watchSaleDetail(ref.watch(databaseProvider), id),
 );
 
-Future<Sale?> findSaleByNumber(AppDatabase db, int number) async {
+/// A receipt by number. [code] narrows to one register; without it the
+/// receipt of this register (no code) wins, then the most recent one.
+Future<Sale?> findSaleByNumber(AppDatabase db, int number, {String? code}) async {
+  final c = code?.trim().toUpperCase();
   final list =
       await (db.select(db.sales)
-            ..where((s) => s.number.equals(number) & s.deletedAt.isNull())
+            ..where(
+              (s) =>
+                  s.number.equals(number) &
+                  s.deletedAt.isNull() &
+                  (c == null || c.isEmpty ? const Constant(true) : s.deviceCode.upper().equals(c)),
+            )
+            ..orderBy([
+              (s) => OrderingTerm.desc(s.deviceCode.isNull()),
+              (s) => OrderingTerm.desc(s.createdAt),
+            ])
             ..limit(1))
           .get();
   return list.isEmpty ? null : list.first;
+}
+
+/// A receipt by its display number (`15`, `№15`, `A-15`); null when [raw] is
+/// not a number or nothing matches.
+Future<Sale?> findSaleByDocNo(AppDatabase db, String raw) async {
+  final p = parseDocNo(raw);
+  if (p == null) return null;
+  return findSaleByNumber(db, p.number, code: p.code);
 }
 
 // ------------------------------------------------------------------ returns list
@@ -313,9 +334,22 @@ class ReturnsFilter {
 }
 
 class ReturnRow {
-  ReturnRow({required this.ret, required this.saleNumber, this.userName, this.customerName, required this.itemsCount});
+  ReturnRow({
+    required this.ret,
+    required this.saleNumber,
+    this.saleCode,
+    this.userName,
+    this.customerName,
+    required this.itemsCount,
+  });
   final Return ret;
   final int saleNumber;
+
+  /// Register code of the sale (null when sync is off).
+  final String? saleCode;
+
+  /// Display number of the sale («15» / «A-15»).
+  String get saleNo => docNo(saleNumber, saleCode);
   final String? userName;
   final String? customerName;
   final int itemsCount;
@@ -352,10 +386,11 @@ _Where _returnsWhere(ReturnsFilter f, DateTime now) {
   final q = f.query.trim();
   if (q.isNotEmpty) {
     final or = <String>[];
-    final n = int.tryParse(q.replaceAll('№', '').replaceAll('#', '').trim());
-    if (n != null) {
-      or.addAll(['r.number = ?', 's.number = ?']);
-      vars.addAll([Variable.withInt(n), Variable.withInt(n)]);
+    final rNo = docNoWhere('r', q);
+    final sNo = docNoWhere('s', q);
+    if (rNo != null && sNo != null) {
+      or.addAll([rNo.sql, sNo.sql]);
+      vars.addAll([...rNo.vars, ...sNo.vars]);
     }
     for (final like in likeVariants(q)) {
       or.addAll(['r.reason LIKE ?', 'c.name LIKE ?']);
@@ -371,7 +406,7 @@ Stream<List<ReturnRow>> watchReturns(AppDatabase db, ReturnsFilter f, {DateTime?
   return db
       .customSelect(
         '''
-SELECT r.*, s.number AS x_sale_number, u.name AS x_user, c.name AS x_customer,
+SELECT r.*, s.number AS x_sale_number, s.device_code AS x_sale_code, u.name AS x_user, c.name AS x_customer,
   (SELECT COUNT(*) FROM return_items ri WHERE ri.return_id = r.id) AS x_items
 FROM returns r
 JOIN sales s ON s.id = r.sale_id
@@ -390,6 +425,7 @@ LIMIT ?''',
             ReturnRow(
               ret: db.returns.map(r.data),
               saleNumber: r.read<int>('x_sale_number'),
+              saleCode: r.readNullable<String>('x_sale_code'),
               userName: r.readNullable<String>('x_user'),
               customerName: r.readNullable<String>('x_customer'),
               itemsCount: r.read<int>('x_items'),

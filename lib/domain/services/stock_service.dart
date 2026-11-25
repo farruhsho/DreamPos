@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 
 import '../../l10n/l10n.dart';
 import '../../core/db/database.dart';
+import '../../core/doc_number.dart';
 import '../../core/money.dart';
 import '../errors.dart';
 
@@ -13,8 +14,10 @@ class StockService {
   /// Applies a signed [delta] to a product and writes a ledger row.
   /// Must be called inside a transaction by multi-row operations.
   /// When [enforce] is true and the product does not allow negative stock,
-  /// throws if the result would be negative.
+  /// throws if the result would be negative. [id] is the movement id
+  /// (default: a new one; a one-time effect passes `effectId`, D-025).
   Future<double> move({
+    String? id,
     required String productId,
     required double delta,
     required String type,
@@ -41,7 +44,7 @@ class StockService {
         ProductsCompanion(
             stockQty: Value(after), updatedAt: Value(DateTime.now())));
     await db.into(db.stockMovements).insert(StockMovementsCompanion.insert(
-          id: newId(),
+          id: id ?? newId(),
           productId: productId,
           type: type,
           qty: Qty.round(delta),
@@ -116,6 +119,7 @@ class StockService {
 
   /// Sets stock to an absolute value (manual correction).
   Future<void> setStock({
+    String? id,
     required String productId,
     required double newQty,
     required String reason,
@@ -130,6 +134,7 @@ class StockService {
       final delta = Qty.round(newQty - p.stockQty);
       if (delta == 0) return;
       await move(
+          id: id,
           productId: productId,
           delta: delta,
           type: type,
@@ -158,9 +163,12 @@ class StockService {
           .get();
       for (final it in items) {
         await setStock(
+          // Same id on every register (D-025): one count completed on two
+          // registers offline corrects the stock once, not twice.
+          id: effectId('inventory_count', it.id),
           productId: it.productId,
           newQty: it.countedQty!,
-          reason: 'Инвентаризация №${count.number}',
+          reason: 'Инвентаризация №${docNo(count.number, count.deviceCode)}',
           userId: userId,
           type: 'inventory',
           refType: 'count',

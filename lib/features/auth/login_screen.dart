@@ -4,10 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/providers.dart';
+import '../../core/sync/transport.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
 import '../../domain/errors.dart';
 import '../../l10n/l10n.dart';
+import '../settings/sync_widgets.dart';
 
 /// PIN login / lock screen. PINs are unique per user, so PIN alone
 /// identifies the cashier (fast shift change at the till).
@@ -60,6 +62,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final t = Theme.of(context);
     final store = ref.watch(settingProvider('store_name')) ?? 'DreamPOS';
     final demo = ref.watch(settingProvider('demo_mode')) == '1';
+    final testStore = ref.watch(syncStatusProvider).isTestStore;
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(
@@ -125,11 +128,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         Text(context.l10n.authEnterPin, style: t.textTheme.titleMedium),
                         const SizedBox(height: Gap.m),
                         PinPad(onCompleted: _login, error: _error, busy: _busy),
-                        if (demo) ...[
+                        if (demo || testStore) ...[
                           const SizedBox(height: Gap.m),
-                          StatusChip(
-                            context.l10n.authDemoMode,
-                            color: AppColors.warning,
+                          Wrap(
+                            alignment: WrapAlignment.center,
+                            spacing: Gap.s,
+                            runSpacing: Gap.xs,
+                            children: [
+                              if (demo)
+                                StatusChip(
+                                  context.l10n.authDemoMode,
+                                  color: AppColors.warning,
+                                ),
+                              // Connected to a `test` cloud store (D-025).
+                              if (testStore) SyncEnvBadge(StoreEnvironment.test, key: const ValueKey('login-test-store')),
+                            ],
                           ),
                         ],
                         const SizedBox(height: Gap.m),

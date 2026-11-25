@@ -5,6 +5,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
 import '../../core/db/database.dart';
+import '../../core/doc_number.dart';
 import '../../core/money.dart';
 import '../../core/printing/pdf_fonts.dart';
 import '../../core/widgets/widgets.dart' show formatDateTime;
@@ -90,13 +91,13 @@ Future<Uint8List> buildReturnSlipPdf(ReturnSlipData d) async {
           pw.SizedBox(height: 14),
           pw.Center(
             child: pw.Text(
-              p(l.salesSlipTitle('${d.ret.number}')),
+              p(l.salesSlipTitle(docNo(d.ret.number, d.ret.deviceCode))),
               style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold),
             ),
           ),
           pw.SizedBox(height: 10),
           kv(p(l.commonDate), formatDateTime(d.ret.createdAt)),
-          kv(p(l.salesSlipBySale), p(l.salesSlipSaleRef('${d.sale.number}', formatDateTime(d.sale.createdAt)))),
+          kv(p(l.salesSlipBySale), p(l.salesSlipSaleRef(docNo(d.sale.number, d.sale.deviceCode), formatDateTime(d.sale.createdAt)))),
           if (d.customerName != null) kv(p(l.salesSlipBuyer), d.customerName!),
           kv(p(l.salesSlipMethod), p(paymentMethodLabel(d.ret.refundMethod, l))),
           kv(p(l.commonReason), d.ret.reason ?? '—'),
@@ -141,7 +142,7 @@ Future<Uint8List> buildReturnSlipPdf(ReturnSlipData d) async {
 Future<void> printReturnSlip(AppDatabase db, String returnId) async {
   final data = await ReturnSlipData.load(db, returnId);
   await Printing.layoutPdf(
-    name: L.printable(L.forReceipt(data.settings).salesSlipJobName('${data.ret.number}')),
+    name: L.printable(L.forReceipt(data.settings).salesSlipJobName(docNo(data.ret.number, data.ret.deviceCode))),
     format: PdfPageFormat.a5,
     onLayout: (_) => buildReturnSlipPdf(data),
   );

@@ -343,7 +343,7 @@ class _SupplierLedgerViewState extends ConsumerState<SupplierLedgerView> {
     final id = widget.supplierId;
     final l = context.l10n;
     final supplier = ref.watch(purSupplierProvider(id)).value;
-    final numbers = ref.watch(goodsReceiptNumbersProvider).value ?? const <String, int>{};
+    final numbers = ref.watch(goodsReceiptNumbersProvider).value ?? const <String, String>{};
     final payments = <String, SupplierPayment>{
       for (final p in ref.watch(purSupplierPaymentsProvider(id)).value ?? const <SupplierPayment>[]) p.id: p,
     };

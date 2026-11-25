@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/db/database.dart';
+import '../doc_number_sql.dart';
 import '../../core/money.dart';
 import '../../core/permissions.dart';
 import '../../core/printing/gift_receipt.dart';
@@ -352,7 +353,7 @@ class _GiftSaleFormState extends ConsumerState<GiftSaleForm> {
                         Text(
                           shift == null
                               ? l.mktShiftClosedNote
-                              : l.mktShiftAdvanceNote('${shift.number}'),
+                              : l.mktShiftAdvanceNote(docNo(shift.number, shift.deviceCode)),
                           style: shift == null ? const TextStyle(color: AppColors.danger, fontSize: 12) : muted,
                         ),
                         const SizedBox(height: Gap.m),
@@ -630,7 +631,7 @@ class _GiftSaleSuccessDialogState extends ConsumerState<GiftSaleSuccessDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(l.coreGiftSlipTitle('${r.number}'), style: t.textTheme.titleMedium),
+              Text(l.coreGiftSlipTitle(docNo(r.number, deviceCodeOf(ref.watch(settingsProvider).value))), style: t.textTheme.titleMedium),
               const SizedBox(height: Gap.m),
               FittedBox(
                 fit: BoxFit.scaleDown,

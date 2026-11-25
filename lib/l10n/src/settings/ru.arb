@@ -260,5 +260,7 @@
   "settingsAutoPrint": "Печатать чек автоматически",
   "settingsAutoPrintHint": "Сразу после оплаты, без вопроса кассиру",
   "settingsStoreDesc": "Реквизиты магазина и оформление чека. Изменения сразу видны в образце чека.",
-  "settingsReceiptSample": "Образец чека"
+  "settingsReceiptSample": "Образец чека",
+  "settingsSecSync": "Синхронизация",
+  "settingsSecSyncHint": "Несколько касс, облако"
 }

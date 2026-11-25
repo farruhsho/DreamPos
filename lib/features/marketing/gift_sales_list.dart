@@ -1,5 +1,6 @@
 // «Продажи сертификатов»: gift card sale documents (D-023) with period and
 // status filters. Tap a row to open the card detail (reprint / void).
+import '../../core/doc_number.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -206,7 +207,7 @@ class _SaleRow extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Text('№${s.number}', style: t.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+                  Text('№${docNo(s.number, s.deviceCode)}', style: t.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
                   const SizedBox(width: Gap.s),
                   Expanded(
                     child: Text(

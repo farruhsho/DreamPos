@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 
 import '../../l10n/l10n.dart';
 import '../../core/db/database.dart';
+import '../../core/doc_number.dart';
 import '../errors.dart';
 
 /// X/Z report figures for a shift.
@@ -92,12 +93,16 @@ class ShiftService {
   ShiftService(this.db);
   final AppDatabase db;
 
-  Future<Shift?> currentShift({String? registerId}) {
-    final q = db.select(db.shifts)..where((s) => s.status.equals('open'));
-    if (registerId != null) q.where((s) => s.registerId.equals(registerId));
-    q.orderBy([(s) => OrderingTerm.desc(s.openedAt)]);
-    q.limit(1);
-    return q.getSingleOrNull();
+  /// The open shift of THIS register. With sync on (a device code is set)
+  /// other registers' open shifts are synced here too, so the shift is the
+  /// one with this register's code, or one this database kept as its own
+  /// when its code changed (D-025, [AppDatabase.ownShiftsSettingKey]);
+  /// without sync, the latest open shift as before. [registerId] narrows it
+  /// further.
+  Future<Shift?> currentShift({String? registerId}) async {
+    final code = await db.deviceCode();
+    final own = AppDatabase.parseOwnShifts(await db.getSetting(AppDatabase.ownShiftsSettingKey));
+    return db.currentShiftQuery(code, own, registerId: registerId).getSingleOrNull();
   }
 
   Future<Shift> open({required String userId, required int openingCash, String? registerId}) async {
@@ -105,13 +110,14 @@ class ShiftService {
     return db.transaction(() async {
       final existing = await currentShift(registerId: registerId);
       if (existing != null) {
-        throw BusinessException(L.current.errShiftAlreadyOpen('${existing.number}'));
+        throw BusinessException(L.current.errShiftAlreadyOpen(docNo(existing.number, existing.deviceCode)));
       }
       final id = newId();
       final number = await db.nextNumber('shift');
       await db.into(db.shifts).insert(ShiftsCompanion.insert(
             id: id,
             number: number,
+            deviceCode: Value(await db.deviceCode()),
             registerId: Value(registerId),
             openedBy: userId,
             openedAt: DateTime.now(),

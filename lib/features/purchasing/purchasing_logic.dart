@@ -2,6 +2,7 @@
 // orders with partial receiving, reorder suggestions and purchase price
 // control. Receipts are goods_receipts documents posted by ReceiptService;
 // supplier balances change only through SupplierLedgerService.
+import '../../core/doc_number.dart';
 import 'dart:math' as math;
 
 import 'package:drift/drift.dart';
@@ -126,8 +127,9 @@ final purOrderReceiptsProvider = StreamProvider.family<List<GoodsReceipt>, Strin
       .watch();
 });
 
-/// Supplier ledger («Взаиморасчёты») in chronological order; the last row's
-/// `balanceAfter` equals `suppliers.balance`.
+/// Supplier ledger («Взаиморасчёты») in chronological order; Σ amounts
+/// equals `suppliers.balance` (D-021 as relaxed by D-025: `balanceAfter` is
+/// the running balance as seen by the register that wrote the row).
 final purSupplierLedgerProvider = StreamProvider.family<List<SupplierLedgerEntry>, String>((ref, supplierId) {
   final db = ref.watch(databaseProvider);
   return (db.select(db.supplierLedger)
@@ -203,12 +205,12 @@ Map<String, String> supplierLedgerKindLabelsOf(AppLocalizations l) => {
 Map<String, String> get supplierLedgerKindLabels => supplierLedgerKindLabelsOf(L.current);
 
 /// Supplier statement (акт сверки) for a period built from ledger rows.
-/// * [opening] — balance before [from] (last balanceAfter before it, else 0);
+/// * [opening] — balance before [from] (Σ amounts before it, else 0);
 ///   a leading `opening` (migration back-fill) row inside the period counts
 ///   here, not as turnover;
 /// * [increase] — Σ positive amounts in the period (приход, store owes more);
 /// * [decrease] — Σ |negative amounts| in the period (расход/оплаты);
-/// * [closing] — opening + increase − decrease (== last balanceAfter).
+/// * [closing] — opening + increase − decrease (== Σ amounts == balance).
 class SupplierStatement {
   const SupplierStatement({
     required this.opening,
@@ -230,12 +232,12 @@ class SupplierStatement {
     final rows = <SupplierLedgerEntry>[];
     for (final e in entries) {
       if (from != null && e.createdAt.isBefore(from)) {
-        opening = e.balanceAfter;
+        opening += e.amount;
       } else if (to == null || e.createdAt.isBefore(to)) {
         // The migration `opening` row is a starting balance, not turnover:
         // it becomes «Сальдо на начало» of a period that contains it.
         if (e.kind == SupplierLedgerKind.opening && rows.isEmpty) {
-          opening = e.balanceAfter;
+          opening += e.amount;
         } else {
           rows.add(e);
         }
@@ -255,10 +257,11 @@ class SupplierStatement {
 
 /// Operation text of a ledger row: «Приход №N», «Сторно прихода №N»,
 /// «Оплата (Перечисление)», «Отмена оплаты», «Корректировка»…
-/// [receiptNumbers]: goods_receipts.id → number; [payments]: id → payment.
+/// [receiptNumbers]: goods_receipts.id → display number («15» / «A-15», or a
+/// bare int); [payments]: id → payment.
 String supplierLedgerOperation(
   SupplierLedgerEntry e, {
-  Map<String, int> receiptNumbers = const {},
+  Map<String, Object> receiptNumbers = const {},
   Map<String, SupplierPayment> payments = const {},
 }) {
   final base = supplierLedgerKindLabels[e.kind] ?? e.kind;
@@ -651,6 +654,10 @@ class PurchasingRepo {
   }
 
   /// Creates (id == null) or rewrites a draft PO. Returns the order id.
+  ///
+  /// The line set is replaced as a whole under a new `lines_rev` (header and
+  /// every line), so when two registers edit one draft offline the sync keeps
+  /// only the lines of the header save that wins, never the union (D-025).
   Future<String> saveDraftOrder({
     String? id,
     required String supplierId,
@@ -662,23 +669,27 @@ class PurchasingRepo {
     _validateLines(lines);
     final oid = id ?? newId();
     final total = poLinesTotal(lines);
+    final rev = newId();
     await db.transaction(() async {
       final s = await (db.select(db.suppliers)..where((t) => t.id.equals(supplierId))).getSingleOrNull();
       if (s == null || s.deletedAt != null) throw BusinessException(L.current.purSelectSupplier);
       final now = DateTime.now();
       if (id == null) {
         final number = await db.nextNumber('po');
+        final deviceCode = await db.deviceCode();
         await db
             .into(db.purchaseOrders)
             .insert(
               PurchaseOrdersCompanion.insert(
                 id: oid,
                 number: number,
+                deviceCode: Value(deviceCode),
                 supplierId: supplierId,
                 total: Value(total),
                 expectedAt: Value(expectedAt),
                 note: Value(_clean(note)),
                 userId: Value(userId),
+                linesRev: Value(rev),
               ),
             );
       } else {
@@ -690,6 +701,7 @@ class PurchasingRepo {
             total: Value(total),
             expectedAt: Value(expectedAt),
             note: Value(_clean(note)),
+            linesRev: Value(rev),
             updatedAt: Value(now),
           ),
         );
@@ -706,6 +718,7 @@ class PurchasingRepo {
                 productId: l.productId,
                 qty: Qty.round(l.qty),
                 unitCost: l.unitCost,
+                linesRev: Value(rev),
               ),
             );
       }
@@ -731,7 +744,7 @@ class PurchasingRepo {
         userId: userId,
         entity: 'purchase_order',
         entityId: orderId,
-        details: '№${o.number}',
+        details: '№${docNo(o.number, o.deviceCode)}',
       );
     });
   }
@@ -761,7 +774,7 @@ class PurchasingRepo {
         userId: userId,
         entity: 'purchase_order',
         entityId: orderId,
-        details: '№${o.number}; ${reason ?? ''}',
+        details: '№${docNo(o.number, o.deviceCode)}; ${reason ?? ''}',
       );
     });
   }
@@ -788,7 +801,7 @@ class PurchasingRepo {
       final o = await _order(orderId);
       if (o.status != 'ordered' && o.status != 'draft') {
         throw BusinessException(
-          L.current.purErrOrderAlreadyStatus('${o.number}', poStatusLabels[o.status]?.toLowerCase() ?? o.status),
+          L.current.purErrOrderAlreadyStatus(docNo(o.number, o.deviceCode), poStatusLabels[o.status]?.toLowerCase() ?? o.status),
         );
       }
       final items = {
@@ -847,7 +860,7 @@ class PurchasingRepo {
         entity: 'purchase_order',
         entityId: orderId,
         details:
-            '№${o.number}; приход №${doc.number}; поз. ${active.length}; сумма ${doc.total}; ' // l10n-ignore: audit
+            '№${docNo(o.number, o.deviceCode)}; приход №${docNo(doc.number, await db.deviceCode())}; поз. ${active.length}; сумма ${doc.total}; ' // l10n-ignore: audit
             '${full ? 'полностью' : 'частично'}', // l10n-ignore: audit details (stored)
       );
       return (result: ReceiveResult(value: doc.total, fullyReceived: full, lines: active.length), receipt: doc);

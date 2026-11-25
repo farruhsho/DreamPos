@@ -260,5 +260,7 @@
   "settingsAutoPrint": "Чекти автоматтык түрдө басып чыгаруу",
   "settingsAutoPrintHint": "Төлөмдөн кийин дароо, кассирден сурабастан",
   "settingsStoreDesc": "Дүкөндүн реквизиттери жана чектин көрүнүшү. Өзгөртүүлөр чектин үлгүсүндө дароо көрүнөт.",
-  "settingsReceiptSample": "Чектин үлгүсү"
+  "settingsReceiptSample": "Чектин үлгүсү",
+  "settingsSecSync": "Синхрондоо",
+  "settingsSecSyncHint": "Бир нече касса, булут"
 }

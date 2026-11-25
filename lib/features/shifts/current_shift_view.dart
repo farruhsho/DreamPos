@@ -1,3 +1,4 @@
+import '../../core/doc_number.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -74,6 +75,8 @@ class _OpenShiftPanelState extends ConsumerState<OpenShiftPanel> {
     final amount = _value ?? Money.parse(_ctl.text) ?? 0;
     await runGuarded(
       context,
+      // No register id: ShiftService scopes a null id to this register's
+      // device code when sync is on (D-025).
       () => ref.read(shiftServiceProvider).open(userId: session.user.id, openingCash: amount),
       success: context.l10n.shiftOpenedToast(Money.format(amount)),
     );
@@ -325,7 +328,7 @@ class _ShiftHeaderState extends State<_ShiftHeader> {
           runSpacing: Gap.xs,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            Text(l.shiftNumber('${shift.number}'), style: t.textTheme.titleLarge),
+            Text(l.shiftNumber(docNo(shift.number, shift.deviceCode)), style: t.textTheme.titleLarge),
             StatusChip(l.shiftStatusOpen, color: AppColors.success),
           ],
         ),

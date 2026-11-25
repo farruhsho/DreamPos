@@ -16,6 +16,8 @@
   "appMenu": "Меню",
   "appShiftClosed": "Смена закрыта",
   "appShiftChip": "Смена №{number} · с {time}",
+  "appShiftChipShort": "Смена №{number}",
+  "appShiftChipNumber": "№{number}",
   "appProfile": "Профиль",
   "appLockSwitch": "Заблокировать / сменить кассира"
 }

@@ -260,5 +260,7 @@
   "settingsAutoPrint": "Chekni avtomatik chop etish",
   "settingsAutoPrintHint": "Toʻlovdan soʻng darhol, kassirdan soʻramasdan",
   "settingsStoreDesc": "Doʻkon rekvizitlari va chek koʻrinishi. Oʻzgarishlar chek namunasida darhol koʻrinadi.",
-  "settingsReceiptSample": "Chek namunasi"
+  "settingsReceiptSample": "Chek namunasi",
+  "settingsSecSync": "Sinxronlash",
+  "settingsSecSyncHint": "Bir nechta kassa, bulut"
 }

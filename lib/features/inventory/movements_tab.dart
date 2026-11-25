@@ -113,7 +113,7 @@ class _MovementsTabState extends ConsumerState<MovementsTab> {
     final l = context.l10n;
     final products = ref.watch(invProductMapProvider).value ?? const {};
     final users = ref.watch(invUserNamesProvider).value ?? const {};
-    final receiptNumbers = ref.watch(goodsReceiptNumbersProvider).value ?? const <String, int>{};
+    final receiptNumbers = ref.watch(goodsReceiptNumbersProvider).value ?? const <String, String>{};
     final q = _query;
     final typeField = DropdownButtonFormField<String?>(
       initialValue: _type,

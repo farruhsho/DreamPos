@@ -4,7 +4,9 @@ import 'package:drift/drift.dart';
 
 import '../../l10n/l10n.dart';
 import '../../core/db/database.dart';
+import '../../core/doc_number.dart';
 import '../../core/money.dart';
+import '../../core/sync/aggregates.dart' show syncOpeningNote;
 import '../errors.dart';
 import 'stock_service.dart';
 import 'supplier_service.dart';
@@ -106,7 +108,7 @@ class ReceiptService {
           throw BusinessException(L.current.errOrderOtherSupplier);
         }
         if (order.status != 'ordered' && order.status != 'draft') {
-          throw BusinessException(L.current.errOrderClosed('${order.number}'));
+          throw BusinessException(L.current.errOrderClosed(docNo(order.number, order.deviceCode)));
         }
         final itemIds = {
           for (final i in await (db.select(db.purchaseOrderItems)..where((i) => i.orderId.equals(orderId))).get())
@@ -124,11 +126,16 @@ class ReceiptService {
       // ---- header
       final id = newId();
       final number = await db.nextNumber('receipt');
+      final deviceCode = await db.deviceCode();
+      // Stored notes show the register code like every other display (D-025;
+      // identical to before while sync is off).
+      final no = docNo(number, deviceCode);
       final total = lines.fold<int>(0, (s, l) => s + l.total);
       final cleanNote = _clean(note);
       await db.into(db.goodsReceipts).insert(GoodsReceiptsCompanion.insert(
             id: id,
             number: number,
+            deviceCode: Value(deviceCode),
             supplierId: Value(sup?.id),
             orderId: Value(orderId),
             supplierInvoice: Value(_clean(supplierInvoice)),
@@ -137,9 +144,9 @@ class ReceiptService {
             note: Value(cleanNote),
           ));
       final reason = [
-        'Приход №$number',
+        'Приход №$no',
         if (sup != null) 'Поставщик: ${sup.name}',
-        if (order != null) 'Заказ поставщику №${order.number}',
+        if (order != null) 'Заказ поставщику №${docNo(order.number, order.deviceCode)}',
         ?cleanNote,
       ].join('; ');
 
@@ -194,7 +201,7 @@ class ReceiptService {
           refType: 'goods_receipt',
           refId: id,
           userId: userId,
-          note: 'Приход №$number',
+          note: 'Приход №$no',
         );
       }
       await db.markDirty('goods_receipts', id);
@@ -217,12 +224,14 @@ class ReceiptService {
     await db.transaction(() async {
       final r = await (db.select(db.goodsReceipts)..where((t) => t.id.equals(receiptId))).getSingleOrNull();
       if (r == null || r.deletedAt != null) throw BusinessException(L.current.errReceiptNotFound);
-      if (r.status != ReceiptStatus.posted) throw BusinessException(L.current.errReceiptAlreadyReversed('${r.number}'));
+      final rNo = docNo(r.number, r.deviceCode);
+      if (r.status != ReceiptStatus.posted) throw BusinessException(L.current.errReceiptAlreadyReversed(rNo));
+      if (r.note == syncOpeningNote && r.total == 0) throw BusinessException(L.current.errReceiptOpeningNoReversal(rNo));
       if (r.supplierId != null && r.total != 0) {
         final sup =
             await (db.select(db.suppliers)..where((t) => t.id.equals(r.supplierId!))).getSingleOrNull();
         if (sup != null && sup.deletedAt != null) {
-          throw BusinessException(L.current.errSupplierDeletedNoReversal(sup.name, '${r.number}'));
+          throw BusinessException(L.current.errSupplierDeletedNoReversal(sup.name, rNo));
         }
       }
       final items = await (db.select(db.goodsReceiptItems)
@@ -230,12 +239,15 @@ class ReceiptService {
             ..orderBy([(i) => OrderingTerm.asc(i.createdAt)]))
           .get();
       final now = DateTime.now();
-      final reasonText = 'Сторно прихода №${r.number}: $why';
+      final reasonText = 'Сторно прихода №$rNo: $why';
       for (final it in items) {
         final p = await (db.select(db.products)..where((t) => t.id.equals(it.productId))).getSingle();
         final s = p.stockQty;
         final c = p.costPrice;
         await stock.move(
+          // Same id on every register (D-025): the same receipt reversed on
+          // two registers offline takes the goods off once, not twice.
+          id: effectId('receipt_reversal', it.id),
           productId: it.productId,
           delta: -it.qty,
           type: 'receipt_reversal',
@@ -304,6 +316,7 @@ class ReceiptService {
       // ---- supplier debt
       if (r.supplierId != null && r.total != 0) {
         await ledger.post(
+          id: effectId('receipt_reversal', r.id),
           supplierId: r.supplierId!,
           kind: SupplierLedgerKind.receiptReversal,
           amount: -r.total,

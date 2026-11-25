@@ -16,6 +16,8 @@
   "appMenu": "Menyu",
   "appShiftClosed": "Smena yopiq",
   "appShiftChip": "Smena №{number} · {time} dan",
+  "appShiftChipShort": "Smena №{number}",
+  "appShiftChipNumber": "№{number}",
   "appProfile": "Profil",
   "appLockSwitch": "Bloklash / kassirni almashtirish"
 }

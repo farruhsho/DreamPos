@@ -16,6 +16,8 @@
   "appMenu": "Меню",
   "appShiftClosed": "Смена жабык",
   "appShiftChip": "Смена №{number} · ачылды {time}",
+  "appShiftChipShort": "Смена №{number}",
+  "appShiftChipNumber": "№{number}",
   "appProfile": "Профиль",
   "appLockSwitch": "Бөгөттөө / кассирди алмаштыруу"
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/db/database.dart';
+import '../../core/doc_number.dart';
 import '../../core/money.dart';
 import '../../core/permissions.dart';
 import '../../core/providers.dart';
@@ -224,7 +225,7 @@ class _PaymentFormState extends ConsumerState<_PaymentForm> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(live.name, style: t.textTheme.titleMedium),
-            if (widget.order != null) Text(l.purOrderNumber('${widget.order!.number}')),
+            if (widget.order != null) Text(l.purOrderNumber(docNo(widget.order!.number, widget.order!.deviceCode))),
             Text(
               live.balance >= 0
                   ? l.purOurDebtValue(Money.format(live.balance))
@@ -268,7 +269,7 @@ class _PaymentFormState extends ConsumerState<_PaymentForm> {
                 child: Text(
                   shift == null
                       ? l.purShiftClosedNoCash
-                      : l.purCashOutFromShift('${shift.number}'),
+                      : l.purCashOutFromShift(docNo(shift.number, shift.deviceCode)),
                   style: t.textTheme.bodySmall?.copyWith(color: shift == null ? AppColors.danger : null),
                 ),
               ),

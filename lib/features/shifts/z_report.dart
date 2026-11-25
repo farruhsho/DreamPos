@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/doc_number.dart';
 import '../../core/permissions.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
@@ -150,7 +151,7 @@ class ZReportPanel extends ConsumerWidget {
               children: [
                 Expanded(
                   child: Text(
-                    context.l10n.shiftReportHeader(d.titleIn(context.l10n), '${f.shift.number}'),
+                    context.l10n.shiftReportHeader(d.titleIn(context.l10n), docNo(f.shift.number, f.shift.deviceCode)),
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ),

@@ -156,6 +156,8 @@ class Suppliers extends Table with SyncColumns {
 /// status: draft | ordered | received | cancelled
 class PurchaseOrders extends Table with SyncColumns {
   IntColumn get number => integer()();
+  /// Register code (`A`, `B`…) when sync is on, else null (D-025). Display: `docNo`.
+  TextColumn get deviceCode => text().nullable()();
   TextColumn get supplierId => text().references(Suppliers, #id)();
   TextColumn get status => text().withDefault(const Constant('draft'))();
   IntColumn get total => integer().withDefault(const Constant(0))();
@@ -164,6 +166,10 @@ class PurchaseOrders extends Table with SyncColumns {
   DateTimeColumn get receivedAt => dateTime().nullable()();
   TextColumn get userId => text().nullable()();
   TextColumn get note => text().nullable()();
+  /// Revision of the line set written by the last draft save (v6, D-025).
+  /// Lines whose `linesRev` differs belong to a concurrent save that lost
+  /// (sync removes them), see `PurchasingRepo.saveDraftOrder`.
+  TextColumn get linesRev => text().nullable()();
 }
 
 class PurchaseOrderItems extends Table with SyncColumns {
@@ -172,6 +178,8 @@ class PurchaseOrderItems extends Table with SyncColumns {
   RealColumn get qty => real()();
   RealColumn get receivedQty => real().withDefault(const Constant(0))();
   IntColumn get unitCost => integer()();
+  /// `purchase_orders.lines_rev` of the save that wrote this line (v6).
+  TextColumn get linesRev => text().nullable()();
 }
 
 /// Supplier payments (decrease balance).
@@ -192,6 +200,8 @@ class SupplierPayments extends Table with SyncColumns {
 /// Numbered goods receipt document («Приход №N»). status: posted | reversed
 class GoodsReceipts extends Table with SyncColumns {
   IntColumn get number => integer()(); // db.nextNumber('receipt')
+  /// Register code (`A`, `B`…) when sync is on, else null (D-025). Display: `docNo`.
+  TextColumn get deviceCode => text().nullable()();
   TextColumn get supplierId => text().nullable()();
   TextColumn get orderId => text().nullable()(); // purchase order, if any
   TextColumn get supplierInvoice => text().nullable()(); // № накладной поставщика
@@ -232,6 +242,8 @@ class SupplierLedger extends Table with SyncColumns {
 /// Cash register shift. status: open | closed
 class Shifts extends Table with SyncColumns {
   IntColumn get number => integer()();
+  /// Register code (`A`, `B`…) when sync is on, else null (D-025). Display: `docNo`.
+  TextColumn get deviceCode => text().nullable()();
   TextColumn get registerId => text().nullable()();
   TextColumn get openedBy => text().references(Users, #id)();
   TextColumn get closedBy => text().nullable()();
@@ -257,6 +269,8 @@ class CashMovements extends Table with SyncColumns {
 /// status: completed | voided | partially_returned | returned | held (parked)
 class Sales extends Table with SyncColumns {
   IntColumn get number => integer()();
+  /// Register code (`A`, `B`…) when sync is on, else null (D-025). Display: `docNo`.
+  TextColumn get deviceCode => text().nullable()();
   TextColumn get shiftId => text().nullable()();
   TextColumn get registerId => text().nullable()();
   TextColumn get cashierId => text().nullable()();
@@ -297,10 +311,16 @@ class SalePayments extends Table with SyncColumns {
   TextColumn get method => text()();
   IntColumn get amount => integer()();
   TextColumn get reference => text().nullable()(); // gift card code / txn id
+  /// Redeemed gift card (method gift_card, v6). The code in [reference] can
+  /// change when two registers issued the same code offline (D-025); the
+  /// balance is derived by this id. Null on rows from before v6.
+  TextColumn get giftCardId => text().nullable()();
 }
 
 class Returns extends Table with SyncColumns {
   IntColumn get number => integer()();
+  /// Register code (`A`, `B`…) when sync is on, else null (D-025). Display: `docNo`.
+  TextColumn get deviceCode => text().nullable()();
   TextColumn get saleId => text().references(Sales, #id)();
   TextColumn get shiftId => text().nullable()();
   TextColumn get userId => text().nullable()();
@@ -334,6 +354,8 @@ class GiftCards extends Table with SyncColumns {
 /// status: completed | voided
 class GiftCardSales extends Table with SyncColumns {
   IntColumn get number => integer()(); // db.nextNumber('gift_sale')
+  /// Register code (`A`, `B`…) when sync is on, else null (D-025). Display: `docNo`.
+  TextColumn get deviceCode => text().nullable()();
   TextColumn get giftCardId => text().references(GiftCards, #id)();
   IntColumn get amount => integer()(); // nominal = sum of payments
   TextColumn get shiftId => text().nullable()();
@@ -378,6 +400,8 @@ class Promotions extends Table with SyncColumns {
 /// Inventory count (stocktake). status: draft | completed | cancelled
 class InventoryCounts extends Table with SyncColumns {
   IntColumn get number => integer()();
+  /// Register code (`A`, `B`…) when sync is on, else null (D-025). Display: `docNo`.
+  TextColumn get deviceCode => text().nullable()();
   TextColumn get status => text().withDefault(const Constant('draft'))();
   TextColumn get userId => text().nullable()();
   TextColumn get note => text().nullable()();
@@ -396,6 +420,8 @@ class InventoryCountItems extends Table with SyncColumns {
 /// status: received | in_repair | replaced | refunded | rejected | returned_to_client
 class WarrantyClaims extends Table with SyncColumns {
   IntColumn get number => integer()();
+  /// Register code (`A`, `B`…) when sync is on, else null (D-025). Display: `docNo`.
+  TextColumn get deviceCode => text().nullable()();
   TextColumn get saleItemId => text().nullable()();
   TextColumn get productId => text().nullable()();
   TextColumn get customerId => text().nullable()();
@@ -430,14 +456,75 @@ class AuditLog extends Table {
   TextColumn get details => text().nullable()();
 }
 
-/// Sync outbox for future multi-terminal / cloud sync.
+/// SQL expression: wall-clock time in epoch milliseconds (used by the sync
+/// triggers and as the default of `sync_outbox.at`).
+const sqlNowMs = "CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)";
+
+/// Sync outbox (D-025). Written only by the SQLite triggers created from
+/// `lib/core/sync/sync_tables.dart` (one row per insert/update/delete of a
+/// synced row). Local-only table.
+///
+/// `at` is epoch **milliseconds** since schema v5. Up to v4 it was a drift
+/// DateTime (INTEGER epoch seconds); both are SQLite INTEGER columns, so the
+/// column was kept and the v5 upgrade multiplies the old values by 1000. On a
+/// database created before v5 the column DEFAULT still yields seconds, but
+/// nothing inserts without `at` any more (the triggers always pass it).
 class SyncOutbox extends Table {
   IntColumn get seq => integer().autoIncrement()();
   TextColumn get entity => text()();
   TextColumn get entityId => text()();
-  TextColumn get op => text()(); // upsert | delete
-  DateTimeColumn get at => dateTime().withDefault(currentDateAndTime)();
+  TextColumn get op => text()(); // upsert | stat | delete (see sync_tables.dart statColumns)
+  IntColumn get at => integer().withDefault(const CustomExpression<int>(sqlNowMs))();
   DateTimeColumn get syncedAt => dateTime().nullable()();
+}
+
+/// One-row flag table read by the sync triggers: `applying = 1` suppresses
+/// outbox writes while the sync engine applies remote changes or recomputes
+/// caches (a normal table because triggers cannot read TEMP objects).
+/// Local-only. Use `AppDatabase.withSyncSuppressed`.
+@DataClassName('SyncFlag')
+class SyncFlags extends Table {
+  IntColumn get id => integer().withDefault(const Constant(1))();
+  IntColumn get applying => integer().withDefault(const Constant(0))();
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+/// Device-local sync bookkeeping (key/value): device_id, hlc, pull_cursor,
+/// store_id, last_push_at, last_pull_at, last_error, tokens… Local-only.
+@DataClassName('SyncStateEntry')
+class SyncState extends Table {
+  TextColumn get key => text()();
+  TextColumn get value => text()();
+  @override
+  Set<Column<Object>> get primaryKey => {key};
+}
+
+/// Version (hybrid logical clock) and device that produced the current local
+/// row of a synced entity. Local-only.
+@DataClassName('SyncRowVersion')
+class SyncRowVersions extends Table {
+  TextColumn get entity => text()();
+  TextColumn get entityId => text()();
+  IntColumn get version => integer()();
+  TextColumn get deviceId => text()();
+  @override
+  Set<Column<Object>> get primaryKey => {entity, entityId};
+}
+
+/// Local log of sync conflicts / normalisation findings shown on the sync
+/// screen. kind: unique_barcode | unique_card | unique_gift_code |
+/// negative_stock | negative_gift_balance | negative_bonus | normalize …
+/// Local-only.
+@DataClassName('SyncConflict')
+class SyncConflicts extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  DateTimeColumn get at => dateTime().withDefault(currentDateAndTime)();
+  TextColumn get kind => text()();
+  TextColumn get entity => text().nullable()();
+  TextColumn get entityId => text().nullable()();
+  TextColumn get details => text().nullable()();
+  BoolColumn get resolved => boolean().withDefault(const Constant(false))();
 }
 
 /// Monotonic document counters (receipt numbers etc.).

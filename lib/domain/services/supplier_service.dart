@@ -4,6 +4,7 @@ import 'package:drift/drift.dart';
 
 import '../../l10n/l10n.dart';
 import '../../core/db/database.dart';
+import '../../core/doc_number.dart';
 import '../../core/money.dart';
 import '../errors.dart';
 
@@ -21,16 +22,19 @@ abstract final class SupplierLedgerKind {
 }
 
 /// The only writer of `suppliers.balance` (D-021). Every change is appended
-/// to `supplier_ledger` with the running balance, so the cached balance always
-/// equals the last `balanceAfter`.
+/// to `supplier_ledger` with the running balance; the cached balance always
+/// equals Σ ledger amounts (D-025: with several registers `balanceAfter` is the
+/// writing register's view, so "balance == last balanceAfter" is not kept).
 class SupplierLedgerService {
   SupplierLedgerService(this.db);
   final AppDatabase db;
 
   /// Applies a signed [amount] (positive = store owes the supplier more) and
   /// writes a ledger row. Runs in its own transaction which nests into the
-  /// caller's. Returns the new balance.
+  /// caller's. Returns the new balance. [id] is the ledger row id (default:
+  /// a new one; a one-time effect passes `effectId`, D-025).
   Future<int> post({
+    String? id,
     required String supplierId,
     required String kind,
     required int amount,
@@ -49,9 +53,9 @@ class SupplierLedgerService {
         throw BusinessException(L.current.errSupplierDeleted(s.name));
       }
       final after = s.balance + amount;
-      final id = newId();
+      final rowId = id ?? newId();
       await db.into(db.supplierLedger).insert(SupplierLedgerCompanion.insert(
-            id: id,
+            id: rowId,
             supplierId: supplierId,
             kind: kind,
             amount: amount,
@@ -64,7 +68,7 @@ class SupplierLedgerService {
       await (db.update(db.suppliers)..where((t) => t.id.equals(supplierId)))
           .write(SuppliersCompanion(balance: Value(after), updatedAt: Value(DateTime.now())));
       await db.markDirty('suppliers', supplierId);
-      await db.markDirty('supplier_ledger', id);
+      await db.markDirty('supplier_ledger', rowId);
       return after;
     });
   }
@@ -104,7 +108,9 @@ class SupplierLedgerService {
         if (order == null || order.supplierId != supplierId) {
           throw BusinessException(L.current.errOrderOtherSupplier);
         }
-        if (order.status == 'cancelled') throw BusinessException(L.current.errOrderCancelled('${order.number}'));
+        if (order.status == 'cancelled') {
+          throw BusinessException(L.current.errOrderCancelled(docNo(order.number, order.deviceCode)));
+        }
       }
       if (shiftId != null && method == 'cash') {
         final sh = await (db.select(db.shifts)..where((t) => t.id.equals(shiftId))).getSingleOrNull();
@@ -150,7 +156,11 @@ class SupplierLedgerService {
 
   /// Cancels a payment: the payment row is kept (marked cancelled) and a
   /// `payment_cancel` entry restores the balance. A cash payment can only be
-  /// cancelled while its shift is still open.
+  /// cancelled while its shift is still open and belongs to this register
+  /// (with sync other registers' open shifts are here too, D-025: the cash
+  /// would go back into THAT drawer). The `payment_cancel` row has the same
+  /// id on every register, so a payment cancelled on two registers offline
+  /// restores the balance once.
   Future<void> cancelPayment(String paymentId, {required String reason, String? userId}) async {
     final why = reason.trim();
     if (why.isEmpty) throw BusinessException(L.current.errCancelReasonRequired);
@@ -165,12 +175,22 @@ class SupplierLedgerService {
         if (sh == null || sh.status != 'open') {
           throw BusinessException(L.current.errPaymentShiftClosed);
         }
+        // Same rule as ShiftService.currentShift: with a device code only
+        // shifts with this code (or kept as own after a code change) are
+        // this register's; without sync every shift is.
+        final code = await db.deviceCode();
+        if (code != null &&
+            sh.deviceCode != code &&
+            !AppDatabase.parseOwnShifts(await db.getSetting(AppDatabase.ownShiftsSettingKey)).contains(sh.id)) {
+          throw BusinessException(L.current.errPaymentOtherRegisterShift);
+        }
       }
       final now = DateTime.now();
       await (db.update(db.supplierPayments)..where((t) => t.id.equals(paymentId))).write(
         SupplierPaymentsCompanion(cancelledAt: Value(now), cancelReason: Value(why), updatedAt: Value(now)),
       );
       final after = await post(
+        id: effectId('payment_cancel', p.id),
         supplierId: p.supplierId,
         kind: SupplierLedgerKind.paymentCancel,
         amount: p.amount,

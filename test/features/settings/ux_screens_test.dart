@@ -70,7 +70,11 @@ void main() {
           }
         }
       }
-      // dirty store form -> save bar
+      // dirty store form -> save bar. The section list is longer since the
+      // «Синхронизация» section (D-025): «Магазин» may be scrolled out of the
+      // lazily built nav list after «О программе», so open the screen afresh.
+      await h.go('/');
+      await h.go('/settings');
       await tap(find.byKey(const ValueKey('nav-store')));
       await tester.enterText(find.byType(TextFormField).first, 'Магазин «Ташкент Маркет» 2');
       await h.settle();

@@ -9,6 +9,8 @@ import '../../core/providers.dart';
 import '../../domain/errors.dart';
 import '../../domain/services/stock_service.dart';
 import '../../l10n/l10n.dart';
+import '../doc_number_sql.dart';
+import '../sales/sales_queries.dart' show findSaleByNumber;
 import 'warranty_logic.dart';
 
 class ClaimRow {
@@ -19,6 +21,7 @@ class ClaimRow {
     this.customerPhone,
     this.saleId,
     this.saleNumber,
+    this.saleCode,
     this.saleDate,
     this.warrantyUntil,
     this.userName,
@@ -29,7 +32,13 @@ class ClaimRow {
   final String? customerPhone;
   final String? saleId;
   final int? saleNumber;
+
+  /// Register code of the sale (null when sync is off).
+  final String? saleCode;
   final DateTime? saleDate;
+
+  /// Display number of the sale («15» / «A-15»), null without a sale.
+  String? get saleNo => saleNumber == null ? null : docNo(saleNumber!, saleCode);
   final DateTime? warrantyUntil;
   final String? userName;
 }
@@ -61,7 +70,7 @@ List<String> _likeVariants(String q) {
 
 const _claimSelect = '''
 SELECT w.*, COALESCE(p.name, si.product_name) AS x_product, c.name AS x_customer, c.phone AS x_phone,
-  s.id AS x_sale_id, s.number AS x_sale_number, s.created_at AS x_sale_date,
+  s.id AS x_sale_id, s.number AS x_sale_number, s.device_code AS x_sale_code, s.created_at AS x_sale_date,
   si.warranty_until AS x_until, u.name AS x_user
 FROM warranty_claims w
 LEFT JOIN products p ON p.id = w.product_id
@@ -78,6 +87,7 @@ ClaimRow _mapRow(AppDatabase db, QueryRow r) => ClaimRow(
   customerPhone: r.readNullable<String>('x_phone'),
   saleId: r.readNullable<String>('x_sale_id'),
   saleNumber: r.readNullable<int>('x_sale_number'),
+  saleCode: r.readNullable<String>('x_sale_code'),
   saleDate: r.readNullable<DateTime>('x_sale_date'),
   warrantyUntil: r.readNullable<DateTime>('x_until'),
   userName: r.readNullable<String>('x_user'),
@@ -103,10 +113,11 @@ Stream<List<ClaimRow>> watchClaims(AppDatabase db, ClaimsFilter f) {
   final q = f.query.trim();
   if (q.isNotEmpty) {
     final or = <String>[];
-    final n = int.tryParse(q.replaceAll('№', '').replaceAll('#', '').trim());
-    if (n != null) {
-      or.addAll(['w.number = ?', 's.number = ?']);
-      vars.addAll([Variable.withInt(n), Variable.withInt(n)]);
+    final wNo = docNoWhere('w', q);
+    final sNo = docNoWhere('s', q);
+    if (wNo != null && sNo != null) {
+      or.addAll([wNo.sql, sNo.sql]);
+      vars.addAll([...wNo.vars, ...sNo.vars]);
     }
     for (final like in _likeVariants(q)) {
       or.addAll(['p.name LIKE ?', 'si.product_name LIKE ?', 'c.name LIKE ?', 'w.serial_number LIKE ?']);
@@ -167,14 +178,11 @@ class WarrantyRepository {
   WarrantyRepository(this.db);
   final AppDatabase db;
 
-  Future<SaleLookup?> findSale(int number) async {
-    final sales =
-        await (db.select(db.sales)
-              ..where((s) => s.number.equals(number) & s.deletedAt.isNull())
-              ..limit(1))
-            .get();
-    if (sales.isEmpty) return null;
-    final s = sales.first;
+  /// A receipt by number; [code] narrows to one register (see
+  /// [findSaleByNumber]).
+  Future<SaleLookup?> findSale(int number, {String? code}) async {
+    final s = await findSaleByNumber(db, number, code: code);
+    if (s == null) return null;
     final items = await (db.select(db.saleItems)..where((i) => i.saleId.equals(s.id))).get();
     final customer = s.customerId == null
         ? null
@@ -212,6 +220,7 @@ class WarrantyRepository {
     return db.transaction(() async {
       final id = newId();
       final number = await db.nextNumber('warranty');
+      final deviceCode = await db.deviceCode();
       final now = DateTime.now();
       await db
           .into(db.warrantyClaims)
@@ -219,6 +228,7 @@ class WarrantyRepository {
             WarrantyClaimsCompanion.insert(
               id: id,
               number: number,
+              deviceCode: Value(deviceCode),
               saleItemId: Value(saleItemId),
               productId: Value(pid),
               customerId: Value(customerId),

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/db/database.dart';
+import '../doc_number_sql.dart';
 import '../../core/money.dart';
 import '../../core/permissions.dart';
 import '../../core/providers.dart';
@@ -40,6 +41,8 @@ Future<void> showReceiptDocument(BuildContext context, String receiptId) {
 /// Success toast after posting a receipt, with an action opening the document.
 void showReceiptPosted(BuildContext context, PostedReceipt r, {String? details}) {
   final l = context.l10n;
+  // a document posted just now carries this register's code
+  final no = docNo(r.number, deviceCodeOf(ProviderScope.containerOf(context, listen: false).read(settingsProvider).value));
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
     ..showSnackBar(
@@ -50,7 +53,7 @@ void showReceiptPosted(BuildContext context, PostedReceipt r, {String? details})
             const SizedBox(width: Gap.m),
             Expanded(
               child: Text(
-                details == null ? l.invReceiptPostedToast('${r.number}') : l.invReceiptPostedToastDetails('${r.number}', details),
+                details == null ? l.invReceiptPostedToast(no) : l.invReceiptPostedToastDetails(no, details),
               ),
             ),
           ],
@@ -114,7 +117,7 @@ class _ReverseDialogState extends State<_ReverseDialog> {
     final r = widget.r;
     return AlertDialog(
       icon: const Icon(Icons.undo, color: AppColors.danger),
-      title: Text(l.invReverseTitle('${r.number}')),
+      title: Text(l.invReverseTitle(docNo(r.number, r.deviceCode))),
       content: SizedBox(
         width: 420,
         child: Form(
@@ -230,7 +233,7 @@ class _ReceiptDocumentViewState extends ConsumerState<ReceiptDocumentView> {
         _Info(l.invSupplierInvoice, r.supplierInvoice ?? '—'),
         _Info(
           l.invSource,
-          orderNumber != null ? l.invOrderRef('$orderNumber') : (r.orderId != null ? l.invOrder : l.invManualReceipt),
+          orderNumber != null ? l.invOrderRef(docNo(orderNumber.number, orderNumber.code)) : (r.orderId != null ? l.invOrder : l.invManualReceipt),
         ),
         if (author != null) _Info(l.invAcceptedBy, author),
         if (r.note != null && r.note!.isNotEmpty) _Info(l.commonComment, r.note!, wide: true),
@@ -242,7 +245,7 @@ class _ReceiptDocumentViewState extends ConsumerState<ReceiptDocumentView> {
       children: [
         Expanded(
           child: Text(
-            l.invReceiptRef('${r.number}'),
+            l.invReceiptRef(docNo(r.number, r.deviceCode)),
             style: t.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.w700,
               decoration: reversed ? TextDecoration.lineThrough : null,
@@ -334,7 +337,7 @@ class _ReceiptDocumentViewState extends ConsumerState<ReceiptDocumentView> {
     final printBtn = OutlinedButton.icon(
       onPressed: _printing
           ? null
-          : () => _print(r, lines, supplierName: supplierName, orderNumber: orderNumber, author: author, reversedBy: reversedBy),
+          : () => _print(r, lines, supplierName: supplierName, order: orderNumber, author: author, reversedBy: reversedBy),
       icon: _printing
           ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
           : const Icon(Icons.print_outlined),
@@ -387,7 +390,7 @@ class _ReceiptDocumentViewState extends ConsumerState<ReceiptDocumentView> {
     GoodsReceipt r,
     List<ReceiptDocLine> lines, {
     String? supplierName,
-    int? orderNumber,
+    ParsedDocNo? order,
     String? author,
     String? reversedBy,
   }) async {
@@ -400,7 +403,8 @@ class _ReceiptDocumentViewState extends ConsumerState<ReceiptDocumentView> {
         receipt: r,
         lines: lines,
         supplierName: supplierName,
-        orderNumber: orderNumber,
+        orderNumber: order?.number,
+        orderCode: order?.code,
         authorName: author,
         reversedByName: reversedBy,
       ),
@@ -423,7 +427,7 @@ class _ReceiptDocumentViewState extends ConsumerState<ReceiptDocumentView> {
       () => ref
           .read(inventoryRepoProvider)
           .reverseReceipt(r.id, reason: reason, userId: ref.read(sessionProvider)?.user.id),
-      success: context.l10n.invReversedToast('${r.number}'),
+      success: context.l10n.invReversedToast(docNo(r.number, r.deviceCode)),
     );
     if (mounted) setState(() => _busy = false);
   }

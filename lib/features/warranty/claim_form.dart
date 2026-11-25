@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/db/database.dart';
+import '../doc_number_sql.dart';
 import '../../core/money.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
@@ -76,7 +77,7 @@ class _NewClaimFormState extends ConsumerState<NewClaimForm> {
   int _lookupSeq = 0;
 
   Future<void> _lookup() async {
-    final n = int.tryParse(_receipt.text.trim().replaceAll('№', ''));
+    final n = parseDocNo(_receipt.text);
     if (n == null) {
       setState(() => _lookupError = context.l10n.warrantyEnterReceiptDigits);
       return;
@@ -87,13 +88,13 @@ class _NewClaimFormState extends ConsumerState<NewClaimForm> {
       _lookupError = null;
     });
     try {
-      final r = await ref.read(warrantyRepositoryProvider).findSale(n);
+      final r = await ref.read(warrantyRepositoryProvider).findSale(n.number, code: n.code);
       if (!mounted || seq != _lookupSeq) return;
       final selectable = r == null ? const <SaleItem>[] : r.items.where((i) => _itemBlock(r, i) == null).toList();
       setState(() {
         _looking = false;
         _sale = r;
-        _lookupError = r == null ? context.l10n.warrantyReceiptNotFound('$n') : null;
+        _lookupError = r == null ? context.l10n.warrantyReceiptNotFound(docNo(n.number, n.code)) : null;
         _item = selectable.length == 1 ? selectable.first : null;
         _customer = r?.customer ?? _customer;
       });
@@ -133,7 +134,7 @@ class _NewClaimFormState extends ConsumerState<NewClaimForm> {
         context,
         title: context.l10n.warrantyDuplicateTitle,
         message: context.l10n.warrantyDuplicateMessage(
-          '${dup.number}',
+          docNo(dup.number, dup.deviceCode),
           warrantyStatusLabel(dup.status, context.l10n).toLowerCase(),
         ),
         ok: context.l10n.commonCreate,
@@ -263,6 +264,7 @@ class _NewClaimFormState extends ConsumerState<NewClaimForm> {
   List<Widget> _receiptSection(ThemeData t, TextStyle? muted) {
     final s = _sale;
     final l = context.l10n;
+    final multiRegister = deviceCodeOf(ref.watch(settingsProvider).value) != null;
     return [
       Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -272,8 +274,13 @@ class _NewClaimFormState extends ConsumerState<NewClaimForm> {
               key: const Key('claim-receipt'),
               controller: _receipt,
               autofocus: _receipt.text.isEmpty,
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              // with sync on, receipts of other registers are typed as «A-15»
+              keyboardType: multiRegister ? TextInputType.text : TextInputType.number,
+              inputFormatters: [
+                multiRegister
+                    ? FilteringTextInputFormatter.allow(RegExp(r'[0-9A-Za-z№#\- ]'))
+                    : FilteringTextInputFormatter.digitsOnly,
+              ],
               decoration: InputDecoration(
                 labelText: l.warrantyReceiptNumber,
                 prefixIcon: const Icon(Icons.receipt_long_outlined),
@@ -294,7 +301,7 @@ class _NewClaimFormState extends ConsumerState<NewClaimForm> {
       if (s != null) ...[
         const SizedBox(height: Gap.m),
         Text(
-          l.warrantyReceiptPickItem('${s.sale.number}', formatDateTime(s.sale.createdAt)),
+          l.warrantyReceiptPickItem(docNo(s.sale.number, s.sale.deviceCode), formatDateTime(s.sale.createdAt)),
           style: t.textTheme.titleSmall,
         ),
         const SizedBox(height: Gap.xs),

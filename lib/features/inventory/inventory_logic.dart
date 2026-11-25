@@ -6,6 +6,7 @@ import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/db/database.dart';
+import '../doc_number_sql.dart';
 import '../../core/money.dart';
 import '../../core/providers.dart';
 import '../../domain/errors.dart';
@@ -132,19 +133,25 @@ final inventoryRepoProvider = Provider(
 /// filters share one provider instance.
 /// * [from] inclusive, [to] exclusive (createdAt);
 /// * [status]: `posted` | `reversed` | null (all);
-/// * [search]: document number («15», «№15») or part of the supplier invoice.
+/// * [search]: document number («15», «№15», «A-15») or part of the supplier invoice.
 typedef ReceiptsFilter = ({DateTime? from, DateTime? to, String? supplierId, String? status, String? search});
 
 const ReceiptsFilter allReceipts = (from: null, to: null, supplierId: null, status: null, search: null);
 
 /// One row of the receipt document list.
 class ReceiptListRow {
-  const ReceiptListRow({required this.receipt, required this.lineCount, this.orderNumber});
+  const ReceiptListRow({required this.receipt, required this.lineCount, this.orderNumber, this.orderCode});
   final GoodsReceipt receipt;
   final int lineCount;
 
   /// Purchase order number when the receipt was made against an order.
   final int? orderNumber;
+
+  /// Register code of that order (null when sync is off).
+  final String? orderCode;
+
+  /// Display number of the order («7» / «A-7»), null without an order.
+  String? get orderNo => orderNumber == null ? null : docNo(orderNumber!, orderCode);
 }
 
 const receiptsLimit = 500;
@@ -176,16 +183,17 @@ Stream<List<ReceiptListRow>> watchGoodsReceipts(AppDatabase db, ReceiptsFilter f
   }
   final q = f.search?.replaceAll('№', '').trim() ?? '';
   if (q.isNotEmpty) {
-    where.add('(CAST(r.number AS TEXT) = ? OR r.supplier_invoice LIKE ?)');
+    final no = docNoWhere('r', q);
+    where.add('(${no == null ? '' : '${no.sql} OR '}r.supplier_invoice LIKE ?)');
     vars
-      ..add(Variable.withString(q))
+      ..addAll(no?.vars ?? const [])
       ..add(Variable.withString('%$q%'));
   }
   return db
       .customSelect(
         'SELECT r.*, '
         '(SELECT COUNT(*) FROM goods_receipt_items i WHERE i.receipt_id = r.id AND i.deleted_at IS NULL) AS line_count, '
-        'o.number AS order_number '
+        'o.number AS order_number, o.device_code AS order_code '
         'FROM goods_receipts r LEFT JOIN purchase_orders o ON o.id = r.order_id '
         'WHERE ${where.join(' AND ')} '
         'ORDER BY r.number DESC LIMIT $receiptsLimit',
@@ -200,6 +208,7 @@ Stream<List<ReceiptListRow>> watchGoodsReceipts(AppDatabase db, ReceiptsFilter f
               receipt: db.goodsReceipts.map(r.data),
               lineCount: r.read<int>('line_count'),
               orderNumber: r.readNullable<int>('order_number'),
+              orderCode: r.readNullable<String>('order_code'),
             ),
         ],
       );
@@ -220,10 +229,11 @@ final goodsReceiptItemsProvider = StreamProvider.family<List<GoodsReceiptItem>, 
       .watch();
 });
 
-/// Receipt number by id — movements with `refType == 'receipt'` show «Приход №N».
-final goodsReceiptNumbersProvider = StreamProvider<Map<String, int>>((ref) {
+/// Receipt display number by id («15» / «A-15») — movements with
+/// `refType == 'receipt'` show «Приход №N».
+final goodsReceiptNumbersProvider = StreamProvider<Map<String, String>>((ref) {
   final db = ref.watch(databaseProvider);
-  return db.select(db.goodsReceipts).watch().map((l) => {for (final r in l) r.id: r.number});
+  return db.select(db.goodsReceipts).watch().map((l) => {for (final r in l) r.id: docNo(r.number, r.deviceCode)});
 });
 
 /// Every supplier name by id, including deleted suppliers (documents keep
@@ -233,10 +243,12 @@ final invSupplierNamesProvider = StreamProvider<Map<String, String>>((ref) {
   return db.select(db.suppliers).watch().map((l) => {for (final s in l) s.id: s.name});
 });
 
-/// Purchase order number by id (null when missing).
-final invOrderNumberProvider = StreamProvider.family<int?, String>((ref, id) {
+/// Purchase order number and register code by id (null when missing).
+final invOrderNumberProvider = StreamProvider.family<ParsedDocNo?, String>((ref, id) {
   final db = ref.watch(databaseProvider);
-  return (db.select(db.purchaseOrders)..where((o) => o.id.equals(id))).watchSingleOrNull().map((o) => o?.number);
+  return (db.select(db.purchaseOrders)..where((o) => o.id.equals(id)))
+      .watchSingleOrNull()
+      .map((o) => o == null ? null : (number: o.number, code: o.deviceCode));
 });
 
 /// One line of a receipt document joined with its product (may be deleted).
@@ -258,7 +270,8 @@ List<ReceiptDocLine> receiptDocLines(List<GoodsReceiptItem> items, Map<String, P
 ];
 
 /// «Приход №N» reference text for a stock movement, or null.
-String? movementReference(StockMovement m, Map<String, int> receiptNumbers) {
+/// [receiptNumbers]: receipt id → display number (or a bare int).
+String? movementReference(StockMovement m, Map<String, Object> receiptNumbers) {
   if (m.refType != 'receipt' || m.refId == null) return null;
   final n = receiptNumbers[m.refId];
   return n == null ? null : L.current.invReceiptRef('$n');
@@ -536,12 +549,14 @@ class InventoryRepo {
     final id = newId();
     await db.transaction(() async {
       final number = await db.nextNumber('inventory');
+      final deviceCode = await db.deviceCode();
       await db
           .into(db.inventoryCounts)
           .insert(
             InventoryCountsCompanion.insert(
               id: id,
               number: number,
+              deviceCode: Value(deviceCode),
               userId: Value(userId),
               note: Value(note == null || note.trim().isEmpty ? null : note.trim()),
             ),
@@ -635,7 +650,7 @@ class InventoryRepo {
         userId: userId,
         entity: 'inventory_count',
         entityId: countId,
-        details: '№${c.number}',
+        details: '№${docNo(c.number, c.deviceCode)}',
       );
     });
   }

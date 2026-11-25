@@ -5,6 +5,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
 import '../../core/db/database.dart';
+import '../../core/doc_number.dart';
 import '../../core/printing/pdf_fonts.dart';
 import '../../core/widgets/widgets.dart' show formatDate, formatDateTime;
 import '../../l10n/l10n.dart';
@@ -52,7 +53,7 @@ Future<Uint8List> buildClaimActPdf(ClaimRow row, Map<String, String> settings) a
           pw.Center(
             child: pw.Text(p(l.warrantyActTitle), style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
           ),
-          pw.Center(child: pw.Text(p(l.warrantyActNumber('${c.number}', formatDateTime(c.createdAt))))),
+          pw.Center(child: pw.Text(p(l.warrantyActNumber(docNo(c.number, c.deviceCode), formatDateTime(c.createdAt))))),
           pw.SizedBox(height: 18),
           pw.Table(
             border: pw.TableBorder.all(color: PdfColors.grey500, width: 0.5),
@@ -66,7 +67,7 @@ Future<Uint8List> buildClaimActPdf(ClaimRow row, Map<String, String> settings) a
                 l.warrantyActPurchaseDoc,
                 row.saleNumber == null
                     ? l.warrantyActNotPresented
-                    : l.warrantyReceiptRef('${row.saleNumber}', formatDate(row.saleDate!)),
+                    : l.warrantyReceiptRef(row.saleNo!, formatDate(row.saleDate!)),
               ),
               kv(l.warrantyWarranty, warrantyText),
               kv(l.warrantyActProblem, c.problem),
@@ -113,7 +114,7 @@ Future<Uint8List> buildClaimActPdf(ClaimRow row, Map<String, String> settings) a
 Future<void> printClaimAct(AppDatabase db, ClaimRow row) async {
   final settings = {for (final s in await db.select(db.settings).get()) s.key: s.value};
   await Printing.layoutPdf(
-    name: L.forReceipt(settings).warrantyActJobName('${row.claim.number}'),
+    name: L.forReceipt(settings).warrantyActJobName(docNo(row.claim.number, row.claim.deviceCode)),
     format: PdfPageFormat.a4,
     onLayout: (_) => buildClaimActPdf(row, settings),
   );

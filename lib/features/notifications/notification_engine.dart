@@ -1,6 +1,7 @@
 // Background notification engine: scans the database for things that need
 // attention (stock, overdue debts, birthdays, long shifts) and creates
 // notifications idempotently. Runs offline on the device.
+import '../../core/doc_number.dart';
 import 'dart:async';
 
 import 'package:drift/drift.dart';
@@ -129,11 +130,14 @@ Future<NotificationCheckResult> runNotificationChecksDetailed(AppDatabase db, {D
     }
   }
 
-  // ---- shifts open too long
+  // ---- shifts open too long (this register's own when sync is on: the
+  // other registers' shifts are synced here too and notify there)
+  final code = await db.deviceCode();
   final longShifts = await (db.select(db.shifts)
         ..where((s) =>
             s.status.equals('open') &
             s.deletedAt.isNull() &
+            (code == null ? const Constant(true) : s.deviceCode.equals(code)) &
             s.openedAt.isSmallerThanValue(at.subtract(const Duration(hours: longShiftHours)))))
       .get();
   final shiftIds = <String>{};
@@ -141,7 +145,7 @@ Future<NotificationCheckResult> runNotificationChecksDetailed(AppDatabase db, {D
     shiftIds.add(s.id);
     final h = at.difference(s.openedAt).inHours;
     candidates.add(_Candidate(NotificationKind.shift, 'shift', s.id,
-        l.notifShiftTitle('${s.number}', '$h'),
+        l.notifShiftTitle(docNo(s.number, s.deviceCode), '$h'),
         l.notifShiftBody(formatDate(s.openedAt), formatTime(s.openedAt))));
   }
 

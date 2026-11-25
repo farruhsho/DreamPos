@@ -216,10 +216,18 @@ class ShiftFigures {
 
 /// Suggested opening cash: what stayed in the drawer after the previous
 /// shift (counted cash; a collection at close is already subtracted there).
+/// With sync on (a device code is set) every register's shifts are here, so
+/// only this register's are used: its code, or shifts kept as its own after a
+/// code change (the `ShiftService.currentShift` rule, D-025).
 Future<int> suggestOpeningCash(AppDatabase db) async {
+  final code = await db.deviceCode();
+  final own = AppDatabase.parseOwnShifts(await db.getSetting(AppDatabase.ownShiftsSettingKey));
+  final q = db.select(db.shifts)..where((s) => s.status.equals('closed'));
+  if (code != null) {
+    q.where((s) => own.isEmpty ? s.deviceCode.equals(code) : (s.deviceCode.equals(code) | s.id.isIn(own)));
+  }
   final prev =
-      await (db.select(db.shifts)
-            ..where((s) => s.status.equals('closed'))
+      await (q
             ..orderBy([(s) => OrderingTerm.desc(s.closedAt)])
             ..limit(1))
           .getSingleOrNull();

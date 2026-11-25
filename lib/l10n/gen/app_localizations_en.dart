@@ -661,6 +661,16 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String appShiftChipShort(String number) {
+    return 'Shift No. $number';
+  }
+
+  @override
+  String appShiftChipNumber(String number) {
+    return 'No. $number';
+  }
+
+  @override
   String get appProfile => 'Profile';
 
   @override
@@ -1044,6 +1054,19 @@ class AppLocalizationsEn extends AppLocalizations {
       'Enter the reason for the adjustment';
 
   @override
+  String get errPinAmbiguous =>
+      'This PIN belongs to several employees (after the registers synced). Sign in as another employee and change the PIN of one of them.';
+
+  @override
+  String get errPaymentOtherRegisterShift =>
+      'This cash payment was made in another register’s shift — it can only be cancelled on that register';
+
+  @override
+  String errReceiptOpeningNoReversal(String number) {
+    return 'Goods receipt No. $number is a sync opening balance and cannot be reversed';
+  }
+
+  @override
   String get authEnterPin => 'Enter PIN';
 
   @override
@@ -1110,6 +1133,37 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get setupStepOwner => 'Owner';
+
+  @override
+  String get setupOr => 'or';
+
+  @override
+  String get setupJoinStore => 'Connect to an existing store';
+
+  @override
+  String get setupJoinStoreHint =>
+      'If the store already works in the cloud on another register: products, customers and users are downloaded from there.';
+
+  @override
+  String get setupJoinTitle => 'Connect to a store';
+
+  @override
+  String get setupJoinIntro =>
+      'Sign in to the cloud account and choose a store. Its data and users are downloaded to this register; then sign in with a PIN.';
+
+  @override
+  String get setupJoinNewStore => 'Create a new store';
+
+  @override
+  String get setupJoinDone =>
+      'The store’s data is downloaded. Sign in with your PIN.';
+
+  @override
+  String get setupJoinPartial =>
+      'The register is connected, but the download did not finish. Check the connection and try again.';
+
+  @override
+  String get setupJoinRetry => 'Retry download';
 
   @override
   String get custCreated => 'Customer created';
@@ -9055,6 +9109,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsReceiptSample => 'Sample receipt';
 
   @override
+  String get settingsSecSync => 'Sync';
+
+  @override
+  String get settingsSecSyncHint => 'Several registers, cloud';
+
+  @override
   String get shiftClosingTitle => 'Close shift';
 
   @override
@@ -10419,6 +10479,510 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get staffSystem => 'system';
+
+  @override
+  String get syncErrNetwork =>
+      'No connection to the sync server. Check the internet connection.';
+
+  @override
+  String get syncErrAuth =>
+      'Wrong email or password, or the session has expired. Sign in again.';
+
+  @override
+  String get syncErrForbidden => 'No access to this store.';
+
+  @override
+  String get syncErrEnvironmentMismatch =>
+      'A demo database can only connect to a test store.';
+
+  @override
+  String get syncErrNotEmpty =>
+      'This database already has data (products, sales, customers). It cannot join an existing store: two databases are never merged. Use a clean installation.';
+
+  @override
+  String get syncErrServer => 'Sync server error.';
+
+  @override
+  String get syncErrNotConfigured => 'Sync is not set up.';
+
+  @override
+  String get syncErrNotSignedIn => 'Sign in to the sync account first.';
+
+  @override
+  String get syncErrInsecureUrl =>
+      'The server address must start with https://.';
+
+  @override
+  String get syncErrInvalidUrl => 'Invalid server address.';
+
+  @override
+  String get syncErrProtocol => 'Unexpected response from the sync server.';
+
+  @override
+  String get syncErrStoreNotFound => 'Store not found.';
+
+  @override
+  String get syncErrAlreadyConnected =>
+      'This database is already connected to a store. Disconnect sync first.';
+
+  @override
+  String get syncPhaseOff => 'Off';
+
+  @override
+  String get syncPhaseIdle => 'Synced';
+
+  @override
+  String get syncPhaseSyncing => 'Syncing…';
+
+  @override
+  String get syncPhaseError => 'Sync error';
+
+  @override
+  String get syncPhaseOffline => 'Offline';
+
+  @override
+  String get syncEnvTest => 'Test store';
+
+  @override
+  String get syncEnvProduction => 'Production store';
+
+  @override
+  String syncConflictTitle(String subject) {
+    return 'Sync conflict: $subject';
+  }
+
+  @override
+  String syncConflictSubjectBarcode(String code) {
+    return 'barcode $code';
+  }
+
+  @override
+  String syncConflictSubjectCard(String code) {
+    return 'customer card $code';
+  }
+
+  @override
+  String syncConflictSubjectGiftCard(String code) {
+    return 'gift card $code';
+  }
+
+  @override
+  String syncConflictSubjectStock(String name) {
+    return 'stock of “$name”';
+  }
+
+  @override
+  String syncConflictSubjectBonus(String name) {
+    return 'bonuses of “$name”';
+  }
+
+  @override
+  String syncConflictBarcodeBody(String code, String winner, String loser) {
+    return 'Barcode $code was assigned to two products on different registers. It stays with “$winner”; the barcode of “$loser” was cleared.';
+  }
+
+  @override
+  String syncConflictCardBody(String code, String winner, String loser) {
+    return 'Card number $code was assigned to two customers on different registers. It stays with “$winner”; the card number of “$loser” was cleared.';
+  }
+
+  @override
+  String syncConflictGiftCodeBody(String code, String newCode) {
+    return 'Gift card code $code was used on different registers. The duplicate was blocked and got the code $newCode.';
+  }
+
+  @override
+  String syncConflictStockBody(String name, String qty) {
+    return 'Stock of “$name” became negative ($qty) after sales on different registers. Check the stock.';
+  }
+
+  @override
+  String syncConflictGiftBalanceBody(String code, String amount) {
+    return 'Gift card $code was spent beyond its value on different registers: balance $amount.';
+  }
+
+  @override
+  String syncConflictBonusBody(String name, String amount) {
+    return 'Bonuses of customer “$name” became negative ($amount) after operations on different registers.';
+  }
+
+  @override
+  String get syncSectionDesc =>
+      'Several registers of one store share products, customers and sales through the cloud. Without internet a register keeps working; changes are sent when the connection is back.';
+
+  @override
+  String get syncUnavailable =>
+      'Sync is not available in this version of the app.';
+
+  @override
+  String get syncOffTitle => 'Sync is off';
+
+  @override
+  String get syncOffMessage =>
+      'This register works on its own. Connect it to a cloud store so all registers see the same data.';
+
+  @override
+  String get syncConnect => 'Connect';
+
+  @override
+  String get syncSyncNow => 'Sync now';
+
+  @override
+  String get syncDisconnect => 'Disconnect';
+
+  @override
+  String get syncSignInAgain => 'Sign in again';
+
+  @override
+  String get syncStoreLabel => 'Store';
+
+  @override
+  String get syncDeviceCode => 'Register code';
+
+  @override
+  String syncDeviceCodeExample(String example) {
+    return 'receipt numbers: $example';
+  }
+
+  @override
+  String get syncPending => 'Waiting to be sent';
+
+  @override
+  String get syncLastSync => 'Last sync';
+
+  @override
+  String get syncNever => 'not yet';
+
+  @override
+  String get syncAccount => 'Account';
+
+  @override
+  String syncNextRetry(String time) {
+    return 'Next attempt at $time';
+  }
+
+  @override
+  String syncDoneToast(String pushed, String pulled) {
+    return 'Sync finished: $pushed sent, $pulled received';
+  }
+
+  @override
+  String get syncDisconnectTitle => 'Disconnect sync?';
+
+  @override
+  String syncDisconnectMessage(String store) {
+    return 'This register will stop exchanging data with the store “$store”. All data on this register is kept and receipt numbers stay unique. You can connect again at any time.';
+  }
+
+  @override
+  String get syncDisconnectedToast =>
+      'Sync disconnected. The data on this register is kept.';
+
+  @override
+  String get syncConnectTitle => 'Connect to the cloud';
+
+  @override
+  String get syncSignInIntro =>
+      'Enter the server address and the store owner’s account.';
+
+  @override
+  String get syncServerUrl => 'Server address *';
+
+  @override
+  String get syncServerUrlHint => 'https://…supabase.co';
+
+  @override
+  String get syncAnonKey => 'Access key (anon key) *';
+
+  @override
+  String get syncEmail => 'Email *';
+
+  @override
+  String get syncPassword => 'Password *';
+
+  @override
+  String get syncPasswordShow => 'Show password';
+
+  @override
+  String get syncPasswordHide => 'Hide password';
+
+  @override
+  String get syncPasswordNote => 'The password is not stored on the register.';
+
+  @override
+  String get syncSignIn => 'Sign in';
+
+  @override
+  String get syncInvalidEmail => 'Invalid email';
+
+  @override
+  String syncSignedInAs(String email) {
+    return 'Signed in: $email';
+  }
+
+  @override
+  String get syncChooseAction => 'What should this register do?';
+
+  @override
+  String get syncCreateStore => 'Create a cloud store';
+
+  @override
+  String get syncCreateStoreHint =>
+      'This register becomes the first one. All its data is uploaded to the cloud.';
+
+  @override
+  String get syncJoinStore => 'Join an existing store';
+
+  @override
+  String get syncJoinStoreHint =>
+      'The store’s data is downloaded to this register. Empty database only.';
+
+  @override
+  String get syncStoreName => 'Store name *';
+
+  @override
+  String get syncEnvironment => 'Store type';
+
+  @override
+  String get syncEnvTestHint =>
+      'For training and testing. A demo database can only connect here.';
+
+  @override
+  String get syncEnvProductionHint =>
+      'For real work. The type cannot be changed later.';
+
+  @override
+  String get syncEnvProductionDemo => 'Not available for a demo database';
+
+  @override
+  String get syncCreateAndUpload => 'Create and upload';
+
+  @override
+  String get syncChooseStore => 'Choose a store';
+
+  @override
+  String get syncNoStores =>
+      'This account has no stores. Create a store on the first register or ask the owner to add you.';
+
+  @override
+  String get syncUploading => 'Uploading data to the cloud…';
+
+  @override
+  String get syncDownloading => 'Downloading the store’s data…';
+
+  @override
+  String syncConnectedToast(String store, String code) {
+    return 'Register connected to the store “$store”. Register code: $code';
+  }
+
+  @override
+  String get syncIntegrityTitle => 'Integrity check';
+
+  @override
+  String get syncIntegrityDesc =>
+      'Compares stock, debts, bonuses and balances with the movement journals. Changes nothing.';
+
+  @override
+  String get syncIntegrityRun => 'Check';
+
+  @override
+  String get syncIntegrityNotRun => 'The check has not been run yet.';
+
+  @override
+  String get syncIntegrityOk =>
+      'No differences: all stock and balances match the journals.';
+
+  @override
+  String syncIntegrityFound(String count) {
+    return 'Differences found: $count';
+  }
+
+  @override
+  String syncIntegrityValues(String cached, String derived) {
+    return 'stored $cached · journal $derived';
+  }
+
+  @override
+  String get syncCacheStock => 'Product stock';
+
+  @override
+  String get syncCacheDebt => 'Customer debt';
+
+  @override
+  String get syncCacheBonus => 'Customer bonuses';
+
+  @override
+  String get syncCacheSupplierBalance => 'Supplier balance';
+
+  @override
+  String get syncCacheGiftBalance => 'Gift card balance';
+
+  @override
+  String get syncCacheGiftStatus => 'Gift card status';
+
+  @override
+  String get syncCachePoPaid => 'Paid on order';
+
+  @override
+  String get syncCachePoReceived => 'Received on order line';
+
+  @override
+  String get syncCacheSaleRefunded => 'Refunded on receipt';
+
+  @override
+  String get syncCacheSaleStatus => 'Receipt status';
+
+  @override
+  String get syncCacheReturnedQty => 'Returned on receipt line';
+
+  @override
+  String get syncConflictsTitle => 'Sync conflicts';
+
+  @override
+  String get syncConflictsSubtitle =>
+      'What had to be resolved automatically while registers exchanged data';
+
+  @override
+  String get syncConflictsEmpty => 'No conflicts';
+
+  @override
+  String get syncConflictsShowResolved => 'Show reviewed';
+
+  @override
+  String get syncConflictsMarkAll => 'Mark all as reviewed';
+
+  @override
+  String get syncConflictMarkRead => 'Mark as reviewed';
+
+  @override
+  String get syncConflictKindBarcode => 'Duplicate barcode';
+
+  @override
+  String get syncConflictKindCard => 'Duplicate card number';
+
+  @override
+  String get syncConflictKindGiftCode => 'Duplicate gift card code';
+
+  @override
+  String get syncConflictKindStock => 'Negative stock';
+
+  @override
+  String get syncConflictKindGiftBalance => 'Negative gift card balance';
+
+  @override
+  String get syncConflictKindBonus => 'Negative bonuses';
+
+  @override
+  String get syncConflictKindNormalize => 'Adjusted during upgrade';
+
+  @override
+  String get syncConflictKindOther => 'Conflict';
+
+  @override
+  String syncIndicatorTooltip(String state, String count) {
+    return '$state. Waiting to be sent: $count. Click to sync.';
+  }
+
+  @override
+  String syncSubjectReceipt(String number) {
+    return 'Receipt No. $number';
+  }
+
+  @override
+  String syncSubjectOrder(String number) {
+    return 'Order No. $number';
+  }
+
+  @override
+  String get syncErrTestData =>
+      'This database was connected to a test store and may hold test data from other registers. It cannot create a production store: use a database without test data.';
+
+  @override
+  String syncConflictSubjectSale(String number) {
+    return 'receipt No. $number';
+  }
+
+  @override
+  String syncConflictSubjectDocNumber(String number) {
+    return 'document number $number';
+  }
+
+  @override
+  String get syncConflictSubjectDevice => 'register code';
+
+  @override
+  String syncConflictNumberBody(String number, String newNumber) {
+    return 'Number $number turned up on two different documents (for example, after a backup was restored on a connected register). The newer document got the number $newNumber.';
+  }
+
+  @override
+  String syncConflictVoidReturnBody(String number, String amount) {
+    return 'Receipt No. $number was voided on one register and returned for $amount on another. Money and goods were counted twice: check the cash and the stock.';
+  }
+
+  @override
+  String syncConflictOverReturnBody(
+    String number,
+    String refunded,
+    String total,
+  ) {
+    return 'More was returned on receipt No. $number on different registers than was sold: $refunded refunded against a receipt total of $total. Check the cash and the stock.';
+  }
+
+  @override
+  String syncConflictIdentityBody(String oldCode, String newCode) {
+    return 'This database turned out to be a copy of register $oldCode, which kept working (a backup was restored or the database was copied to another computer). The data missing from the copy was downloaded from the cloud, and the register got the new code $newCode so document numbers never repeat.';
+  }
+
+  @override
+  String get syncConflictKindNumber => 'Duplicate document number';
+
+  @override
+  String get syncConflictKindVoidReturn => 'Return on a voided receipt';
+
+  @override
+  String get syncConflictKindOverReturn => 'Returned more than sold';
+
+  @override
+  String get syncConflictKindIdentity => 'Copy of a register database';
+
+  @override
+  String get syncConflictKindDoubleVoid => 'Gift card voided twice';
+
+  @override
+  String syncConflictDoubleVoidBody(
+    String code,
+    String number,
+    String amount,
+    String shift,
+  ) {
+    return 'The sale of gift card $code (No. $number) was voided on two registers and the money ($amount) was given back twice. Only one void is kept: the report of shift No. $shift does not show this refund. Check the cash.';
+  }
+
+  @override
+  String get syncConflictKindVoidRedeem => 'Payment with a voided gift card';
+
+  @override
+  String syncConflictVoidRedeemBody(String code, String amount) {
+    return 'Gift card $code was voided on one register (the money was refunded) and used to pay $amount on another. The amount was counted twice: check the cash.';
+  }
+
+  @override
+  String syncJoinRejoinHint(String name) {
+    return 'The database already has data, so it can only reconnect to “$name”, the store this register was disconnected from.';
+  }
+
+  @override
+  String get syncConflictKindJoinUsers =>
+      'This register’s employees deactivated';
+
+  @override
+  String get syncConflictSubjectJoinUsers => 'employees of this register';
+
+  @override
+  String syncConflictJoinUsersBody(String names) {
+    return 'When this register joined the store, the employees created on it before joining were deactivated: $names. Their PINs could match the PINs of the store’s employees. Sign in with the store employees’ PINs; an employee can be activated again with a new PIN.';
+  }
 
   @override
   String get warrantyTitle => 'Warranty';

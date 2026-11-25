@@ -372,7 +372,7 @@ class _ProductHistory extends ConsumerWidget {
   final Product p;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final numbers = ref.watch(goodsReceiptNumbersProvider).value ?? const <String, int>{};
+    final numbers = ref.watch(goodsReceiptNumbersProvider).value ?? const <String, String>{};
     // Grows with the history up to 480px instead of always reserving it.
     return ConstrainedBox(
       constraints: const BoxConstraints(maxHeight: 480),
@@ -396,7 +396,7 @@ class _ProductHistory extends ConsumerWidget {
 }
 
 /// Movement tile with its source document («Приход №N») opening on tap.
-Widget _refTile(BuildContext context, Map<String, int> numbers, StockMovement m, String unit) {
+Widget _refTile(BuildContext context, Map<String, String> numbers, StockMovement m, String unit) {
   final reference = movementReference(m, numbers);
   return MovementTile(
     m: m,

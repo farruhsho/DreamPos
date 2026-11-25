@@ -163,7 +163,7 @@ void main() {
     expect(st.increase, 30000);
     expect(st.decrease, 125000);
     expect(st.closing, 5000);
-    expect(st.closing, st.rows.last.balanceAfter);
+    expect(st.closing, entries.where((e) => e.createdAt.isBefore(r.to!)).fold<int>(0, (a, e) => a + e.amount));
   });
 
   test('conclusion text names the debtor', () {

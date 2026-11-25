@@ -3,10 +3,14 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/db/database.dart' show Shift;
+import '../core/doc_number.dart';
 import '../core/providers.dart';
+import '../core/sync/sync_service.dart';
 import '../core/theme.dart';
 import '../core/widgets/widgets.dart';
 import '../features/notifications/notification_engine.dart';
+import '../features/settings/sections/sync_section.dart' show syncPhaseVisual;
 import '../features/staff/time_tab.dart' show ClockButton;
 import '../l10n/l10n.dart';
 import 'background_jobs.dart';
@@ -226,7 +230,7 @@ class _TopStatusBar extends ConsumerWidget {
                           child: shift == null
                               ? StatusChip(context.l10n.appShiftClosed, color: AppColors.warning)
                               : StatusChip(
-                                  context.l10n.appShiftChip('${shift.number}', formatTime(shift.openedAt)),
+                                  shiftChipLabel(context, shift, (c.maxWidth - Gap.m).clamp(0.0, double.infinity)),
                                   color: AppColors.success,
                                 ),
                         ),
@@ -235,6 +239,7 @@ class _TopStatusBar extends ConsumerWidget {
                   ),
                 ),
               ),
+              const _SyncIndicator(),
               const ClockButton(compact: true),
               const SizedBox(width: Gap.xs),
               IconButton(
@@ -291,6 +296,99 @@ class _TopStatusBar extends ConsumerWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Shift chip text that fits [maxWidth]: «Смена №A-3 · с 09:00», else
+/// «Смена №A-3», else «№A-3» (phones with the sync icon), so the number with
+/// its register code stays readable (D-025).
+String shiftChipLabel(BuildContext context, Shift shift, double maxWidth) {
+  final l = context.l10n;
+  final no = docNo(shift.number, shift.deviceCode);
+  final scaler = MediaQuery.textScalerOf(context);
+  const style = TextStyle(fontSize: 12, fontWeight: FontWeight.w600);
+  bool fits(String s) {
+    final tp = TextPainter(
+      text: TextSpan(text: s, style: style),
+      textDirection: Directionality.of(context),
+      textScaler: scaler,
+      maxLines: 1,
+    )..layout();
+    final ok = tp.width + 16 <= maxWidth; // StatusChip horizontal padding
+    tp.dispose();
+    return ok;
+  }
+
+  final full = l.appShiftChip(no, formatTime(shift.openedAt));
+  if (fits(full)) return full;
+  final short = l.appShiftChipShort(no);
+  return fits(short) ? short : l.appShiftChipNumber(no);
+}
+
+/// Small cloud icon (D-025, spec §11): sync state + pending count in the
+/// tooltip, tap = «Синхронизировать сейчас». Shown only when sync is
+/// configured. Also tells the engine when the app goes to the background (the
+/// periodic sync only runs in the foreground).
+class _SyncIndicator extends ConsumerStatefulWidget {
+  const _SyncIndicator();
+
+  @override
+  ConsumerState<_SyncIndicator> createState() => _SyncIndicatorState();
+}
+
+class _SyncIndicatorState extends ConsumerState<_SyncIndicator> {
+  late final AppLifecycleListener _life;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _life = AppLifecycleListener(
+      onStateChange: (s) {
+        if (!mounted) return;
+        ref.read(syncServiceProvider).setForeground(s == AppLifecycleState.resumed);
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _life.dispose();
+    super.dispose();
+  }
+
+  Future<void> _sync() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await ref.read(syncServiceProvider).syncNow();
+    } catch (e) {
+      if (mounted) showError(context, e);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = ref.watch(syncStatusProvider);
+    if (!s.configured) return const SizedBox.shrink();
+    final (icon, color) = syncPhaseVisual(s.phase);
+    final syncing = _busy || s.phase == SyncPhase.syncing;
+    return IconButton(
+      key: const ValueKey('shell-sync'),
+      tooltip: context.l10n.syncIndicatorTooltip(s.phase.labelIn(context.l10n), '${s.pending}'),
+      constraints: const BoxConstraints.tightFor(width: 36, height: 40),
+      padding: EdgeInsets.zero,
+      iconSize: 20,
+      onPressed: syncing ? null : _sync,
+      icon: Badge(
+        isLabelVisible: s.pending > 0 && !syncing,
+        smallSize: 7,
+        backgroundColor: AppColors.warning,
+        child: Icon(icon, color: color),
       ),
     );
   }

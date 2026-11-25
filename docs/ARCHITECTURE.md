@@ -9,6 +9,9 @@ lib/
     db/                     tables.dart (схема), database.dart (+ .g.dart), demo_seed.dart
     printing/               receipt.dart (чек 58/80мм, текст+PDF), pdf_fonts.dart (кириллица оффлайн)
     widgets/                widgets.dart (UI‑кит), pin_pad.dart, pickers.dart (товар/клиент)
+    sync/                   sync_tables.dart (синхронизируемые/локальные таблицы, триггеры outbox),
+                            aggregates.dart (кэши = Σ журналов: recompute/verifyAll), D-025
+    doc_number.dart         docNo(number, deviceCode) → «15» / «A-15», parseDocNo для поиска
     money.dart              Money (int минорные единицы), Qty (кол-во и ед. изм.)
     permissions.dart        Role, Perm, role.can(perm)
     providers.dart          databaseProvider, сервисы, settingsProvider, sessionProvider, currentShiftProvider
@@ -29,8 +32,10 @@ test/                       domain/ — тесты сервисов; features/<m
 2. Главный экран модуля — класс из роутера (`const XxxScreen({super.key})`), имя не менять.
 3. Запись продаж, возвратов, остатков, долгов, бонусов, смен — **только через сервисы** из
    `core/providers.dart`. Справочники (товары, категории, клиенты, поставщики, акции, сертификаты,
-   сотрудники, настройки) можно писать через drift напрямую, всегда ставя `updatedAt` и вызывая
-   `db.markDirty(table, id)`; удаление — мягкое (`deletedAt`), если на запись есть ссылки.
+   сотрудники, настройки) можно писать через drift напрямую, всегда ставя `updatedAt`;
+   `db.markDirty(table, id)` с схемы v5 — no‑op (изменения в `sync_outbox` пишут триггеры SQLite,
+   D-025), вызов можно оставить; удаление — мягкое (`deletedAt`), если на запись есть ссылки.
+   Новые нумерованные документы копируют `db.deviceCode()` в `deviceCode`.
 4. Чувствительные действия — `db.audit(...)`.
 5. UI: только компоненты из `core/widgets` + Material 3; цвета — из темы/`AppColors`; отступы — `Gap`.
    Каждый экран: загрузка, ошибка, пустое состояние, адаптивность 360px…1920px, работа с клавиатуры.

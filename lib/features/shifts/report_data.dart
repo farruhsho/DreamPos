@@ -1,5 +1,6 @@
 // X/Z report data and plain-text layout (no PDF dependency).
 import '../../core/db/database.dart';
+import '../../core/doc_number.dart';
 import '../../core/money.dart';
 import '../../core/widgets/widgets.dart' show formatDateTime;
 import '../../domain/services/sale_service.dart' show paymentMethodLabel;
@@ -80,7 +81,7 @@ class ZReportData {
     final refunds = r.refundsByMethod.keys.toList()..sort();
     return [
       ReportSection(t.commonShift, [
-        ReportLine(t.shiftZShiftNo, '${s.number}'),
+        ReportLine(t.shiftZShiftNo, docNo(s.number, s.deviceCode)),
         ReportLine(t.shiftZOpened, '${formatDateTime(s.openedAt)} · $openedByName'),
         if (s.closedAt != null) ReportLine(t.shiftZClosed, '${formatDateTime(s.closedAt!)} · ${closedByName ?? '—'}'),
       ]),

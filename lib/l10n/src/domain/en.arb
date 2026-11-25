@@ -101,5 +101,8 @@
   "errPaymentAlreadyCancelled": "The payment is already cancelled",
   "errPaymentShiftClosed": "The payment’s shift is closed — it cannot be cancelled",
   "errAdjustmentZero": "Adjustment amount cannot be zero",
-  "errAdjustmentReasonRequired": "Enter the reason for the adjustment"
+  "errAdjustmentReasonRequired": "Enter the reason for the adjustment",
+  "errPinAmbiguous": "This PIN belongs to several employees (after the registers synced). Sign in as another employee and change the PIN of one of them.",
+  "errPaymentOtherRegisterShift": "This cash payment was made in another register’s shift — it can only be cancelled on that register",
+  "errReceiptOpeningNoReversal": "Goods receipt No. {number} is a sync opening balance and cannot be reversed"
 }

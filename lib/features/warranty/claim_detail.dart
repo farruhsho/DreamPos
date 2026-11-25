@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/doc_number.dart';
 import '../../core/permissions.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
@@ -61,7 +62,7 @@ class _Body extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    l.warrantyClaimNumber('${c.number}'),
+                    l.warrantyClaimNumber(docNo(c.number, c.deviceCode)),
                     style: t.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
                   ),
                   Text(
@@ -111,13 +112,13 @@ class _Body extends ConsumerWidget {
                 l.warrantyPurchase,
                 row.saleNumber == null
                     ? l.warrantyNoReceipt
-                    : l.warrantyReceiptRef('${row.saleNumber}', formatDate(row.saleDate!)),
+                    : l.warrantyReceiptRef(row.saleNo!, formatDate(row.saleDate!)),
                 trailing: row.saleNumber == null
                     ? null
                     : IconButton(
                         tooltip: l.warrantyOpenReceipt,
                         visualDensity: VisualDensity.compact,
-                        onPressed: () => context.go('/sales?receipt=${row.saleNumber}'),
+                        onPressed: () => context.go('/sales?receipt=${row.saleNo}'),
                         icon: const Icon(Icons.open_in_new, size: 18),
                       ),
               ),
@@ -216,10 +217,10 @@ class _Body extends ConsumerWidget {
         context,
         title: l.warrantyRefundTitle,
         message: l.warrantyRefundMessage,
-        ok: row.saleNumber == null ? l.warrantyOpenReceipts : l.warrantyOpenReceiptNumber('${row.saleNumber}'),
+        ok: row.saleNumber == null ? l.warrantyOpenReceipts : l.warrantyOpenReceiptNumber(row.saleNo!),
       );
       if (go && context.mounted) {
-        context.go(row.saleNumber == null ? '/sales' : '/sales?receipt=${row.saleNumber}');
+        context.go(row.saleNumber == null ? '/sales' : '/sales?receipt=${row.saleNo}');
       }
     }
   }
@@ -243,7 +244,7 @@ class _RefundHint extends StatelessWidget {
         const SizedBox(width: Gap.m),
         Expanded(child: Text(context.l10n.warrantyRefundHint)),
         TextButton(
-          onPressed: () => context.go(row.saleNumber == null ? '/sales' : '/sales?receipt=${row.saleNumber}'),
+          onPressed: () => context.go(row.saleNumber == null ? '/sales' : '/sales?receipt=${row.saleNo}'),
           child: Text(context.l10n.warrantyToReceipt),
         ),
       ],
@@ -309,7 +310,7 @@ class _StatusDialogState extends State<_StatusDialog> {
               children: [
                 Text(
                   l.warrantyTransition(
-                    '${widget.row.claim.number}',
+                    docNo(widget.row.claim.number, widget.row.claim.deviceCode),
                     warrantyStatusLabel(widget.row.claim.status, l),
                     warrantyStatusLabel(to, l),
                   ),

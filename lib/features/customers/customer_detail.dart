@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/db/database.dart';
+import '../../core/doc_number.dart';
 import '../../core/money.dart';
 import '../../core/permissions.dart';
 import '../../core/providers.dart';
@@ -569,7 +570,7 @@ class _SaleTile extends ConsumerWidget {
     return ExpansionTile(
       shape: const Border(),
       collapsedShape: const Border(),
-      title: Text(l.custReceiptNo('${s.number}'), style: const TextStyle(fontWeight: FontWeight.w600)),
+      title: Text(l.custReceiptNo(docNo(s.number, s.deviceCode)), style: const TextStyle(fontWeight: FontWeight.w600)),
       subtitle: Text(
         [
           formatDateTime(s.createdAt),

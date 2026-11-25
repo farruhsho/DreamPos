@@ -1,3 +1,4 @@
+import '../../core/doc_number.dart';
 import 'dart:typed_data';
 
 import 'package:pdf/pdf.dart';
@@ -33,7 +34,7 @@ Future<Uint8List> buildCountSheetPdf({
             mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
             children: [
               pw.Text(
-                L.printable(l.invSheetTitle('${count.number}')),
+                L.printable(l.invSheetTitle(docNo(count.number, count.deviceCode))),
                 style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
               ),
               pw.Text(L.printable(l.invPageOf('${ctx.pageNumber}', '${ctx.pagesCount}')), style: headerStyle),
@@ -106,7 +107,7 @@ Future<void> printCountSheet(
   final lines = await repo.loadLines(count.id);
   final store = await db.getSetting('store_name') ?? 'DreamPOS';
   await Printing.layoutPdf(
-    name: L.printable(L.current.invCountFileName('${count.number}')),
+    name: L.printable(L.current.invCountFileName(docNo(count.number, count.deviceCode))),
     format: PdfPageFormat.a4,
     onLayout: (_) => buildCountSheetPdf(count: count, lines: lines, storeName: store, showExpected: showExpected),
   );
@@ -119,6 +120,7 @@ Future<Uint8List> buildReceiptPdf({
   required String storeName,
   String? supplierName,
   int? orderNumber,
+  String? orderCode,
   String? authorName,
   String? reversedByName,
   pw.ThemeData? theme,
@@ -153,7 +155,7 @@ Future<Uint8List> buildReceiptPdf({
             mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
             children: [
               pw.Text(
-                p(l.invReceiptPdfTitle('${receipt.number}', formatDate(receipt.createdAt))),
+                p(l.invReceiptPdfTitle(docNo(receipt.number, receipt.deviceCode), formatDate(receipt.createdAt))),
                 style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
               ),
               pw.Text(p(l.invPageOf('${ctx.pageNumber}', '${ctx.pagesCount}')), style: small),
@@ -178,7 +180,7 @@ Future<Uint8List> buildReceiptPdf({
       build: (_) => [
         info(l.commonSupplier, supplierName ?? l.invNoSupplier),
         if (receipt.supplierInvoice != null) info(l.invSupplierInvoice, receipt.supplierInvoice!),
-        if (orderNumber != null) info(l.invBasis, l.invSupplierOrderRef('$orderNumber')),
+        if (orderNumber != null) info(l.invBasis, l.invSupplierOrderRef(docNo(orderNumber, orderCode))),
         info(l.invReceiptPosted, formatDateTime(receipt.createdAt)),
         if (authorName != null) info(l.invAcceptedBy, authorName),
         if (receipt.note != null) info(l.commonComment, receipt.note!),
@@ -271,12 +273,13 @@ Future<void> printReceiptDocument(
   required List<ReceiptDocLine> lines,
   String? supplierName,
   int? orderNumber,
+  String? orderCode,
   String? authorName,
   String? reversedByName,
 }) async {
   final store = await db.getSetting('store_name') ?? 'DreamPOS';
   await Printing.layoutPdf(
-    name: L.printable(L.current.invReceiptFileName('${receipt.number}')),
+    name: L.printable(L.current.invReceiptFileName(docNo(receipt.number, receipt.deviceCode))),
     format: PdfPageFormat.a4,
     onLayout: (_) => buildReceiptPdf(
       receipt: receipt,
@@ -284,6 +287,7 @@ Future<void> printReceiptDocument(
       storeName: store,
       supplierName: supplierName,
       orderNumber: orderNumber,
+      orderCode: orderCode,
       authorName: authorName,
       reversedByName: reversedByName,
     ),

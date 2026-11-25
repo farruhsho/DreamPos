@@ -103,7 +103,7 @@ void main() {
       expect(dirty, containsAll(['goods_receipts', 'goods_receipt_items', 'supplier_ledger', 'suppliers']));
     });
 
-    test('supplier ledger row; balance equals last balanceAfter', () async {
+    test('supplier ledger row; balance equals Σ ledger amounts', () async {
       final s = await supplier();
       final a = await f.product('A', stock: 0);
       final r1 = await receipts.post(supplierId: s.id, lines: [ReceiptLineInput(productId: a.id, qty: 5, unitCost: 1000)]);
@@ -114,7 +114,8 @@ void main() {
       expect(rows.map((e) => e.balanceAfter), [5000, 8000]);
       expect(rows.first.refType, 'goods_receipt');
       expect(rows.first.refId, r1.id);
-      expect((await reloadSupplier(f, s.id)).balance, rows.last.balanceAfter);
+      // D-021 as relaxed by D-025: cache == Σ amounts.
+      expect((await reloadSupplier(f, s.id)).balance, rows.fold<int>(0, (a, e) => a + e.amount));
 
       // No supplier / zero total -> no ledger row.
       await receipts.post(lines: [ReceiptLineInput(productId: a.id, qty: 1, unitCost: 100)]);
@@ -226,7 +227,7 @@ void main() {
       expect(rows.map((e) => e.kind), ['receipt', 'receipt_reversal']);
       expect(rows.last.amount, -8000);
       expect(rows.last.balanceAfter, 0);
-      expect((await reloadSupplier(f, s.id)).balance, rows.last.balanceAfter);
+      expect((await reloadSupplier(f, s.id)).balance, rows.fold<int>(0, (a, e) => a + e.amount));
       final audit = (await f.db.select(f.db.auditLog).get()).map((e) => e.action);
       expect(audit, contains('receipt.reverse'));
     });

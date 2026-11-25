@@ -1,3 +1,4 @@
+import '../../core/doc_number.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -116,7 +117,7 @@ class _Onboarding extends ConsumerWidget {
         done: progress.shifts > 0,
         title: l.dashOnbShiftTitle,
         text: shift != null
-            ? l.dashOnbShiftDone('${shift.number}')
+            ? l.dashOnbShiftDone(docNo(shift.number, shift.deviceCode))
             : l.dashOnbShiftText,
         icon: Icons.schedule_outlined,
         route: '/shifts',
@@ -481,7 +482,7 @@ class _ShiftCard extends ConsumerWidget {
                   Icon(Icons.schedule, color: long ? AppColors.warning : AppColors.success),
                   const SizedBox(width: Gap.s),
                   Expanded(
-                      child: Text(l.dashShiftOpen('${s.number}'),
+                      child: Text(l.dashShiftOpen(docNo(s.number, s.deviceCode)),
                           style: t.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600))),
                   StatusChip(long ? l.dashShiftLong : l.dashShiftRunning,
                       color: long ? AppColors.warning : AppColors.success),
@@ -696,7 +697,7 @@ class _RecentReceipts extends ConsumerWidget {
                 dense: true,
                 contentPadding: EdgeInsets.zero,
                 onTap: _nav(context, session, '/sales'),
-                title: Text(l.dashReceiptNumber('${r.sale.number}'),
+                title: Text(l.dashReceiptNumber(docNo(r.sale.number, r.sale.deviceCode)),
                     style: r.sale.status == 'voided'
                         ? const TextStyle(decoration: TextDecoration.lineThrough)
                         : null),

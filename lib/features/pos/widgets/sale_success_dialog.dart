@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/doc_number.dart';
 import '../../../core/money.dart';
 import '../../../core/printing/receipt.dart';
 import '../../../core/providers.dart';
@@ -99,7 +100,7 @@ class _SaleSuccessDialogState extends ConsumerState<SaleSuccessDialog> {
       onKeyEvent: _onKey,
       child: AlertDialog(
       icon: const Icon(Icons.check_circle, color: AppColors.success, size: 56),
-      title: Text(l.posSaleDone('${sale.number}')),
+      title: Text(l.posSaleDone(docNo(sale.number, sale.deviceCode))),
       content: SizedBox(
         width: 380,
         child: Column(mainAxisSize: MainAxisSize.min, children: [

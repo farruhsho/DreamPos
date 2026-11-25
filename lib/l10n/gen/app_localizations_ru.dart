@@ -676,6 +676,16 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
+  String appShiftChipShort(String number) {
+    return 'Смена №$number';
+  }
+
+  @override
+  String appShiftChipNumber(String number) {
+    return '№$number';
+  }
+
+  @override
   String get appProfile => 'Профиль';
 
   @override
@@ -1056,6 +1066,19 @@ class AppLocalizationsRu extends AppLocalizations {
   String get errAdjustmentReasonRequired => 'Укажите причину корректировки';
 
   @override
+  String get errPinAmbiguous =>
+      'Этот PIN-код есть у нескольких сотрудников (после синхронизации касс). Войдите другим сотрудником и смените PIN одному из них.';
+
+  @override
+  String get errPaymentOtherRegisterShift =>
+      'Оплата наличными внесена в смене другой кассы — отменить её можно только на той кассе';
+
+  @override
+  String errReceiptOpeningNoReversal(String number) {
+    return 'Приход №$number — начальный остаток синхронизации, его нельзя сторнировать';
+  }
+
+  @override
   String get authEnterPin => 'Введите PIN-код';
 
   @override
@@ -1122,6 +1145,36 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get setupStepOwner => 'Владелец';
+
+  @override
+  String get setupOr => 'или';
+
+  @override
+  String get setupJoinStore => 'Подключиться к существующему магазину';
+
+  @override
+  String get setupJoinStoreHint =>
+      'Если магазин уже работает в облаке на другой кассе: товары, клиенты и пользователи загрузятся оттуда.';
+
+  @override
+  String get setupJoinTitle => 'Подключение к магазину';
+
+  @override
+  String get setupJoinIntro =>
+      'Войдите в аккаунт облака и выберите магазин. Его данные и пользователи загрузятся на эту кассу, затем войдите по PIN-коду.';
+
+  @override
+  String get setupJoinNewStore => 'Создать новый магазин';
+
+  @override
+  String get setupJoinDone => 'Данные магазина загружены. Войдите по PIN-коду.';
+
+  @override
+  String get setupJoinPartial =>
+      'Касса подключена, но загрузка данных не завершилась. Проверьте связь и повторите.';
+
+  @override
+  String get setupJoinRetry => 'Повторить загрузку';
 
   @override
   String get custCreated => 'Клиент создан';
@@ -9069,6 +9122,12 @@ class AppLocalizationsRu extends AppLocalizations {
   String get settingsReceiptSample => 'Образец чека';
 
   @override
+  String get settingsSecSync => 'Синхронизация';
+
+  @override
+  String get settingsSecSyncHint => 'Несколько касс, облако';
+
+  @override
   String get shiftClosingTitle => 'Закрытие смены';
 
   @override
@@ -10431,6 +10490,509 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get staffSystem => 'система';
+
+  @override
+  String get syncErrNetwork =>
+      'Нет связи с сервером синхронизации. Проверьте интернет.';
+
+  @override
+  String get syncErrAuth =>
+      'Неверный email или пароль, либо сессия истекла. Войдите снова.';
+
+  @override
+  String get syncErrForbidden => 'Нет доступа к этому магазину.';
+
+  @override
+  String get syncErrEnvironmentMismatch =>
+      'Демо-база может подключаться только к тестовому магазину.';
+
+  @override
+  String get syncErrNotEmpty =>
+      'В этой базе уже есть данные (товары, продажи, клиенты). Подключить её к существующему магазину нельзя: две базы не объединяются. Используйте чистую установку.';
+
+  @override
+  String get syncErrServer => 'Ошибка сервера синхронизации.';
+
+  @override
+  String get syncErrNotConfigured => 'Синхронизация не настроена.';
+
+  @override
+  String get syncErrNotSignedIn => 'Сначала войдите в аккаунт синхронизации.';
+
+  @override
+  String get syncErrInsecureUrl =>
+      'Адрес сервера должен начинаться с https://.';
+
+  @override
+  String get syncErrInvalidUrl => 'Неверный адрес сервера.';
+
+  @override
+  String get syncErrProtocol => 'Неожиданный ответ сервера синхронизации.';
+
+  @override
+  String get syncErrStoreNotFound => 'Магазин не найден.';
+
+  @override
+  String get syncErrAlreadyConnected =>
+      'Эта база уже подключена к магазину. Сначала отключите синхронизацию.';
+
+  @override
+  String get syncPhaseOff => 'Выключена';
+
+  @override
+  String get syncPhaseIdle => 'Синхронизировано';
+
+  @override
+  String get syncPhaseSyncing => 'Синхронизация…';
+
+  @override
+  String get syncPhaseError => 'Ошибка синхронизации';
+
+  @override
+  String get syncPhaseOffline => 'Нет связи';
+
+  @override
+  String get syncEnvTest => 'Тестовый магазин';
+
+  @override
+  String get syncEnvProduction => 'Рабочий магазин';
+
+  @override
+  String syncConflictTitle(String subject) {
+    return 'Конфликт синхронизации: $subject';
+  }
+
+  @override
+  String syncConflictSubjectBarcode(String code) {
+    return 'штрихкод $code';
+  }
+
+  @override
+  String syncConflictSubjectCard(String code) {
+    return 'карта клиента $code';
+  }
+
+  @override
+  String syncConflictSubjectGiftCard(String code) {
+    return 'сертификат $code';
+  }
+
+  @override
+  String syncConflictSubjectStock(String name) {
+    return 'остаток «$name»';
+  }
+
+  @override
+  String syncConflictSubjectBonus(String name) {
+    return 'бонусы «$name»';
+  }
+
+  @override
+  String syncConflictBarcodeBody(String code, String winner, String loser) {
+    return 'Штрихкод $code был назначен двум товарам на разных кассах. Он оставлен у товара «$winner», у товара «$loser» штрихкод очищен.';
+  }
+
+  @override
+  String syncConflictCardBody(String code, String winner, String loser) {
+    return 'Номер карты $code был назначен двум клиентам на разных кассах. Он оставлен у клиента «$winner», у клиента «$loser» номер карты очищен.';
+  }
+
+  @override
+  String syncConflictGiftCodeBody(String code, String newCode) {
+    return 'Код сертификата $code совпал на разных кассах. Дубликат заблокирован и получил код $newCode.';
+  }
+
+  @override
+  String syncConflictStockBody(String name, String qty) {
+    return 'Остаток товара «$name» стал отрицательным ($qty) после продаж на разных кассах. Проверьте остаток.';
+  }
+
+  @override
+  String syncConflictGiftBalanceBody(String code, String amount) {
+    return 'Сертификат $code списан на разных кассах больше номинала: баланс $amount.';
+  }
+
+  @override
+  String syncConflictBonusBody(String name, String amount) {
+    return 'Бонусы клиента «$name» стали отрицательными ($amount) после операций на разных кассах.';
+  }
+
+  @override
+  String get syncSectionDesc =>
+      'Несколько касс одного магазина работают с общими товарами, клиентами и продажами через облако. Без интернета касса продолжает работать, изменения отправятся при появлении связи.';
+
+  @override
+  String get syncUnavailable =>
+      'В этой версии программы синхронизация недоступна.';
+
+  @override
+  String get syncOffTitle => 'Синхронизация выключена';
+
+  @override
+  String get syncOffMessage =>
+      'Эта касса работает отдельно. Подключите её к магазину в облаке, чтобы все кассы видели общие данные.';
+
+  @override
+  String get syncConnect => 'Подключить';
+
+  @override
+  String get syncSyncNow => 'Синхронизировать сейчас';
+
+  @override
+  String get syncDisconnect => 'Отключить';
+
+  @override
+  String get syncSignInAgain => 'Войти снова';
+
+  @override
+  String get syncStoreLabel => 'Магазин';
+
+  @override
+  String get syncDeviceCode => 'Код кассы';
+
+  @override
+  String syncDeviceCodeExample(String example) {
+    return 'номера чеков: $example';
+  }
+
+  @override
+  String get syncPending => 'Ожидают отправки';
+
+  @override
+  String get syncLastSync => 'Последняя синхронизация';
+
+  @override
+  String get syncNever => 'ещё не было';
+
+  @override
+  String get syncAccount => 'Аккаунт';
+
+  @override
+  String syncNextRetry(String time) {
+    return 'Следующая попытка в $time';
+  }
+
+  @override
+  String syncDoneToast(String pushed, String pulled) {
+    return 'Синхронизация завершена: отправлено $pushed, получено $pulled';
+  }
+
+  @override
+  String get syncDisconnectTitle => 'Отключить синхронизацию?';
+
+  @override
+  String syncDisconnectMessage(String store) {
+    return 'Касса перестанет обмениваться данными с магазином «$store». Все данные на этой кассе сохранятся, номера чеков останутся уникальными. Подключиться снова можно в любой момент.';
+  }
+
+  @override
+  String get syncDisconnectedToast =>
+      'Синхронизация отключена. Данные на кассе сохранены.';
+
+  @override
+  String get syncConnectTitle => 'Подключение к облаку';
+
+  @override
+  String get syncSignInIntro =>
+      'Введите адрес сервера и данные аккаунта владельца магазина.';
+
+  @override
+  String get syncServerUrl => 'Адрес сервера *';
+
+  @override
+  String get syncServerUrlHint => 'https://…supabase.co';
+
+  @override
+  String get syncAnonKey => 'Ключ доступа (anon key) *';
+
+  @override
+  String get syncEmail => 'Email *';
+
+  @override
+  String get syncPassword => 'Пароль *';
+
+  @override
+  String get syncPasswordShow => 'Показать пароль';
+
+  @override
+  String get syncPasswordHide => 'Скрыть пароль';
+
+  @override
+  String get syncPasswordNote => 'Пароль не сохраняется на кассе.';
+
+  @override
+  String get syncSignIn => 'Войти';
+
+  @override
+  String get syncInvalidEmail => 'Неверный email';
+
+  @override
+  String syncSignedInAs(String email) {
+    return 'Вход выполнен: $email';
+  }
+
+  @override
+  String get syncChooseAction => 'Что сделать с этой кассой?';
+
+  @override
+  String get syncCreateStore => 'Создать магазин в облаке';
+
+  @override
+  String get syncCreateStoreHint =>
+      'Эта касса станет первой. Все её данные будут загружены в облако.';
+
+  @override
+  String get syncJoinStore => 'Подключить к существующему';
+
+  @override
+  String get syncJoinStoreHint =>
+      'Данные магазина будут загружены на эту кассу. Только для пустой базы.';
+
+  @override
+  String get syncStoreName => 'Название магазина *';
+
+  @override
+  String get syncEnvironment => 'Тип магазина';
+
+  @override
+  String get syncEnvTestHint =>
+      'Для обучения и проверки. Демо-база может подключаться только сюда.';
+
+  @override
+  String get syncEnvProductionHint =>
+      'Для реальной работы. Тип нельзя изменить позже.';
+
+  @override
+  String get syncEnvProductionDemo => 'Недоступно для демо-базы';
+
+  @override
+  String get syncCreateAndUpload => 'Создать и загрузить';
+
+  @override
+  String get syncChooseStore => 'Выберите магазин';
+
+  @override
+  String get syncNoStores =>
+      'У этого аккаунта нет магазинов. Создайте магазин на первой кассе или попросите владельца добавить вас.';
+
+  @override
+  String get syncUploading => 'Загружаем данные в облако…';
+
+  @override
+  String get syncDownloading => 'Загружаем данные магазина…';
+
+  @override
+  String syncConnectedToast(String store, String code) {
+    return 'Касса подключена к магазину «$store». Код кассы: $code';
+  }
+
+  @override
+  String get syncIntegrityTitle => 'Проверка целостности';
+
+  @override
+  String get syncIntegrityDesc =>
+      'Сверяет остатки, долги, бонусы и балансы с журналами движений. Ничего не меняет.';
+
+  @override
+  String get syncIntegrityRun => 'Проверить';
+
+  @override
+  String get syncIntegrityNotRun => 'Проверка ещё не запускалась.';
+
+  @override
+  String get syncIntegrityOk =>
+      'Расхождений нет: все остатки и балансы совпадают с журналами.';
+
+  @override
+  String syncIntegrityFound(String count) {
+    return 'Найдено расхождений: $count';
+  }
+
+  @override
+  String syncIntegrityValues(String cached, String derived) {
+    return 'сохранено $cached · по журналу $derived';
+  }
+
+  @override
+  String get syncCacheStock => 'Остаток товара';
+
+  @override
+  String get syncCacheDebt => 'Долг клиента';
+
+  @override
+  String get syncCacheBonus => 'Бонусы клиента';
+
+  @override
+  String get syncCacheSupplierBalance => 'Баланс поставщика';
+
+  @override
+  String get syncCacheGiftBalance => 'Баланс сертификата';
+
+  @override
+  String get syncCacheGiftStatus => 'Статус сертификата';
+
+  @override
+  String get syncCachePoPaid => 'Оплачено по заказу';
+
+  @override
+  String get syncCachePoReceived => 'Получено по позиции заказа';
+
+  @override
+  String get syncCacheSaleRefunded => 'Возвращено по чеку';
+
+  @override
+  String get syncCacheSaleStatus => 'Статус чека';
+
+  @override
+  String get syncCacheReturnedQty => 'Возвращено по позиции чека';
+
+  @override
+  String get syncConflictsTitle => 'Конфликты синхронизации';
+
+  @override
+  String get syncConflictsSubtitle =>
+      'Что пришлось решить автоматически при обмене данными между кассами';
+
+  @override
+  String get syncConflictsEmpty => 'Конфликтов нет';
+
+  @override
+  String get syncConflictsShowResolved => 'Показать просмотренные';
+
+  @override
+  String get syncConflictsMarkAll => 'Отметить все просмотренными';
+
+  @override
+  String get syncConflictMarkRead => 'Отметить просмотренным';
+
+  @override
+  String get syncConflictKindBarcode => 'Совпадение штрихкода';
+
+  @override
+  String get syncConflictKindCard => 'Совпадение номера карты';
+
+  @override
+  String get syncConflictKindGiftCode => 'Совпадение кода сертификата';
+
+  @override
+  String get syncConflictKindStock => 'Отрицательный остаток';
+
+  @override
+  String get syncConflictKindGiftBalance => 'Отрицательный баланс сертификата';
+
+  @override
+  String get syncConflictKindBonus => 'Отрицательные бонусы';
+
+  @override
+  String get syncConflictKindNormalize => 'Выравнивание при обновлении';
+
+  @override
+  String get syncConflictKindOther => 'Конфликт';
+
+  @override
+  String syncIndicatorTooltip(String state, String count) {
+    return '$state. Ожидают отправки: $count. Нажмите, чтобы синхронизировать.';
+  }
+
+  @override
+  String syncSubjectReceipt(String number) {
+    return 'Чек №$number';
+  }
+
+  @override
+  String syncSubjectOrder(String number) {
+    return 'Заказ №$number';
+  }
+
+  @override
+  String get syncErrTestData =>
+      'Эта база была подключена к тестовому магазину и может содержать тестовые данные других касс. Создать из неё рабочий магазин нельзя: используйте базу без тестовых данных.';
+
+  @override
+  String syncConflictSubjectSale(String number) {
+    return 'чек №$number';
+  }
+
+  @override
+  String syncConflictSubjectDocNumber(String number) {
+    return 'номер документа $number';
+  }
+
+  @override
+  String get syncConflictSubjectDevice => 'код кассы';
+
+  @override
+  String syncConflictNumberBody(String number, String newNumber) {
+    return 'Номер $number оказался у двух разных документов (например, после восстановления резервной копии на подключённой кассе). Более новый документ получил номер $newNumber.';
+  }
+
+  @override
+  String syncConflictVoidReturnBody(String number, String amount) {
+    return 'Чек №$number аннулирован на одной кассе, а на другой по нему оформлен возврат на $amount. Деньги и товар учтены дважды: проверьте кассу и остатки.';
+  }
+
+  @override
+  String syncConflictOverReturnBody(
+    String number,
+    String refunded,
+    String total,
+  ) {
+    return 'По чеку №$number на разных кассах вернули больше, чем было продано: возвраты на $refunded при сумме чека $total. Проверьте кассу и остатки.';
+  }
+
+  @override
+  String syncConflictIdentityBody(String oldCode, String newCode) {
+    return 'Эта база оказалась копией кассы $oldCode, которая продолжала работать (восстановлена резервная копия или база скопирована на другой компьютер). Данные, которых не было в копии, загружены из облака, а касса получила новый код $newCode, чтобы номера документов не повторялись.';
+  }
+
+  @override
+  String get syncConflictKindNumber => 'Совпадение номера документа';
+
+  @override
+  String get syncConflictKindVoidReturn => 'Возврат по аннулированному чеку';
+
+  @override
+  String get syncConflictKindOverReturn => 'Возврат больше продажи';
+
+  @override
+  String get syncConflictKindIdentity => 'Копия базы кассы';
+
+  @override
+  String get syncConflictKindDoubleVoid => 'Двойное аннулирование сертификата';
+
+  @override
+  String syncConflictDoubleVoidBody(
+    String code,
+    String number,
+    String amount,
+    String shift,
+  ) {
+    return 'Продажа сертификата $code (№$number) аннулирована на двух кассах, и деньги ($amount) вернули дважды. Учтено одно аннулирование: в отчёте смены №$shift этого возврата нет. Проверьте кассу.';
+  }
+
+  @override
+  String get syncConflictKindVoidRedeem => 'Оплата аннулированным сертификатом';
+
+  @override
+  String syncConflictVoidRedeemBody(String code, String amount) {
+    return 'Сертификат $code аннулирован на одной кассе (деньги возвращены), а на другой им оплатили $amount. Сумма учтена дважды: проверьте кассу.';
+  }
+
+  @override
+  String syncJoinRejoinHint(String name) {
+    return 'В базе уже есть данные, поэтому подключиться можно только к магазину «$name», от которого эта касса была отключена.';
+  }
+
+  @override
+  String get syncConflictKindJoinUsers => 'Сотрудники этой кассы отключены';
+
+  @override
+  String get syncConflictSubjectJoinUsers => 'сотрудники этой кассы';
+
+  @override
+  String syncConflictJoinUsersBody(String names) {
+    return 'При подключении к магазину сотрудники, созданные на этой кассе до подключения, отключены: $names. Их PIN-коды могли совпасть с PIN-кодами сотрудников магазина. Входите PIN-кодами сотрудников магазина; нужного сотрудника можно включить заново с новым PIN-кодом.';
+  }
 
   @override
   String get warrantyTitle => 'Гарантия';

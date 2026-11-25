@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/doc_number.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/widgets.dart';
@@ -20,7 +21,7 @@ class ShiftsView extends ConsumerWidget {
       length: 2,
       child: PageScaffold(
         title: l.commonShift,
-        subtitle: shift == null ? l.shiftClosed : l.shiftNumberOpen('${shift.number}'),
+        subtitle: shift == null ? l.shiftClosed : l.shiftNumberOpen(docNo(shift.number, shift.deviceCode)),
         padding: EdgeInsets.zero,
         bottom: TabBar(
           isScrollable: true,

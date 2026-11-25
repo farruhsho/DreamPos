@@ -1,3 +1,4 @@
+import '../../core/doc_number.dart';
 import 'dart:async';
 
 import 'package:drift/drift.dart' hide Column;
@@ -134,7 +135,7 @@ class _CountList extends ConsumerWidget {
                       final c = list[i];
                       return ListTile(
                         selected: c.id == selected,
-                        title: Text(l.invCountTitle('${c.number}')),
+                        title: Text(l.invCountTitle(docNo(c.number, c.deviceCode))),
                         subtitle: Text(
                           [formatDateTime(c.createdAt), if (c.note != null) c.note!].join(' · '),
                           maxLines: 2,
@@ -443,7 +444,7 @@ class _CountEditorState extends ConsumerState<CountEditor> {
     final canCost = ref.read(sessionProvider)?.can(Perm.viewCost) ?? false;
     final ok = await confirm(
       context,
-      title: l.invCompleteTitle('${count.number}'),
+      title: l.invCompleteTitle(docNo(count.number, count.deviceCode)),
       message: [
         l.invCompleteCounted('${s.counted}', '${s.lines}'),
         if (s.uncounted > 0) l.invCompleteUncounted('${s.uncounted}'),
@@ -464,7 +465,7 @@ class _CountEditorState extends ConsumerState<CountEditor> {
     await runGuarded(
       context,
       () => _repo.completeCount(widget.countId, userId: ref.read(sessionProvider)?.user.id),
-      success: l.invCountCompletedToast('${count.number}'),
+      success: l.invCountCompletedToast(docNo(count.number, count.deviceCode)),
     );
     if (mounted) setState(() => _busy = false);
   }
@@ -473,7 +474,7 @@ class _CountEditorState extends ConsumerState<CountEditor> {
     final l = context.l10n;
     final ok = await confirm(
       context,
-      title: l.invCancelCountTitle('${count.number}'),
+      title: l.invCancelCountTitle(docNo(count.number, count.deviceCode)),
       message: l.invCancelCountMessage,
       ok: l.invCancelCount,
       destructive: true,
@@ -627,7 +628,7 @@ class _CountEditorState extends ConsumerState<CountEditor> {
       children: [
         Row(
           children: [
-            Flexible(child: Text(l.invCountTitle('${count.number}'), style: t.textTheme.titleLarge)),
+            Flexible(child: Text(l.invCountTitle(docNo(count.number, count.deviceCode)), style: t.textTheme.titleLarge)),
             const SizedBox(width: Gap.s),
             StatusChip(countStatusLabelsOf(l)[count.status] ?? count.status, color: countStatusColor(count.status)),
           ],

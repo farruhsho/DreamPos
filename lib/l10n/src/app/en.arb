@@ -16,6 +16,8 @@
   "appMenu": "Menu",
   "appShiftClosed": "Shift closed",
   "appShiftChip": "Shift No. {number} · since {time}",
+  "appShiftChipShort": "Shift No. {number}",
+  "appShiftChipNumber": "No. {number}",
   "appProfile": "Profile",
   "appLockSwitch": "Lock / switch cashier"
 }
