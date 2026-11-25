@@ -134,5 +134,7 @@
   "syncJoinRejoinHint": "The database already has data, so it can only reconnect to “{name}”, the store this register was disconnected from.",
   "syncConflictKindJoinUsers": "This register’s employees deactivated",
   "syncConflictSubjectJoinUsers": "employees of this register",
-  "syncConflictJoinUsersBody": "When this register joined the store, the employees created on it before joining were deactivated: {names}. Their PINs could match the PINs of the store’s employees. Sign in with the store employees’ PINs; an employee can be activated again with a new PIN."
+  "syncConflictJoinUsersBody": "When this register joined the store, the employees created on it before joining were deactivated: {names}. Their PINs could match the PINs of the store’s employees. Sign in with the store employees’ PINs; an employee can be activated again with a new PIN.",
+  "syncConflictKindRejected": "Cloud change skipped",
+  "syncConflictRejectedBody": "A change of record {entity} ({id}) came from the cloud damaged or from an incompatible app version, so it was skipped. Everything else syncs as usual. Make sure every register runs the same DreamPOS version."
 }

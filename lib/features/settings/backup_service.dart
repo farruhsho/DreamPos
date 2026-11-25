@@ -64,10 +64,36 @@ class BackupService {
     if (!await f.exists() || await f.length() == 0) {
       throw Exception(L.current.settingsErrBackupFailed);
     }
+    await _scrubSecrets(path);
     await db.setSetting(SettingKeys.lastBackupAt, t.toUtc().toIso8601String());
     await db.audit('backup.create', userId: userId, entity: 'backup', details: name);
     final st = await f.stat();
     return BackupInfo(f, st.size, st.modified);
+  }
+
+  /// Keys of `sync_state` that never go into a backup: the cloud refresh
+  /// token (a session with full access to the store's cloud data) and the
+  /// unconfirmed push of this moment. A restored backup asks to sign in to
+  /// the cloud again; everything else (store, device id, cursor) is kept, so
+  /// the restore is still recognised as a copy (D-025).
+  static const backupExcludedSyncKeys = ['refresh_token', 'push_inflight'];
+
+  /// Removes [backupExcludedSyncKeys] from the backup file (secure delete:
+  /// the freed pages are zeroed, the token is not left in the file).
+  Future<void> _scrubSecrets(String path) async {
+    await db.customStatement('ATTACH DATABASE ? AS backup_copy', [path]);
+    try {
+      final has = await db
+          .customSelect("SELECT 1 FROM backup_copy.sqlite_master WHERE type = 'table' AND name = 'sync_state'")
+          .get();
+      if (has.isEmpty) return;
+      await db.customStatement('PRAGMA backup_copy.secure_delete = ON');
+      await db.customStatement(
+          'DELETE FROM backup_copy.sync_state WHERE key IN (${List.filled(backupExcludedSyncKeys.length, '?').join(', ')})',
+          backupExcludedSyncKeys);
+    } finally {
+      await db.customStatement('DETACH DATABASE backup_copy');
+    }
   }
 
   /// Existing backups, newest first.

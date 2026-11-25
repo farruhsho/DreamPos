@@ -350,6 +350,44 @@ another register's sale.
   - **Refresh token:** the rotated refresh token is stored after every engine call, also a
     failed one (`SyncService._exclusive`, `listStores`), so a sync that refreshed the access
     token and then failed does not leave a revoked token for the next app start.
+- **Fourth review (no schema change):**
+  - **Partial returns:** the amount of a return line is the cumulative
+    `round(total × returned / qty)` minus what the line's `return_items` already refunded (all
+    registers); the last unit takes exactly the rest, so three single-unit returns of a 1000
+    line refund 1000, not 999.
+  - **Shift history** is ordered by `opened_at` (then code, number): numbers are per register.
+  - **Draft purchase order lines** of a losing `lines_rev` are hidden (`deleted_at` = the line's
+    `created_at`, the same everywhere, never pushed) instead of hard-deleted, and shown again
+    when a later header change makes their revision win (a draft edit crossing two offline
+    «send order»). Every reader of order lines filters `deleted_at`. A remote delete kept as a
+    soft delete is stamped from the change's version, not the local clock.
+  - **Sticky / initial statuses:** `inventory_counts` has initial status `draft` and sticky
+    `completed`; `goods_receipts` sticky `reversed`. When a sticky value survives a newer change
+    that won the rest of the row (and superseded the pending edit that made it sticky), the row
+    is pushed again, so every register learns it.
+  - **Effect rows before their document:** the push puts the document (`goods_receipts`,
+    `inventory_counts`, `supplier_payments` by `ref_type`/`ref_id`) before its stock / ledger
+    rows. `StockService.move` and `SupplierLedgerService.post` refuse an `effectId` row that
+    already exists (`errEffectDoneElsewhere`, a BusinessException), so a register that pulled
+    the effect before the header never hits the primary key. A warranty replacement writes off
+    with `effectId('warranty_replacement', claim)` and skips a write-off already here.
+  - **Unique keys and numbers are propagated:** the local loser of a barcode / card / gift code /
+    document number collision is pushed like an edit (outbox `at` = winning version + 1, so a
+    later real edit still supersedes it); registers that judged a collision differently converge
+    on the last resolution. Every table of `numberedDocumentTables` goes through the number check
+    (plain indexes `ix_<table>_code_number`); a renamed open shift of this register stays its
+    current shift.
+  - **Malformed remote changes:** each change is applied in its own savepoint; values are
+    checked against `PRAGMA table_info` (scalars of the column type, a whole double taken for an
+    integer, JSON booleans as 0/1, no null in NOT NULL, required columns on insert). A change that
+    fails (also any constraint / binder error, or a version outside `0…maxSyncVersion`, 2200-01-01
+    in ms) is rolled back alone, recorded as conflict `rejected` and skipped; the cursor advances
+    and the push runs. The hybrid clock never exceeds `maxSyncVersion`. The server checks the
+    same version bound and refuses payloads with nested objects / arrays.
+  - **Backups** (`BackupService.create`) drop `sync_state.refresh_token` and `push_inflight`
+    from the copy (secure delete); a restored backup asks to sign in again.
+  - Regression: `test/core/sync/sync_review_fixes4_test.dart` and the seeded fuzz
+    `test/core/sync/sync_fuzz_regression_test.dart` (4 registers, network faults).
 - **Known limitations:** a parked change whose parent never arrives (hard-deleted elsewhere)
   stays parked; customer statistics (`total_spent`, `visits`) and the average cost are LWW
   (concurrent increments can lose one); audit log and notifications stay per device.

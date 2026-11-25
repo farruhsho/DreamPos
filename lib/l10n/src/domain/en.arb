@@ -104,5 +104,6 @@
   "errAdjustmentReasonRequired": "Enter the reason for the adjustment",
   "errPinAmbiguous": "This PIN belongs to several employees (after the registers synced). Sign in as another employee and change the PIN of one of them.",
   "errPaymentOtherRegisterShift": "This cash payment was made in another register’s shift — it can only be cancelled on that register",
-  "errReceiptOpeningNoReversal": "Goods receipt No. {number} is a sync opening balance and cannot be reversed"
+  "errReceiptOpeningNoReversal": "Goods receipt No. {number} is a sync opening balance and cannot be reversed",
+  "errEffectDoneElsewhere": "This document has already been processed on another register, but not all of its changes have arrived yet. Sync this register and open the document again."
 }

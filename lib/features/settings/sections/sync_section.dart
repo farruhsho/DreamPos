@@ -478,6 +478,7 @@ IconData _conflictIcon(String kind) => switch (kind) {
       SyncConflictKind.voidReturn || SyncConflictKind.overReturn => Icons.assignment_return_outlined,
       SyncConflictKind.identity => Icons.content_copy_outlined,
       SyncConflictKind.doubleVoid || SyncConflictKind.voidRedeem => Icons.card_giftcard,
+      SyncConflictKind.rejected => Icons.block_outlined,
       'normalize' => Icons.tune,
       _ => Icons.warning_amber_rounded,
     };

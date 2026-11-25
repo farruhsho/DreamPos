@@ -1061,6 +1061,10 @@ class AppLocalizationsKy extends AppLocalizations {
   }
 
   @override
+  String get errEffectDoneElsewhere =>
+      'Бул документ башка кассада мурунтан эле өткөрүлгөн, бирок анын бардык өзгөртүүлөрү азырынча келе элек. Кассаны синхрондоп, документти кайра ачыңыз.';
+
+  @override
   String get authEnterPin => 'PIN-кодду киргизиңиз';
 
   @override
@@ -10994,6 +10998,15 @@ class AppLocalizationsKy extends AppLocalizations {
   @override
   String syncConflictJoinUsersBody(String names) {
     return 'Дүкөнгө туташканда бул кассада туташууга чейин түзүлгөн кызматкерлер өчүрүлдү: $names. Алардын PIN-коддору дүкөн кызматкерлеринин PIN-коддору менен дал келиши мүмкүн эле. Дүкөн кызматкерлеринин PIN-коддору менен кириңиз; керектүү кызматкерди жаңы PIN-код менен кайра күйгүзүүгө болот.';
+  }
+
+  @override
+  String get syncConflictKindRejected =>
+      'Булуттан келген өзгөртүү өткөрүлүп жиберилди';
+
+  @override
+  String syncConflictRejectedBody(String entity, String id) {
+    return '$entity жазуусунун ($id) өзгөртүүсү булуттан бузулган же шайкеш келбеген программа версиясынан келди, ошондуктан ал өткөрүлүп жиберилди. Калган маалыматтар кадимкидей синхрондолот. Бардык кассаларда DreamPOSтун бир эле версиясы орнотулганын текшериңиз.';
   }
 
   @override

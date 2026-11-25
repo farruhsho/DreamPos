@@ -267,7 +267,9 @@ Stream<List<ShiftHistoryRow>> watchShiftHistory(AppDatabase db, {String? onlyUse
       "(SELECT COUNT(*) FROM sales x WHERE x.shift_id = s.id AND x.status NOT IN ('voided','held')) AS h_sales_count "
       'FROM shifts s '
       '${where.isEmpty ? '' : 'WHERE ${where.join(' AND ')} '}'
-      'ORDER BY s.number DESC LIMIT $limit';
+      // By time, not by number: numbers are per register code (D-025), so a
+      // newer register's shifts would sort below an older register's ones.
+      "ORDER BY s.opened_at DESC, ifnull(s.device_code, '') DESC, s.number DESC LIMIT $limit";
   return db
       .customSelect(sql, variables: vars, readsFrom: {db.shifts, db.sales})
       .watch()

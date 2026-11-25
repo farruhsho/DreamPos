@@ -52,6 +52,12 @@ class SupplierLedgerService {
       if (s.deletedAt != null && kind != SupplierLedgerKind.opening) {
         throw BusinessException(L.current.errSupplierDeleted(s.name));
       }
+      if (id != null &&
+          await (db.select(db.supplierLedger)..where((l) => l.id.equals(id))).getSingleOrNull() != null) {
+        // A one-time effect pulled from another register before its
+        // document header (see StockService.move).
+        throw BusinessException(L.current.errEffectDoneElsewhere, code: 'effect_done');
+      }
       final after = s.balance + amount;
       final rowId = id ?? newId();
       await db.into(db.supplierLedger).insert(SupplierLedgerCompanion.insert(

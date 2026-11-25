@@ -28,6 +28,12 @@ class StockService {
     int? unitCost,
     bool enforce = false,
   }) async {
+    if (id != null && await _movementExists(id)) {
+      // A one-time effect already pulled from another register whose
+      // document header has not arrived yet (it is pushed after the effect
+      // rows, possibly in a later batch or sync): never applied twice.
+      throw BusinessException(L.current.errEffectDoneElsewhere, code: 'effect_done');
+    }
     final p = await (db.select(db.products)..where((t) => t.id.equals(productId)))
         .getSingle();
     if (!p.trackStock) return p.stockQty;
@@ -92,7 +98,12 @@ class StockService {
     });
   }
 
+  Future<bool> _movementExists(String id) async =>
+      (await (db.select(db.stockMovements)..where((m) => m.id.equals(id))).getSingleOrNull()) != null;
+
+  /// [id]: see [move] (a one-time write-off passes `effectId`).
   Future<void> writeOff({
+    String? id,
     required String productId,
     required double qty,
     required String reason,
@@ -103,6 +114,7 @@ class StockService {
     if (qty <= 0) throw BusinessException(L.current.errQtyMustBePositive);
     await db.transaction(() async {
       await move(
+          id: id,
           productId: productId,
           delta: -qty,
           type: 'writeoff',
@@ -161,6 +173,12 @@ class StockService {
       final items = await (db.select(db.inventoryCountItems)
             ..where((i) => i.countId.equals(countId) & i.countedQty.isNotNull()))
           .get();
+      for (final it in items) {
+        // Completed on another register, its header not here yet.
+        if (await _movementExists(effectId('inventory_count', it.id))) {
+          throw BusinessException(L.current.errEffectDoneElsewhere, code: 'effect_done');
+        }
+      }
       for (final it in items) {
         await setStock(
           // Same id on every register (D-025): one count completed on two

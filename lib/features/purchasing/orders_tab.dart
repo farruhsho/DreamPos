@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:drift/drift.dart' show BooleanExpressionOperators;
+
 import '../../core/db/database.dart';
 import '../doc_number_sql.dart';
 import '../../core/money.dart';
@@ -651,7 +653,7 @@ class _PoEditorState extends ConsumerState<PoEditor> {
   Future<void> _loadLines() async {
     setState(() => _loading = true);
     final db = ref.read(databaseProvider);
-    final items = await (db.select(db.purchaseOrderItems)..where((i) => i.orderId.equals(widget.order!.id))).get();
+    final items = await (db.select(db.purchaseOrderItems)..where((i) => i.orderId.equals(widget.order!.id) & i.deletedAt.isNull())).get();
     final ps = await (db.select(db.products)..where((p) => p.id.isIn(items.map((i) => i.productId)))).get();
     final map = {for (final p in ps) p.id: p};
     if (!mounted) return;
@@ -988,7 +990,7 @@ class _ReceiveFormState extends ConsumerState<_ReceiveForm> {
 
   Future<void> _load() async {
     final db = ref.read(databaseProvider);
-    final items = await (db.select(db.purchaseOrderItems)..where((i) => i.orderId.equals(widget.o.id))).get();
+    final items = await (db.select(db.purchaseOrderItems)..where((i) => i.orderId.equals(widget.o.id) & i.deletedAt.isNull())).get();
     final ps = await (db.select(db.products)..where((p) => p.id.isIn(items.map((i) => i.productId)))).get();
     final map = {for (final p in ps) p.id: p};
     if (!mounted) return;

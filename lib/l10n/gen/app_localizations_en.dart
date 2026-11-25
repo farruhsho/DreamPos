@@ -1067,6 +1067,10 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get errEffectDoneElsewhere =>
+      'This document has already been processed on another register, but not all of its changes have arrived yet. Sync this register and open the document again.';
+
+  @override
   String get authEnterPin => 'Enter PIN';
 
   @override
@@ -10982,6 +10986,14 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String syncConflictJoinUsersBody(String names) {
     return 'When this register joined the store, the employees created on it before joining were deactivated: $names. Their PINs could match the PINs of the store’s employees. Sign in with the store employees’ PINs; an employee can be activated again with a new PIN.';
+  }
+
+  @override
+  String get syncConflictKindRejected => 'Cloud change skipped';
+
+  @override
+  String syncConflictRejectedBody(String entity, String id) {
+    return 'A change of record $entity ($id) came from the cloud damaged or from an incompatible app version, so it was skipped. Everything else syncs as usual. Make sure every register runs the same DreamPOS version.';
   }
 
   @override

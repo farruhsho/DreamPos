@@ -134,5 +134,7 @@
   "syncJoinRejoinHint": "Bazada allaqachon maʼlumotlar bor, shuning uchun faqat bu kassa uzilgan “{name}” doʻkoniga ulanish mumkin.",
   "syncConflictKindJoinUsers": "Bu kassaning xodimlari oʻchirildi",
   "syncConflictSubjectJoinUsers": "bu kassaning xodimlari",
-  "syncConflictJoinUsersBody": "Doʻkonga ulanishda bu kassada ulanishdan oldin yaratilgan xodimlar oʻchirildi: {names}. Ularning PIN-kodlari doʻkon xodimlarining PIN-kodlari bilan mos kelishi mumkin edi. Doʻkon xodimlarining PIN-kodlari bilan kiring; kerakli xodimni yangi PIN-kod bilan qayta yoqish mumkin."
+  "syncConflictJoinUsersBody": "Doʻkonga ulanishda bu kassada ulanishdan oldin yaratilgan xodimlar oʻchirildi: {names}. Ularning PIN-kodlari doʻkon xodimlarining PIN-kodlari bilan mos kelishi mumkin edi. Doʻkon xodimlarining PIN-kodlari bilan kiring; kerakli xodimni yangi PIN-kod bilan qayta yoqish mumkin.",
+  "syncConflictKindRejected": "Bulutdan kelgan oʻzgarish oʻtkazib yuborildi",
+  "syncConflictRejectedBody": "{entity} yozuvining ({id}) oʻzgarishi bulutdan buzilgan holda yoki mos kelmaydigan dastur versiyasidan keldi, shuning uchun u oʻtkazib yuborildi. Qolgan maʼlumotlar odatdagidek sinxronlanadi. Barcha kassalarda DreamPOSning bir xil versiyasi oʻrnatilganini tekshiring."
 }

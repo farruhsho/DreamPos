@@ -40,7 +40,9 @@ import 'dart:io' show Platform;
 import 'dart:math' as math;
 
 import 'package:drift/drift.dart';
+import 'package:drift/remote.dart' show DriftRemoteException;
 import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:sqlite3/common.dart' show SqliteException;
 import 'package:uuid/uuid.dart';
 
 import '../../l10n/l10n.dart';
@@ -129,10 +131,20 @@ const businessDataTables = <String>[
   'warranty_claims',
 ];
 
+/// Numbered documents: (device_code, number) identifies one document
+/// (UNIQUE index for sales / gift card sales, a plain index for the others).
+/// Two documents only share it after a restored backup or a copied file
+/// (`SyncService._resolveNumber`).
+final _numberedUnique = AppDatabase.numberedDocumentTables.values.toSet();
+
+/// Highest change version accepted from the server (2200-01-01 in
+/// milliseconds). Versions are millisecond clocks (≈ 1.8e12 today); a larger
+/// one can only come from a broken or hand-made client and would overflow the
+/// hybrid clock (`hlc + 1`), so it is rejected like any malformed change.
+const maxSyncVersion = 7258118400000;
+
 /// Unique columns that can collide between offline registers (spec §5).
 /// `partial`: the index only covers non-deleted rows.
-/// Tables with UNIQUE(ifnull(device_code, ''), number).
-const _numberedUnique = {'sales', 'gift_card_sales'};
 
 const _uniqueColumns = <String, ({String column, bool partial})>{
   'products': (column: 'barcode', partial: true),
@@ -167,6 +179,11 @@ abstract final class SyncConflictKind {
   /// One gift card sale voided on two registers offline: both gave the
   /// money back, only one void is kept.
   static const doubleVoid = 'double_void';
+
+  /// A change from the server that this database cannot store (a value of
+  /// the wrong type, a missing required column, a broken constraint, an
+  /// impossible version): skipped, so it never blocks the sync.
+  static const rejected = 'rejected';
 
   /// A gift card spent on one register while its sale was voided (money
   /// refunded) on another.
@@ -280,6 +297,9 @@ class SyncReport {
   /// Remote changes waiting for their parent rows (see [SyncKeys.parked]).
   int parked = 0;
 
+  /// Malformed remote changes skipped ([SyncConflictKind.rejected]).
+  int rejected = 0;
+
   /// This database was found to be a copy of a working register and got a
   /// new device id/code during this sync.
   bool reidentified = false;
@@ -350,6 +370,31 @@ String _versionKey(String entity, _Part p) => p == _Part.user ? entity : '$entit
 String _opsOf(_Part p) => p == _Part.user ? "('upsert', 'delete')" : "('stat')";
 
 enum _Outcome { applied, skipped, deferred }
+
+/// A remote change this database cannot store (see [SyncConflictKind.rejected]).
+class _Rejected implements Exception {
+  const _Rejected();
+}
+
+/// A local row whose unique value / document code was changed by the sync
+/// (it lost a collision): the change is pushed like an edit, so every
+/// register ends with the same values even when the registers judged the
+/// collision differently (spec §5). [at] is just above the change that
+/// made it lose, so a later real edit of the row still supersedes it.
+class _Owed {
+  _Owed(this.table, this.id, this.at);
+  final String table;
+  final String id;
+  final int at;
+}
+
+/// SQL type affinity / nullability of a column (`PRAGMA table_info`).
+class _Col {
+  _Col(this.type, {required this.notNull, required this.hasDefault});
+  final String type;
+  final bool notNull;
+  final bool hasDefault;
+}
 
 class _ApplyFlags {
   bool settingsChanged = false;
@@ -516,7 +561,9 @@ class SyncService {
     return id;
   }
 
-  Future<int> _hlc() async => int.tryParse(await _get(SyncKeys.hlc) ?? '') ?? 0;
+  /// Hybrid logical clock (highest version seen), never above
+  /// [maxSyncVersion] (a clock poisoned before the bound existed).
+  Future<int> _hlc() async => math.min(int.tryParse(await _get(SyncKeys.hlc) ?? '') ?? 0, maxSyncVersion);
 
   /// Last applied server seq.
   Future<int> pullCursor() async => int.tryParse(await _get(SyncKeys.pullCursor) ?? '') ?? 0;
@@ -1065,6 +1112,12 @@ class SyncService {
                 final v = payload[fk.column];
                 if (v is String && syncedTables.contains(fk.table)) await add(fk.table, v);
               }
+              // The document an effect row belongs to (no FK) goes first
+              // too: another register never holds a reversal / count
+              // correction while the document still says «posted» / «draft».
+              final soft = _docOfEffect[(g.entity, payload['ref_type'])];
+              final ref = payload['ref_id'];
+              if (soft != null && ref is String) await add(soft, ref);
             }
             groups.add(g);
           } else {
@@ -1079,7 +1132,7 @@ class SyncService {
             version = (prev['v'] as num).toInt();
           } else {
             changeId = _uuid.v4();
-            version = math.max(g.at, hlc + 1);
+            version = math.min(math.max(g.at, hlc + 1), maxSyncVersion);
           }
           if (version > hlc) hlc = version;
           newInflight[g.key] = {'id': changeId, 'v': version, 'last': g.last};
@@ -1193,13 +1246,82 @@ class SyncService {
     });
   }
 
-  final _columnsCache = <String, List<String>>{};
+  final _columnsCache = <String, Map<String, _Col>>{};
   Map<String, List<({String table, String column})>>? _referencedBy;
   Map<String, List<_Fk>>? _parentsOf;
 
-  Future<List<String>> _columns(String table) async => _columnsCache[table] ??= [
-        for (final r in await db.customSelect('PRAGMA table_info($table)').get()) r.read<String>('name'),
-      ];
+  Future<Map<String, _Col>> _columnInfo(String table) async => _columnsCache[table] ??= {
+        for (final r in await db.customSelect('PRAGMA table_info($table)').get())
+          r.read<String>('name'): _Col(
+            r.read<String>('type').toUpperCase(),
+            notNull: r.read<int>('notnull') == 1,
+            hasDefault: r.data['dflt_value'] != null,
+          ),
+      };
+
+  /// Checks (and normalises) the values of a remote row against the local
+  /// columns before they are bound: only scalars of the column's type (a
+  /// whole double is taken for an integer column, a JSON boolean as 0/1),
+  /// no null in a NOT NULL column, and on insert every required column.
+  /// SQLite would store `'abc'` in an INTEGER column, and every typed read
+  /// of the table would then fail. Throws [_Rejected].
+  static void _validate(Map<String, _Col> cols, Map<String, Object?> data, {required bool insert}) {
+    for (final k in data.keys.toList()) {
+      final col = cols[k]!;
+      var v = data[k];
+      if (v is bool) v = data[k] = v ? 1 : 0;
+      if (v == null) {
+        if (col.notNull) throw const _Rejected();
+        continue;
+      }
+      if (v is! String && v is! num) throw const _Rejected();
+      final t = col.type;
+      if (t.contains('INT')) {
+        if (v is double) {
+          if (!v.isFinite || v != v.truncateToDouble()) throw const _Rejected();
+          data[k] = v.toInt();
+        } else if (v is! int) {
+          throw const _Rejected();
+        }
+      } else if (t.contains('REAL') || t.contains('FLOA') || t.contains('DOUB')) {
+        if (v is! num || (v is double && !v.isFinite)) throw const _Rejected();
+      } else if (t.contains('CHAR') || t.contains('CLOB') || t.contains('TEXT')) {
+        if (v is! String) throw const _Rejected();
+      }
+    }
+    if (insert) {
+      for (final e in cols.entries) {
+        if (e.value.notNull && !e.value.hasDefault && data[e.key] == null) throw const _Rejected();
+      }
+    }
+  }
+
+  /// A failure of one remote change that means «this change cannot be
+  /// stored here» (skip it), not «this database cannot write» (retry later).
+  static bool _rejectable(Object e) {
+    final cause = e is DriftRemoteException ? e.remoteCause : e;
+    if (cause is _Rejected || cause is ArgumentError || cause is TypeError || cause is FormatException) return true;
+    if (cause is SqliteException) {
+      // busy, locked, out of memory, I/O, corrupt, full, cannot open
+      const local = {5, 6, 7, 10, 11, 13, 14};
+      return !local.contains(cause.resultCode & 0xff);
+    }
+    return false;
+  }
+
+  /// Pushes the local rows that lost a collision in this page ([_Owed]),
+  /// unless a newer change of that row was applied after it.
+  Future<void> _enqueueOwed(List<_Owed> owed) async {
+    for (final o in owed) {
+      if (!await _exists(o.table, o.id)) continue;
+      final v = await (db.select(db.syncRowVersions)
+            ..where((r) => r.entity.equals(o.table) & r.entityId.equals(o.id)))
+          .getSingleOrNull();
+      if (v != null && v.version >= o.at) continue;
+      await db.customStatement(
+          "INSERT INTO sync_outbox (entity, entity_id, op, at) VALUES (?, ?, 'upsert', ?)", [o.table, o.id, o.at]);
+    }
+  }
 
   /// parent table → (child table, FK column) over the synced tables.
   Future<Map<String, List<({String table, String column})>>> _fkMap() async {
@@ -1274,12 +1396,37 @@ class SyncService {
     final touched = <String, Set<String>>{};
     final conflicts = <_Conflict>[];
     final flags = _ApplyFlags();
+    final owed = <_Owed>[];
     await db.withSyncSuppressed(() async {
       await db.customStatement('PRAGMA defer_foreign_keys = ON');
       var hlc = await _hlc();
       var deferred = <SyncChange>[];
-      Future<void> run(SyncChange c) async {
-        switch (await _applyOne(c, devId, touched, conflicts, flags)) {
+      // Each change in its own savepoint: one this database cannot store
+      // (wrong value type, missing column, broken constraint — a broken or
+      // newer client, or a hand-made push) is rolled back alone, recorded
+      // and skipped, so it never blocks the pull, the cursor or the push.
+      Future<bool> run(SyncChange c) async {
+        final conflictMark = conflicts.length, owedMark = owed.length, ownNewer = flags.ownNewer;
+        await db.customStatement('SAVEPOINT sync_change');
+        _Outcome outcome;
+        try {
+          if (c.version < 0 || c.version > maxSyncVersion) throw const _Rejected();
+          outcome = await _applyOne(c, devId, touched, conflicts, flags, owed);
+          await db.customStatement('RELEASE sync_change');
+        } on Object catch (e) {
+          if (!_rejectable(e)) rethrow;
+          await db.customStatement('ROLLBACK TO sync_change');
+          await db.customStatement('RELEASE sync_change');
+          conflicts
+            ..length = conflictMark
+            ..add(_Conflict(SyncConflictKind.rejected, c.entity, c.entityId,
+                SyncConflictPayload.rejected(entity: c.entity, id: c.entityId)));
+          owed.length = owedMark;
+          flags.ownNewer = ownNewer;
+          report.rejected++;
+          return false;
+        }
+        switch (outcome) {
           case _Outcome.applied:
             report.applied++;
           case _Outcome.skipped:
@@ -1287,6 +1434,7 @@ class SyncService {
           case _Outcome.deferred:
             deferred.add(c);
         }
+        return true;
       }
 
       for (final c in await _loadParked()) {
@@ -1296,8 +1444,7 @@ class SyncService {
         final c = page[i];
         final hook = debugBeforeApply;
         if (hook != null) await hook(i, c);
-        if (c.version > hlc) hlc = c.version;
-        await run(c);
+        if (await run(c) && c.version > hlc) hlc = c.version;
       }
       // Parents that came later in the page: retry until nothing moves.
       while (deferred.isNotEmpty) {
@@ -1311,6 +1458,7 @@ class SyncService {
       await _saveParked(deferred);
       report.parked = deferred.length;
       await _trimDraftOrderLines(touched);
+      await _enqueueOwed(owed);
       final changed = await SyncAggregates.recompute(db, touched);
       conflicts.addAll(await _negativeConflicts(changed));
       conflicts.addAll(await _returnConflicts(touched));
@@ -1349,7 +1497,7 @@ class SyncService {
   /// local row already has that version and they are skipped; a newer one
   /// means this file was restored or copied ([_ApplyFlags.ownNewer]).
   Future<_Outcome> _applyOne(SyncChange c, String devId, Map<String, Set<String>> touched, List<_Conflict> conflicts,
-      _ApplyFlags flags) async {
+      _ApplyFlags flags, List<_Owed> owed) async {
     final isSettings = c.entity == settingsTable;
     if (!isSettings && !syncedTables.contains(c.entity)) return _Outcome.skipped; // a table this build does not know
     if (isSettings && isLocalSettingKey(c.entityId)) return _Outcome.skipped;
@@ -1371,6 +1519,8 @@ class SyncService {
         if (c.op == SyncOp.delete) {
           await db.customStatement('DELETE FROM settings WHERE key = ?', [c.entityId]);
         } else {
+          final v = c.payload?['value'];
+          if (v != null && v is! String && v is! num) throw const _Rejected();
           await db.customStatement(
               'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [c.entityId, '${c.payload?['value'] ?? ''}']);
         }
@@ -1384,22 +1534,23 @@ class SyncService {
     }
 
     final table = c.entity;
-    final cols = await _columns(table);
+    final cols = await _columnInfo(table);
     final data = <String, Object?>{
       for (final e in (c.payload ?? const {}).entries)
-        if (cols.contains(e.key)) e.key: e.value,
+        if (cols.containsKey(e.key)) e.key: e.value,
     };
     data['id'] = c.entityId;
     final row = (await db
             .customSelect('SELECT * FROM $table WHERE id = ?', variables: [Variable.withString(c.entityId)])
             .getSingleOrNull())
         ?.data;
+    _validate(cols, data, insert: row == null);
 
     if (row == null) {
       // New here (or deleted here later: then the delete's version wins).
       if (await _localWins(c, _Part.user)) return _Outcome.skipped;
       if (!await _parentsPresent(table, data, data.keys)) return _Outcome.deferred;
-      final changedLocal = await _resolveUnique(c, data, conflicts);
+      final changedLocal = await _resolveUnique(c, data, conflicts, owed);
       if (changedLocal != null) touched.putIfAbsent(table, () => {}).add(changedLocal);
       final keys = data.keys.toList();
       await db.customStatement(
@@ -1437,7 +1588,7 @@ class SyncService {
           if (k != 'id' && k != 'updated_at' && !stat.contains(k) && !(k == 'status' && bothInSet)) k,
       ];
       if (!await _parentsPresent(table, data, keys)) return _Outcome.deferred;
-      changedLocal = await _resolveUnique(c, data, conflicts);
+      changedLocal = await _resolveUnique(c, data, conflicts, owed);
       for (final k in keys) {
         set[k] = data[k];
       }
@@ -1457,6 +1608,11 @@ class SyncService {
           for (final k in sticky.columns) {
             set.remove(k);
           }
+          // The newer change wins the rest of the row and supersedes a
+          // pending local edit — possibly the very void / reversal /
+          // completion that made the row sticky here: send the row again,
+          // or the other registers never learn it.
+          owed.add(_Owed(table, c.entityId, c.version + 1));
         } else if (table == 'gift_card_sales' &&
             data['status'] == sticky.value &&
             data['void_shift_id'] != null &&
@@ -1602,6 +1758,18 @@ class SyncService {
     return out;
   }
 
+  /// A change version (millisecond clock) as a `deleted_at` value (seconds).
+  static int _versionSeconds(int version) => version ~/ 1000;
+
+  /// (effect table, `ref_type`) → document table of `ref_id`: pushed before
+  /// the effect rows ([_preparePush]).
+  static const _docOfEffect = <(String, Object?), String>{
+    ('stock_movements', 'receipt'): 'goods_receipts',
+    ('stock_movements', 'count'): 'inventory_counts',
+    ('supplier_ledger', 'goods_receipt'): 'goods_receipts',
+    ('supplier_ledger', 'supplier_payment'): 'supplier_payments',
+  };
+
   /// Rows that point at a row without a foreign key (soft references): a
   /// remote delete keeps such a row, soft-deleted, like for a real FK.
   static const _softReferences = <String, List<({String table, String column})>>{
@@ -1632,8 +1800,11 @@ class SyncService {
       final hit = await db.customSelect('SELECT 1 FROM ${r.table} WHERE "${r.column}" = ? LIMIT 1',
           variables: [Variable.withString(c.entityId)]).get();
       if (hit.isNotEmpty) {
+        // Stamped from the change itself (its version is a millisecond
+        // clock), not this register's clock: every register that keeps the
+        // row stores the same value (the stamp is never pushed).
         await db.customStatement('UPDATE $table SET deleted_at = COALESCE(deleted_at, ?) WHERE id = ?',
-            [DateTime.now().millisecondsSinceEpoch ~/ 1000, c.entityId]);
+            [_versionSeconds(c.version), c.entityId]);
         touched.putIfAbsent(table, () => {}).add(c.entityId);
         return;
       }
@@ -1660,20 +1831,30 @@ class SyncService {
           variables: [Variable.withString(o)]).getSingleOrNull();
       final rev = h?.readNullable<String>('lines_rev');
       if (rev == null) continue;
-      final stale = await db.customSelect(
-          'SELECT i.id, i.received_qty, EXISTS (SELECT 1 FROM goods_receipt_items g WHERE g.order_item_id = i.id) AS used '
-          "FROM purchase_order_items i WHERE i.order_id = ? AND ifnull(i.lines_rev, '') <> ? AND i.deleted_at IS NULL",
+      // Lines of a losing revision are only hidden (soft-deleted), never
+      // dropped: a later header change can make their revision win again
+      // (a draft edit and two offline «send order» crossing), and nobody
+      // would ever send them back. The stamp is the line's own creation
+      // time, the same on every register (it is not pushed).
+      final hidden = await db.customSelect(
+          'SELECT id FROM purchase_order_items '
+          "WHERE order_id = ? AND ifnull(lines_rev, '') <> ? AND deleted_at IS NULL",
           variables: [Variable.withString(o), Variable.withString(rev)]).get();
-      for (final s in stale) {
-        final id = s.read<String>('id');
-        if (s.read<int>('used') == 1 || s.read<double>('received_qty') > 0) {
-          await db.customStatement('UPDATE purchase_order_items SET deleted_at = COALESCE(deleted_at, ?) WHERE id = ?',
-              [DateTime.now().millisecondsSinceEpoch ~/ 1000, id]);
-        } else {
-          await db.customStatement('DELETE FROM purchase_order_items WHERE id = ?', [id]);
-        }
-        touched.putIfAbsent('purchase_order_items', () => {}).add(id);
-      }
+      final shown = await db.customSelect(
+          'SELECT id FROM purchase_order_items WHERE order_id = ? AND lines_rev = ? AND deleted_at IS NOT NULL',
+          variables: [Variable.withString(o), Variable.withString(rev)]).get();
+      if (hidden.isEmpty && shown.isEmpty) continue;
+      await db.customStatement(
+          "UPDATE purchase_order_items SET deleted_at = created_at WHERE order_id = ? AND ifnull(lines_rev, '') <> ? "
+          'AND deleted_at IS NULL',
+          [o, rev]);
+      // Lines of the winning revision hidden by an earlier pull come back.
+      await db.customStatement(
+          'UPDATE purchase_order_items SET deleted_at = NULL WHERE order_id = ? AND lines_rev = ? AND deleted_at IS NOT NULL',
+          [o, rev]);
+      touched.putIfAbsent('purchase_order_items', () => {}).addAll([
+        for (final r in [...hidden, ...shown]) r.read<String>('id'),
+      ]);
     }
   }
 
@@ -1683,14 +1864,17 @@ class SyncService {
   /// history keeps its numbers.
   ///
   /// A local row with an unpushed edit counts as newer only when that edit
-  /// also wins LWW against [c] (`at > c.version`, the [_localWins] rule):
-  /// then its pushed version will be higher than [c] on every device, so all
-  /// devices pick the same loser even if the edit is superseded later.
+  /// also wins LWW against [c] (`at > c.version`, the [_localWins] rule).
+  /// Registers can still judge one collision differently (the edit that
+  /// made the local row newer may be replaced before it is pushed), so the
+  /// changed loser is pushed like an edit ([_Owed]): every register ends
+  /// with the values of the last resolution, never a local-only clearing.
   ///
   /// Returns the id of the local row that lost (and was changed), if any.
-  Future<String?> _resolveUnique(SyncChange c, Map<String, Object?> data, List<_Conflict> conflicts) async {
+  Future<String?> _resolveUnique(
+      SyncChange c, Map<String, Object?> data, List<_Conflict> conflicts, List<_Owed> owed) async {
     final table = c.entity;
-    if (_numberedUnique.contains(table)) return _resolveNumber(c, data, conflicts);
+    if (_numberedUnique.contains(table)) return _resolveNumber(c, data, conflicts, owed);
     final u = _uniqueColumns[table];
     if (u == null) return null;
     final value = data[u.column];
@@ -1740,6 +1924,7 @@ class SyncService {
         conflicts.add(_Conflict(SyncConflictKind.uniqueGiftCode, table, loserId,
             SyncConflictPayload.uniqueGiftCode(code: code, newCode: newCode)));
     }
+    owed.add(_Owed(table, loserId, c.version + 1));
     return incomingLoses ? null : otherId;
   }
 
@@ -1755,10 +1940,13 @@ class SyncService {
     return c.version > ov || (c.version == ov && c.deviceId.compareTo(od) > 0);
   }
 
-  /// (device_code, number) of sales / gift card sales (unique indexes). Two
-  /// documents only share them after a restored backup or a copied database
-  /// file; the newer one gets the code `<code>~XXXX`.
-  Future<String?> _resolveNumber(SyncChange c, Map<String, Object?> data, List<_Conflict> conflicts) async {
+  /// (device_code, number) of numbered documents. Two documents only share
+  /// them after a restored backup or a copied database file; the newer one
+  /// gets the code `<code>~XXXX` (pushed, see [_resolveUnique]). A renamed
+  /// open shift of this register stays its current shift
+  /// ([AppDatabase.ownShiftsSettingKey]).
+  Future<String?> _resolveNumber(
+      SyncChange c, Map<String, Object?> data, List<_Conflict> conflicts, List<_Owed> owed) async {
     final table = c.entity;
     final number = data['number'];
     if (number is! int) return null;
@@ -1778,10 +1966,22 @@ class SyncService {
     if (incomingNewer) {
       data['device_code'] = newCode;
     } else {
+      if (table == 'shifts' && code != null && code == await db.deviceCode()) {
+        final open = await db.customSelect("SELECT 1 FROM shifts WHERE id = ? AND status = 'open'",
+            variables: [Variable.withString(otherId)]).get();
+        if (open.isNotEmpty) {
+          final own = {
+            ...AppDatabase.parseOwnShifts(await db.getSetting(AppDatabase.ownShiftsSettingKey)),
+            otherId,
+          };
+          await db.setSetting(AppDatabase.ownShiftsSettingKey, own.join(','));
+        }
+      }
       await db.customStatement('UPDATE $table SET device_code = ? WHERE id = ?', [newCode, otherId]);
     }
     conflicts.add(_Conflict(SyncConflictKind.uniqueNumber, table, loserId,
         SyncConflictPayload.uniqueNumber(number: number, code: code, newCode: newCode)));
+    owed.add(_Owed(table, loserId, c.version + 1));
     return incomingNewer ? null : otherId;
   }
 

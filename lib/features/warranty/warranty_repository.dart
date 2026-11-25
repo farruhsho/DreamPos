@@ -279,10 +279,18 @@ class WarrantyRepository {
       // re-check inside the transaction (another terminal may have moved it)
       final fresh = await (db.select(db.warrantyClaims)..where((w) => w.id.equals(claimId))).getSingle();
       if (fresh.status != c.status) throw BusinessException(l.warrantyChangedByOther);
-      if (writeOff) {
+      // One replacement unit per claim: the movement id is the same on every
+      // register (D-025), so a replacement done on two registers offline
+      // writes the unit off once; when the write-off of this claim is
+      // already here (pulled from another register) it is not repeated.
+      final writeOffId = effectId('warranty_replacement', claimId);
+      final alreadyWrittenOff = writeOff &&
+          await (db.select(db.stockMovements)..where((m) => m.id.equals(writeOffId))).getSingleOrNull() != null;
+      if (writeOff && !alreadyWrittenOff) {
         // nested transaction (savepoint): rolled back together with the status.
         // The movement reason is stored in the DB and stays Russian (spec «Not translated»).
         await stock!.writeOff(
+          id: writeOffId,
           productId: c.productId!,
           qty: 1,
           reason: 'Гарантийная замена', // l10n-ignore: stored movement reason

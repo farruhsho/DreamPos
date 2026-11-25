@@ -126,6 +126,12 @@ class SaleService {
   final AppDatabase db;
   final StockService stock;
 
+  /// Sum actually refunded for a sale line (all registers' returns).
+  Future<int> _refundedOf(String saleItemId) async => (await db.customSelect(
+          'SELECT COALESCE(SUM(amount), 0) AS s FROM return_items WHERE sale_item_id = ? AND deleted_at IS NULL',
+          variables: [Variable.withString(saleItemId)]).getSingle())
+      .read<int>('s');
+
   Future<List<PromoRule>> activePromotions([DateTime? at]) async {
     final now = at ?? DateTime.now();
     final rows = await (db.select(db.promotions)
@@ -540,8 +546,13 @@ class SaleService {
           throw BusinessException(L.current.errReturnQtyExceeded(it.productName, Qty.format(available)));
         }
         final isLast = (available - l.qty).abs() < 1e-9;
-        final alreadyRefunded = (it.total * it.returnedQty / it.qty).round();
-        final amount = isLast ? it.total - alreadyRefunded : (it.total * l.qty / it.qty).round();
+        // What was really refunded for this line so far (each earlier
+        // partial return was rounded on its own): the cumulative amount is
+        // round(total × returned / qty), so the sum never drifts and the last
+        // unit returns exactly the rest of the line total.
+        final alreadyRefunded = await _refundedOf(it.id);
+        final cumulative = isLast ? it.total : (it.total * (it.returnedQty + l.qty) / it.qty).round();
+        final amount = max(0, min(it.total - alreadyRefunded, cumulative - alreadyRefunded));
         total += amount;
         rows.add(ReturnItemsCompanion.insert(
           id: newId(),

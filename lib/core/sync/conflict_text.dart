@@ -81,6 +81,10 @@ class SyncConflictPayload {
   factory SyncConflictPayload.voidRedeem({required String code, required int amount}) =>
       SyncConflictPayload(SyncConflictKind.voidRedeem, {'code': code, 'amount': amount});
 
+  /// A remote change of [entity] row [id] that could not be stored here.
+  factory SyncConflictPayload.rejected({required String entity, required String id}) =>
+      SyncConflictPayload(SyncConflictKind.rejected, {'entity': entity, 'id': id});
+
   /// Users of this database deactivated when it joined a store.
   factory SyncConflictPayload.joinUsers({required List<String> names}) =>
       SyncConflictPayload(SyncConflictKind.joinUsers, {'names': names});
@@ -125,6 +129,7 @@ abstract final class ConflictText {
         SyncConflictKind.doubleVoid => l.syncConflictKindDoubleVoid,
         SyncConflictKind.voidRedeem => l.syncConflictKindVoidRedeem,
         SyncConflictKind.joinUsers => l.syncConflictKindJoinUsers,
+        SyncConflictKind.rejected => l.syncConflictKindRejected,
         'normalize' => l.syncConflictKindNormalize,
         _ => l.syncConflictKindOther,
       };
@@ -208,6 +213,7 @@ abstract final class ConflictText {
       SyncConflictKind.voidRedeem => l.syncConflictVoidRedeemBody(_s(a['code']), _money(a['amount'])),
       SyncConflictKind.joinUsers =>
         l.syncConflictJoinUsersBody([for (final n in a['names']! as List) '$n'].join(', ')),
+      SyncConflictKind.rejected => l.syncConflictRejectedBody(_s(a['entity']), _s(a['id'])),
       _ => null,
     };
   }

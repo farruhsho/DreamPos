@@ -104,5 +104,6 @@
   "errAdjustmentReasonRequired": "Tuzatish sababini koʻrsating",
   "errPinAmbiguous": "Bu PIN-kod bir nechta xodimda bor (kassalar sinxronlangandan keyin). Boshqa xodim sifatida kiring va ulardan biriga PIN-kodni almashtiring.",
   "errPaymentOtherRegisterShift": "Naqd toʻlov boshqa kassaning smenasida kiritilgan — uni faqat oʻsha kassada bekor qilish mumkin",
-  "errReceiptOpeningNoReversal": "Kirim №{number} — sinxronlash boshlangʻich qoldigʻi, uni storno qilib boʻlmaydi"
+  "errReceiptOpeningNoReversal": "Kirim №{number} — sinxronlash boshlangʻich qoldigʻi, uni storno qilib boʻlmaydi",
+  "errEffectDoneElsewhere": "Bu hujjat boshqa kassada allaqachon oʻtkazilgan, lekin uning barcha oʻzgarishlari hali kelmagan. Kassani sinxronlang va hujjatni qayta oching."
 }

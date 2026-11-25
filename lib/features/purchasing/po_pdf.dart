@@ -5,6 +5,8 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
+import 'package:drift/drift.dart' show BooleanExpressionOperators;
+
 import '../../core/db/database.dart';
 import '../../core/money.dart';
 import '../../core/printing/pdf_fonts.dart';
@@ -143,7 +145,7 @@ Future<Uint8List> buildPoPdf({
 Future<Uint8List> _load(AppDatabase db, String orderId) async {
   final o = await (db.select(db.purchaseOrders)..where((t) => t.id.equals(orderId))).getSingle();
   final s = await (db.select(db.suppliers)..where((t) => t.id.equals(o.supplierId))).getSingle();
-  final items = await (db.select(db.purchaseOrderItems)..where((i) => i.orderId.equals(orderId))).get();
+  final items = await (db.select(db.purchaseOrderItems)..where((i) => i.orderId.equals(orderId) & i.deletedAt.isNull())).get();
   final ps = await (db.select(db.products)..where((p) => p.id.isIn(items.map((i) => i.productId)))).get();
   final settings = {for (final r in await db.select(db.settings).get()) r.key: r.value};
   return buildPoPdf(order: o, supplier: s, items: items, products: {for (final p in ps) p.id: p}, settings: settings);

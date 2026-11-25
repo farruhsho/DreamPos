@@ -111,7 +111,7 @@ class ReceiptService {
           throw BusinessException(L.current.errOrderClosed(docNo(order.number, order.deviceCode)));
         }
         final itemIds = {
-          for (final i in await (db.select(db.purchaseOrderItems)..where((i) => i.orderId.equals(orderId))).get())
+          for (final i in await (db.select(db.purchaseOrderItems)..where((i) => i.orderId.equals(orderId) & i.deletedAt.isNull())).get())
             i.id: i,
         };
         for (final l in lines) {

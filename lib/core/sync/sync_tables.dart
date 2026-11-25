@@ -124,22 +124,26 @@ const statStatuses = <String, Set<String>>{
 };
 
 /// Values that, once a document has them on any register, win over every
-/// other value of that row regardless of versions (a void is irreversible):
-/// table → (status value, columns that travel with it).
+/// other value of that row regardless of versions (a void, a reversal or a
+/// count's stock correction is irreversible: its effect rows exist on every
+/// register): table → (status value, columns that travel with it).
 const stickyStatus = <String, ({String value, List<String> columns})>{
   'sales': (value: 'voided', columns: ['status', 'void_reason']),
   'gift_card_sales': (
     value: 'voided',
     columns: ['status', 'voided_at', 'voided_by', 'void_shift_id', 'void_reason'],
   ),
+  'goods_receipts': (value: 'reversed', columns: ['status', 'reversed_at', 'reversed_by', 'reverse_reason']),
+  'inventory_counts': (value: 'completed', columns: ['status', 'completed_at']),
 };
 
 /// Status a document starts in and never returns to: table → status. A
 /// remote edit made in that status never overrides a row that has left it,
 /// and a remote change that has left it always overrides a local row still
 /// in it (a draft purchase order edited on one register while another sent,
-/// received or cancelled it: the draft edit loses, D-025).
-const initialStatus = <String, String>{'purchase_orders': 'draft'};
+/// received or cancelled it, or an inventory count edited on one register
+/// while another completed or cancelled it: the draft edit loses, D-025).
+const initialStatus = <String, String>{'purchase_orders': 'draft', 'inventory_counts': 'draft'};
 
 /// Setting holding this register's device code (`A`, `B`… assigned by the
 /// server at join). Null/absent when sync is off.

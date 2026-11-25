@@ -32,6 +32,8 @@ Future<void> _buildV4(File file, Future<void> Function(AppDatabase db) fill) asy
     'DROP TABLE sync_conflicts',
     'DROP INDEX ux_sales_number',
     'DROP INDEX ux_gift_sales_number',
+    // (code, number) indexes of the other numbered documents (sync review 4)
+    for (final t in _numbered) 'DROP INDEX IF EXISTS ix_${t}_code_number',
     for (final t in _numbered) 'ALTER TABLE $t DROP COLUMN device_code',
     // v6 columns and indexes: a real v4 file has none of them
     'DROP INDEX IF EXISTS ix_sale_payments_gift_card',

@@ -96,6 +96,26 @@ class FakeSyncServer implements SyncTransport {
   int get pullCalls => _s.pullCalls;
   int get maxSeq => _s.seq;
 
+  /// Stores [change] for [storeId] as it is, bypassing the push checks (a
+  /// row written before those checks existed, or by a hand-made client
+  /// talking to the database directly). Returns its seq.
+  int injectRaw(String storeId, SyncChange change) {
+    final seq = ++_s.seq;
+    _s.changes.add(SyncChange(
+      changeId: change.changeId,
+      entity: change.entity,
+      entityId: change.entityId,
+      op: change.op,
+      version: change.version,
+      deviceId: change.deviceId,
+      payload: change.payload,
+      seq: seq,
+    ));
+    _s.changeIds.add(change.changeId);
+    _s.changeStore[seq] = storeId;
+    return seq;
+  }
+
   /// Invalidates every refresh token (forces «sign in again»).
   void revokeAllSessions() => _s.refreshTokens.clear();
 
@@ -216,6 +236,12 @@ class FakeSyncServer implements SyncTransport {
     // 400 and nothing is stored): same contract here.
     for (final c in changes) {
       if (c.payload?.values.any((v) => v is String && v.contains('\u0000')) ?? false) {
+        throw SyncException(SyncErrorKind.server, detail: 'HTTP 400');
+      }
+      // check (version between 0 and 7258118400000); a payload of scalars
+      if (c.version < 0 ||
+          c.version > 7258118400000 ||
+          (c.payload?.values.any((v) => v is Map || v is List) ?? false)) {
         throw SyncException(SyncErrorKind.server, detail: 'HTTP 400');
       }
     }

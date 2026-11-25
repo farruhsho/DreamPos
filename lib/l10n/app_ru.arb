@@ -719,6 +719,7 @@
       }
     }
   },
+  "errEffectDoneElsewhere": "Этот документ уже проведён на другой кассе, но его изменения ещё не все пришли. Синхронизируйте кассу и откройте документ снова.",
   "authEnterPin": "Введите PIN-код",
   "authDemoMode": "Демо-режим",
   "setupDefaultReceiptFooter": "Спасибо за покупку!",
@@ -8607,6 +8608,18 @@
   "@syncConflictJoinUsersBody": {
     "placeholders": {
       "names": {
+        "type": "String"
+      }
+    }
+  },
+  "syncConflictKindRejected": "Изменение из облака пропущено",
+  "syncConflictRejectedBody": "Изменение записи {entity} ({id}) пришло из облака повреждённым или от несовместимой версии программы, поэтому оно пропущено. Остальные данные синхронизируются как обычно. Проверьте, что на всех кассах установлена одна версия DreamPOS.",
+  "@syncConflictRejectedBody": {
+    "placeholders": {
+      "entity": {
+        "type": "String"
+      },
+      "id": {
         "type": "String"
       }
     }

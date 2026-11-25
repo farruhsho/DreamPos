@@ -1854,6 +1854,12 @@ abstract class AppLocalizations {
   /// **'Приход №{number} — начальный остаток синхронизации, его нельзя сторнировать'**
   String errReceiptOpeningNoReversal(String number);
 
+  /// No description provided for @errEffectDoneElsewhere.
+  ///
+  /// In ru, this message translates to:
+  /// **'Этот документ уже проведён на другой кассе, но его изменения ещё не все пришли. Синхронизируйте кассу и откройте документ снова.'**
+  String get errEffectDoneElsewhere;
+
   /// No description provided for @authEnterPin.
   ///
   /// In ru, this message translates to:
@@ -18515,6 +18521,18 @@ abstract class AppLocalizations {
   /// In ru, this message translates to:
   /// **'При подключении к магазину сотрудники, созданные на этой кассе до подключения, отключены: {names}. Их PIN-коды могли совпасть с PIN-кодами сотрудников магазина. Входите PIN-кодами сотрудников магазина; нужного сотрудника можно включить заново с новым PIN-кодом.'**
   String syncConflictJoinUsersBody(String names);
+
+  /// No description provided for @syncConflictKindRejected.
+  ///
+  /// In ru, this message translates to:
+  /// **'Изменение из облака пропущено'**
+  String get syncConflictKindRejected;
+
+  /// No description provided for @syncConflictRejectedBody.
+  ///
+  /// In ru, this message translates to:
+  /// **'Изменение записи {entity} ({id}) пришло из облака повреждённым или от несовместимой версии программы, поэтому оно пропущено. Остальные данные синхронизируются как обычно. Проверьте, что на всех кассах установлена одна версия DreamPOS.'**
+  String syncConflictRejectedBody(String entity, String id);
 
   /// No description provided for @warrantyTitle.
   ///

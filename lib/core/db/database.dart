@@ -280,6 +280,14 @@ class AppDatabase extends _$AppDatabase {
     "CREATE INDEX IF NOT EXISTS ix_sale_payments_gift_ref ON sale_payments(reference) WHERE method = 'gift_card'",
     'CREATE INDEX IF NOT EXISTS ix_return_items_sale_item ON return_items(sale_item_id)',
     'CREATE INDEX IF NOT EXISTS ix_goods_receipt_items_order_item ON goods_receipt_items(order_item_id)',
+    // (register code, number) of every numbered document without a UNIQUE
+    // index: the duplicate-number check of each pulled document.
+    "CREATE INDEX IF NOT EXISTS ix_returns_code_number ON returns(ifnull(device_code, ''), number)",
+    "CREATE INDEX IF NOT EXISTS ix_shifts_code_number ON shifts(ifnull(device_code, ''), number)",
+    "CREATE INDEX IF NOT EXISTS ix_goods_receipts_code_number ON goods_receipts(ifnull(device_code, ''), number)",
+    "CREATE INDEX IF NOT EXISTS ix_purchase_orders_code_number ON purchase_orders(ifnull(device_code, ''), number)",
+    "CREATE INDEX IF NOT EXISTS ix_inventory_counts_code_number ON inventory_counts(ifnull(device_code, ''), number)",
+    "CREATE INDEX IF NOT EXISTS ix_warranty_claims_code_number ON warranty_claims(ifnull(device_code, ''), number)",
   ];
 
   /// The triggers capture every write, also on a database that was never

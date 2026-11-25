@@ -733,7 +733,7 @@ class PurchasingRepo {
     await db.transaction(() async {
       final o = await _order(orderId);
       if (o.status != 'draft') throw BusinessException(L.current.purErrAlreadySent);
-      final n = await (db.select(db.purchaseOrderItems)..where((i) => i.orderId.equals(orderId))).get();
+      final n = await (db.select(db.purchaseOrderItems)..where((i) => i.orderId.equals(orderId) & i.deletedAt.isNull())).get();
       if (n.isEmpty) throw BusinessException(L.current.purErrNoLines);
       await (db.update(db.purchaseOrders)..where((t) => t.id.equals(orderId))).write(
         PurchaseOrdersCompanion(status: const Value('ordered'), updatedAt: Value(DateTime.now())),
@@ -755,7 +755,7 @@ class PurchasingRepo {
     await db.transaction(() async {
       final o = await _order(orderId);
       if (o.status != 'draft' && o.status != 'ordered') throw BusinessException(L.current.purErrAlreadyClosed);
-      final items = await (db.select(db.purchaseOrderItems)..where((i) => i.orderId.equals(orderId))).get();
+      final items = await (db.select(db.purchaseOrderItems)..where((i) => i.orderId.equals(orderId) & i.deletedAt.isNull())).get();
       final anyReceived = items.any((i) => i.receivedQty > 0);
       final now = DateTime.now();
       await (db.update(db.purchaseOrders)..where((t) => t.id.equals(orderId))).write(
@@ -805,7 +805,7 @@ class PurchasingRepo {
         );
       }
       final items = {
-        for (final i in await (db.select(db.purchaseOrderItems)..where((i) => i.orderId.equals(orderId))).get())
+        for (final i in await (db.select(db.purchaseOrderItems)..where((i) => i.orderId.equals(orderId) & i.deletedAt.isNull())).get())
           i.id: i,
       };
       final inputs = <ReceiptLineInput>[];

@@ -1064,6 +1064,10 @@ class AppLocalizationsUz extends AppLocalizations {
   }
 
   @override
+  String get errEffectDoneElsewhere =>
+      'Bu hujjat boshqa kassada allaqachon oʻtkazilgan, lekin uning barcha oʻzgarishlari hali kelmagan. Kassani sinxronlang va hujjatni qayta oching.';
+
+  @override
   String get authEnterPin => 'PIN-kodni kiriting';
 
   @override
@@ -11015,6 +11019,15 @@ class AppLocalizationsUz extends AppLocalizations {
   @override
   String syncConflictJoinUsersBody(String names) {
     return 'Doʻkonga ulanishda bu kassada ulanishdan oldin yaratilgan xodimlar oʻchirildi: $names. Ularning PIN-kodlari doʻkon xodimlarining PIN-kodlari bilan mos kelishi mumkin edi. Doʻkon xodimlarining PIN-kodlari bilan kiring; kerakli xodimni yangi PIN-kod bilan qayta yoqish mumkin.';
+  }
+
+  @override
+  String get syncConflictKindRejected =>
+      'Bulutdan kelgan oʻzgarish oʻtkazib yuborildi';
+
+  @override
+  String syncConflictRejectedBody(String entity, String id) {
+    return '$entity yozuvining ($id) oʻzgarishi bulutdan buzilgan holda yoki mos kelmaydigan dastur versiyasidan keldi, shuning uchun u oʻtkazib yuborildi. Qolgan maʼlumotlar odatdagidek sinxronlanadi. Barcha kassalarda DreamPOSning bir xil versiyasi oʻrnatilganini tekshiring.';
   }
 
   @override

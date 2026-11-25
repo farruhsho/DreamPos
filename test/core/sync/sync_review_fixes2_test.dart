@@ -268,6 +268,10 @@ void main() {
       final g = await sellGift(a, 'GIFT7777', 3000);
       await syncAll(ds);
       await a.gifts.voidSale(g.saleId, reason: 'ошибка', userId: a.userId, shiftId: a.shift!.id);
+      // B's void strictly later than A's: within the same millisecond B's
+      // own void loses on B (device id tie-break) and is never pushed, so
+      // only B could know about the second refund.
+      await Future<void>.delayed(const Duration(milliseconds: 5));
       await b.gifts.voidSale(g.saleId, reason: 'ошибка', userId: b.userId, shiftId: b.shift!.id);
       await syncAll(ds);
       for (final d in ds) {

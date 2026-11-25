@@ -1079,6 +1079,10 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
+  String get errEffectDoneElsewhere =>
+      'Этот документ уже проведён на другой кассе, но его изменения ещё не все пришли. Синхронизируйте кассу и откройте документ снова.';
+
+  @override
   String get authEnterPin => 'Введите PIN-код';
 
   @override
@@ -10992,6 +10996,14 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String syncConflictJoinUsersBody(String names) {
     return 'При подключении к магазину сотрудники, созданные на этой кассе до подключения, отключены: $names. Их PIN-коды могли совпасть с PIN-кодами сотрудников магазина. Входите PIN-кодами сотрудников магазина; нужного сотрудника можно включить заново с новым PIN-кодом.';
+  }
+
+  @override
+  String get syncConflictKindRejected => 'Изменение из облака пропущено';
+
+  @override
+  String syncConflictRejectedBody(String entity, String id) {
+    return 'Изменение записи $entity ($id) пришло из облака повреждённым или от несовместимой версии программы, поэтому оно пропущено. Остальные данные синхронизируются как обычно. Проверьте, что на всех кассах установлена одна версия DreamPOS.';
   }
 
   @override

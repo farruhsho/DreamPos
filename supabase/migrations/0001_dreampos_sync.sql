@@ -85,7 +85,9 @@ create table if not exists public.changes (
   entity      text        not null check (length(entity) between 1 and 100),
   entity_id   text        not null check (length(entity_id) between 1 and 200),
   op          text        not null check (op in ('upsert', 'delete')),
-  version     bigint      not null,
+  -- millisecond clock; above 2200-01-01 only a broken / hand-made client
+  -- (it would overflow the clients' hybrid clock), see maxSyncVersion
+  version     bigint      not null check (version between 0 and 7258118400000),
   payload     jsonb,
   received_at timestamptz not null default now(),
   constraint changes_payload_matches_op check (
@@ -382,6 +384,12 @@ begin
     order by e.ord
   loop
     if jsonb_typeof(v_change) <> 'object' then
+      raise exception 'invalid_changes' using errcode = '22023';
+    end if;
+    -- A row is a flat object of scalars (clients reject anything else).
+    if jsonb_typeof(v_change -> 'payload') = 'object' and exists (
+      select 1 from jsonb_each(v_change -> 'payload') p where jsonb_typeof(p.value) in ('object', 'array')
+    ) then
       raise exception 'invalid_changes' using errcode = '22023';
     end if;
     if (v_change ->> 'device_id')::uuid is distinct from p_device_id then
