@@ -20,7 +20,7 @@ import '../../support/fake_sync_server.dart';
 
 const testEmail = 'owner@example.test';
 const testPassword = 'test-password';
-const testEndpoint = SyncEndpoint(url: 'https://fake.example.test', anonKey: 'anon-test-key');
+const testEndpoint = SyncEndpoint(projectId: 'dreampos-fake', apiKey: 'test-api-key-0001');
 
 class SyncDevice {
   SyncDevice(this.name, this.db, this.server, {int pushBatchSize = 200, int pullBatchSize = 500})

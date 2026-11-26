@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/db/database.dart';
 import '../../core/providers.dart';
+import '../../core/sync/firebase_transport.dart';
 import '../../core/sync/sync_service.dart';
 import '../../core/sync/transport.dart';
 import '../../core/theme.dart';
@@ -14,26 +15,19 @@ import '../../core/widgets/widgets.dart';
 import '../../l10n/l10n.dart';
 import 'settings_widgets.dart';
 
-/// Trims the URL and drops trailing slashes.
-String normalizeSyncUrl(String v) {
-  var s = v.trim();
-  while (s.endsWith('/')) {
-    s = s.substring(0, s.length - 1);
-  }
-  return s;
+/// Client-side check of the Firebase project id (`dreampos-test-uz26`).
+/// Returns a localized error or null.
+String? validateSyncProjectId(String? v, AppLocalizations l) {
+  final s = (v ?? '').trim();
+  if (s.isEmpty) return l.commonRequired;
+  return FirebaseTransport.projectIdPattern.hasMatch(s) ? null : l.syncErrInvalidProject;
 }
 
-/// Client-side check of the server address (HTTPS only; http only for a
-/// local server). Returns a localized error or null.
-String? validateSyncUrl(String? v, AppLocalizations l) {
-  final s = normalizeSyncUrl(v ?? '');
+/// Client-side check of the Web API key (non-empty, key characters only).
+String? validateSyncApiKey(String? v, AppLocalizations l) {
+  final s = (v ?? '').trim();
   if (s.isEmpty) return l.commonRequired;
-  final u = Uri.tryParse(s);
-  if (u == null || !u.hasScheme || u.host.isEmpty || !(u.scheme == 'https' || u.scheme == 'http')) {
-    return l.syncErrInvalidUrl;
-  }
-  if (u.scheme == 'http' && u.host != 'localhost' && u.host != '127.0.0.1') return l.syncErrInsecureUrl;
-  return null;
+  return FirebaseTransport.apiKeyPattern.hasMatch(s) ? null : l.syncErrInvalidApiKey;
 }
 
 String? validateSyncEmail(String? v, AppLocalizations l) {
@@ -44,13 +38,13 @@ String? validateSyncEmail(String? v, AppLocalizations l) {
 }
 
 /// Endpoint and e-mail kept from an earlier sign-in (never the password).
-typedef SyncPrefill = ({String? url, String? anonKey, String? email});
+typedef SyncPrefill = ({String? projectId, String? apiKey, String? email});
 
 final syncPrefillProvider = FutureProvider.autoDispose<SyncPrefill>((ref) async {
   final db = ref.watch(databaseProvider);
   final rows = await db.select(db.syncState).get();
   final m = {for (final r in rows) r.key: r.value};
-  return (url: m[SyncKeys.endpointUrl], anonKey: m[SyncKeys.anonKey], email: m[SyncKeys.email]);
+  return (projectId: m[SyncKeys.projectId], apiKey: m[SyncKeys.apiKey], email: m[SyncKeys.email]);
 });
 
 /// `sync_conflicts`, newest first.
@@ -101,7 +95,7 @@ class SyncErrorBox extends StatelessWidget {
       );
 }
 
-/// Server address, anon key, e-mail and password. The password lives only in
+/// Firebase project id, Web API key, e-mail and password. The password lives only in
 /// this widget's controller (obscured, never stored).
 class SyncSignInForm extends StatefulWidget {
   const SyncSignInForm({
@@ -126,8 +120,8 @@ class SyncSignInForm extends StatefulWidget {
 
 class _SyncSignInFormState extends State<SyncSignInForm> {
   final _form = GlobalKey<FormState>();
-  late final _url = TextEditingController(text: widget.prefill?.url ?? '');
-  late final _key = TextEditingController(text: widget.prefill?.anonKey ?? '');
+  late final _project = TextEditingController(text: widget.prefill?.projectId ?? '');
+  late final _key = TextEditingController(text: widget.prefill?.apiKey ?? '');
   late final _email = TextEditingController(text: widget.prefill?.email ?? '');
   final _password = TextEditingController();
   bool _obscure = true;
@@ -136,7 +130,7 @@ class _SyncSignInFormState extends State<SyncSignInForm> {
 
   @override
   void dispose() {
-    _url.dispose();
+    _project.dispose();
     _key.dispose();
     _email.dispose();
     _password.dispose();
@@ -152,7 +146,7 @@ class _SyncSignInFormState extends State<SyncSignInForm> {
     });
     try {
       await widget.onSignIn(
-        SyncEndpoint(url: normalizeSyncUrl(_url.text), anonKey: _key.text.trim()),
+        SyncEndpoint(projectId: _project.text.trim(), apiKey: _key.text.trim()),
         _email.text.trim(),
         _password.text,
       );
@@ -175,24 +169,36 @@ class _SyncSignInFormState extends State<SyncSignInForm> {
           mainAxisSize: MainAxisSize.min,
           children: [
             TextFormField(
-              key: const ValueKey('sync-url'),
-              controller: _url,
+              key: const ValueKey('sync-project-id'),
+              controller: _project,
               enabled: !_busy && !widget.lockEndpoint,
-              keyboardType: TextInputType.url,
               autocorrect: false,
-              decoration: InputDecoration(labelText: l.syncServerUrl, hintText: l.syncServerUrlHint),
-              validator: (v) => validateSyncUrl(v, l),
+              enableSuggestions: false,
+              maxLines: 1,
+              decoration: InputDecoration(
+                labelText: l.syncProjectId,
+                hintText: l.syncProjectIdHint,
+                helperText: l.syncProjectIdHelp,
+                helperMaxLines: 3,
+                errorMaxLines: 3,
+              ),
+              validator: (v) => validateSyncProjectId(v, l),
             ),
             const SizedBox(height: Gap.m),
             TextFormField(
-              key: const ValueKey('sync-anon-key'),
+              key: const ValueKey('sync-api-key'),
               controller: _key,
               enabled: !_busy && !widget.lockEndpoint,
               autocorrect: false,
               enableSuggestions: false,
               maxLines: 1,
-              decoration: InputDecoration(labelText: l.syncAnonKey),
-              validator: (v) => (v ?? '').trim().isEmpty ? l.commonRequired : null,
+              decoration: InputDecoration(
+                labelText: l.syncApiKey,
+                helperText: l.syncApiKeyHelp,
+                helperMaxLines: 3,
+                errorMaxLines: 3,
+              ),
+              validator: (v) => validateSyncApiKey(v, l),
             ),
             const SizedBox(height: Gap.m),
             TextFormField(

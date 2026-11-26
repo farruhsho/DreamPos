@@ -1,15 +1,17 @@
 # Spec: Multi-register sync (roadmap item 1, D-003 → D-025)
 
-Status: **implemented** (2026-11-25, schema v6; third review 2026-11-26, schema v7). Owner approved the stage; a real Supabase
-project is **not** connected by us. The owner supplies the project URL, anon key and account.
-Everything is tested against an in-memory fake server and a mocked HTTP layer; the SQL was
-reviewed by hand but not executed (no Postgres on the build machine). Where the
-implementation deliberately differs from the design below, see «Implementation notes» at the
-end.
+Status: **implemented** (2026-11-25, schema v6; third review 2026-11-26, schema v7). Owner approved the stage.
+**Server side replaced (D-026, 2026-11-26): the cloud is Firebase (Firebase Authentication +
+Cloud Firestore over REST), see `docs/specs/firebase-sync.md`.** The engine described here is
+unchanged; §7 and §8 below are superseded by that spec (the Supabase design is kept in git
+history only). Everything is tested against an in-memory fake server and an in-memory
+Firestore REST emulator; the owner's TEST project `dreampos-test-uz26` has the rules deployed,
+a live run needs an account (`test/live/firebase_live_test.dart`). Where the implementation
+deliberately differs from the design below, see «Implementation notes» at the end.
 
 ## Goals
 1. Several registers (Windows PCs / Android) of one store work offline and converge to the same
-   data when they sync through a Supabase (Postgres) project.
+   data when they sync through a cloud project (Firebase / Cloud Firestore, D-026).
 2. A new register joins an existing store and downloads everything.
 3. Accounting stays correct: ledgers never lose rows, cached balances equal their ledgers,
    document numbers never clash across registers.
@@ -131,40 +133,23 @@ apply, if a recomputed cache is negative (stock where negative stock is not allo
 balance, bonus), create a notification and a `sync_conflicts` row. Never block or roll back
 another register's sale.
 
-### 7. Server (Supabase): `supabase/migrations/0001_dreampos_sync.sql`
-- `stores(id uuid pk, name, environment text check in ('test','production'), created_by uuid,
-  created_at)`.
-- `store_members(store_id, user_id → auth.users, role text, pk(store_id,user_id))`.
-- `devices(id uuid pk, store_id, code text, name, register_id text, created_at, last_seen_at,
-  unique(store_id, code))`.
-- `changes(seq bigserial pk, store_id, change_id uuid unique, device_id, entity text,
-  entity_id text, op text, version bigint, payload jsonb, received_at timestamptz default now())`,
-  index `(store_id, seq)`.
-- RLS on all tables: a user sees and writes only rows of stores where they are a member.
-- RPCs (security definer, check membership):
-  - `create_store(name, environment)` → store id; the caller becomes owner.
-  - `register_device(store_id, device_id, name)` → code (next free letter code). Idempotent per
-    device_id.
-  - `push_changes(store_id, device_id, changes jsonb)` → `{accepted, max_seq}`. Idempotent:
-    `on conflict (change_id) do nothing`.
-  - `pull_changes(store_id, since bigint, max int)` → rows ordered by seq.
-  - `store_info(store_id)` → name, environment, `has_data` (exists changes).
-- Nothing in the SQL deletes rows. Retention/compaction is a later stage.
-- `docs/SYNC_SETUP.md` (ru): how the owner creates a Supabase project, applies the SQL (SQL
-  editor), enables email auth, creates a **separate test project** (or test store with
-  `environment='test'`) and connects a register.
+### 7. Server — superseded by `docs/specs/firebase-sync.md` (D-026)
+The server is a dumb append-only change log per store with a per-store increasing `seq`,
+idempotent on `change_id`, letter codes per device (`A`, `B`, … `Z`, `AA`…), a fixed
+environment per store and membership-based access. Since D-026 it is Cloud Firestore:
+`stores/{store}` (+ `members`, `devices`, `codes`, `changes` subcollections),
+`users/{uid}/stores/{store}` and the security rules in `firebase/firestore.rules`. Data model,
+transactions, rules and quotas: `docs/specs/firebase-sync.md`. Owner guide: `docs/SYNC_SETUP.md`.
 
 ### 8. Client transport
-- `abstract class SyncTransport { signIn; createStore; registerDevice; storeInfo; push; pull; }`
-  in `lib/core/sync/transport.dart`.
-- `SupabaseTransport` uses the `http` package (add `http` to pubspec) against GoTrue
-  (`/auth/v1/token?grant_type=password|refresh_token`) and PostgREST RPC (`/rest/v1/rpc/<fn>`)
-  with `apikey` + `Authorization: Bearer`. Refresh the access token on 401 once. Timeouts 20 s.
-  The password is **never stored**, only the refresh token (local `sync_state`). Do not log
-  tokens. HTTPS only (reject `http://` URLs except `localhost`/`127.0.0.1` for local dev).
-- `FakeSyncServer implements SyncTransport` (in `test/support/` **and** usable from
-  `lib/core/sync/fake_server.dart` only if needed by the UX harness; prefer test-only) — in-memory,
-  same semantics as the SQL (seq, idempotent change_id, codes A/B/C).
+- `abstract class SyncTransport { signIn; restoreSession; listStores; createStore;
+  registerDevice; storeInfo; push; pull; }` in `lib/core/sync/transport.dart`.
+- `FirebaseTransport` (`lib/core/sync/firebase_transport.dart`, package `http` only, no
+  FlutterFire): Identity Toolkit sign-in, Secure Token refresh, Firestore REST v1. Details in
+  `docs/specs/firebase-sync.md` §3. The password is **never stored**, only the refresh token
+  (local `sync_state`). Do not log tokens. HTTPS only (fixed Google hosts).
+- `FakeSyncServer implements SyncTransport` (`test/support/`, test-only) — in-memory, same
+  semantics as the Firestore backend (seq, idempotent change_id, codes A/B/C).
 - Errors are `SyncException` with localized messages (l10n `sync*` keys).
 
 ### 9. Engine: `SyncService` (`lib/core/sync/sync_service.dart`)
@@ -228,8 +213,9 @@ another register's sale.
   `verifyAll` is empty on each.
 - v4 → v5 migration on a file database: triggers exist, normalisation rows created, caches
   equal derived values, existing numbers unchanged.
-- `SupabaseTransport` with `http/testing.dart` MockClient: sign-in, refresh on 401, RPC payloads,
-  error mapping, https-only.
+- `FirebaseTransport` with `http/testing.dart` MockClient and an in-memory Firestore REST
+  emulator (`test/core/sync/firebase_transport_test.dart`): sign-in, refresh, value coding,
+  transactions, error mapping, and the engine contract scenarios.
 - Demo DB refused by a production store; join refused for a non-empty DB.
 - UX screenshots of the sync section (connected, error, conflicts) and the join step.
 
@@ -270,12 +256,13 @@ another register's sale.
   current row is sent, so it may point at a parent created later). On apply, a change whose
   parent has not arrived is **parked** (`sync_state.parked`) and retried with later pages
   instead of failing the page forever.
-- Text with U+0000 is stripped before push (Postgres `jsonb` refuses it) and locally.
+- Text with U+0000 is stripped before push (the former Postgres backend refused it) and locally.
 - **Draft purchase orders** are saved as a whole line set under a new `lines_rev`; after a
   pull only the lines of the header revision that won LWW are kept.
-- **§7 server:** `devices` has PK `(store_id, id)`; extra RPC `list_stores`; `push_changes`
-  requires a registered device. `store_members.role` is informational: every cloud account of a
-  store has full access to its data (documented in `docs/SYNC_SETUP.md`).
+- **§7 server:** devices are per store (`stores/{store}/devices/{deviceId}`); `listStores`
+  exists; a push requires a registered device. The member `role` is informational: every cloud
+  account of a store has full access to its data (documented in `docs/SYNC_SETUP.md`). Since
+  D-026 the server is Firestore (`docs/specs/firebase-sync.md`).
 - **§10:** «Подключить к существующему» is also allowed with data for the store this database
   was disconnected from (only that store is offered). A database that was on a `test` store may
   not create a `production` store (`SyncErrorKind.testData`). An interrupted «Создать магазин»

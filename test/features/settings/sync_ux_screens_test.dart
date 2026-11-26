@@ -1,5 +1,5 @@
-// UX screenshots of the sync UI (D-025, spec §11): settings section
-// (disconnected, connect dialog, connected idle, error, conflicts), the shell
+// UX screenshots of the sync UI (D-025, D-026, spec §11): settings section
+// (disconnected, connect dialog with the Firebase fields, connected idle, error, conflicts), the shell
 // indicator, the login «Тестовый магазин» badge and the setup wizard's join
 // step, at 390/1024/1440. Uses the in-memory FakeSyncServer.
 //
@@ -151,8 +151,8 @@ class _Ux {
 }
 
 Future<void> _fillSignIn(WidgetTester tester) async {
-  await tester.enterText(find.byKey(const ValueKey('sync-url')), testEndpoint.url);
-  await tester.enterText(find.byKey(const ValueKey('sync-anon-key')), testEndpoint.anonKey);
+  await tester.enterText(find.byKey(const ValueKey('sync-project-id')), testEndpoint.projectId);
+  await tester.enterText(find.byKey(const ValueKey('sync-api-key')), testEndpoint.apiKey);
   await tester.enterText(find.byKey(const ValueKey('sync-email')), testEmail);
   await tester.enterText(find.byKey(const ValueKey('sync-password')), testPassword);
   await tester.pump();
@@ -199,6 +199,12 @@ void main() {
       await h.shot('sync_connect_dialog');
       await h.tap(find.byKey(const ValueKey('sync-sign-in'))); // validation messages
       await h.shot('sync_connect_validation');
+      // Longest error texts: a URL instead of the Firebase project id, a key
+      // with spaces.
+      await tester.enterText(find.byKey(const ValueKey('sync-project-id')), 'https://dreampos.firebaseapp.com');
+      await tester.enterText(find.byKey(const ValueKey('sync-api-key')), 'AIza bad key');
+      await h.tap(find.byKey(const ValueKey('sync-sign-in')));
+      await h.shot('sync_connect_invalid');
       await _fillSignIn(tester);
       await h.tap(find.byKey(const ValueKey('sync-sign-in')));
       await h.settle(6);

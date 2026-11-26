@@ -17745,17 +17745,41 @@ abstract class AppLocalizations {
   /// **'Сначала войдите в аккаунт синхронизации.'**
   String get syncErrNotSignedIn;
 
-  /// No description provided for @syncErrInsecureUrl.
+  /// No description provided for @syncErrInvalidProject.
   ///
   /// In ru, this message translates to:
-  /// **'Адрес сервера должен начинаться с https://.'**
-  String get syncErrInsecureUrl;
+  /// **'Неверный ID проекта: только строчные латинские буквы, цифры и дефис, от 6 до 30 символов.'**
+  String get syncErrInvalidProject;
 
-  /// No description provided for @syncErrInvalidUrl.
+  /// No description provided for @syncErrInvalidApiKey.
   ///
   /// In ru, this message translates to:
-  /// **'Неверный адрес сервера.'**
-  String get syncErrInvalidUrl;
+  /// **'Неверный Web API key. Скопируйте его заново из настроек проекта Firebase.'**
+  String get syncErrInvalidApiKey;
+
+  /// No description provided for @syncErrProjectMismatch.
+  ///
+  /// In ru, this message translates to:
+  /// **'Web API key относится к другому проекту Firebase. Скопируйте ID проекта и Web API key из настроек одного и того же проекта.'**
+  String get syncErrProjectMismatch;
+
+  /// No description provided for @syncErrSignInDisabled.
+  ///
+  /// In ru, this message translates to:
+  /// **'В проекте Firebase не включён вход по email и паролю (Authentication › Sign-in method › Email/Password).'**
+  String get syncErrSignInDisabled;
+
+  /// No description provided for @syncErrAccountDisabled.
+  ///
+  /// In ru, this message translates to:
+  /// **'Этот аккаунт отключён в проекте Firebase.'**
+  String get syncErrAccountDisabled;
+
+  /// No description provided for @syncErrTooManyAttempts.
+  ///
+  /// In ru, this message translates to:
+  /// **'Слишком много попыток входа. Подождите несколько минут и попробуйте снова.'**
+  String get syncErrTooManyAttempts;
 
   /// No description provided for @syncErrProtocol.
   ///
@@ -18018,26 +18042,38 @@ abstract class AppLocalizations {
   /// No description provided for @syncSignInIntro.
   ///
   /// In ru, this message translates to:
-  /// **'Введите адрес сервера и данные аккаунта владельца магазина.'**
+  /// **'Введите ID проекта Firebase, Web API key и данные аккаунта владельца магазина.'**
   String get syncSignInIntro;
 
-  /// No description provided for @syncServerUrl.
+  /// No description provided for @syncProjectId.
   ///
   /// In ru, this message translates to:
-  /// **'Адрес сервера *'**
-  String get syncServerUrl;
+  /// **'ID проекта Firebase *'**
+  String get syncProjectId;
 
-  /// No description provided for @syncServerUrlHint.
+  /// No description provided for @syncProjectIdHint.
   ///
   /// In ru, this message translates to:
-  /// **'https://…supabase.co'**
-  String get syncServerUrlHint;
+  /// **'например, dreampos-1a2b3'**
+  String get syncProjectIdHint;
 
-  /// No description provided for @syncAnonKey.
+  /// No description provided for @syncProjectIdHelp.
   ///
   /// In ru, this message translates to:
-  /// **'Ключ доступа (anon key) *'**
-  String get syncAnonKey;
+  /// **'Firebase › Настройки проекта › Общие › ID проекта'**
+  String get syncProjectIdHelp;
+
+  /// No description provided for @syncApiKey.
+  ///
+  /// In ru, this message translates to:
+  /// **'Web API key *'**
+  String get syncApiKey;
+
+  /// No description provided for @syncApiKeyHelp.
+  ///
+  /// In ru, this message translates to:
+  /// **'Там же: Web API key (начинается с AIza)'**
+  String get syncApiKeyHelp;
 
   /// No description provided for @syncEmail.
   ///

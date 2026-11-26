@@ -1,4 +1,4 @@
-// FakeSyncServer semantics (same as the Supabase SQL, spec §7) and the
+// FakeSyncServer semantics (same as the Firestore backend, spec §7) and the
 // transport DTOs / errors.
 import 'package:dreampos/core/sync/transport.dart';
 import 'package:dreampos/l10n/l10n.dart';

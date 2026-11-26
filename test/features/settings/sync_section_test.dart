@@ -108,9 +108,9 @@ void main() {
     await tester.runAsync(f.db.close);
   }
 
-  Future<void> fillSignIn(WidgetTester tester, {String url = 'https://fake.example.test', String? password}) async {
-    await tester.enterText(find.byKey(const ValueKey('sync-url')), url);
-    await tester.enterText(find.byKey(const ValueKey('sync-anon-key')), testEndpoint.anonKey);
+  Future<void> fillSignIn(WidgetTester tester, {String? project, String? apiKey, String? password}) async {
+    await tester.enterText(find.byKey(const ValueKey('sync-project-id')), project ?? testEndpoint.projectId);
+    await tester.enterText(find.byKey(const ValueKey('sync-api-key')), apiKey ?? testEndpoint.apiKey);
     await tester.enterText(find.byKey(const ValueKey('sync-email')), testEmail);
     await tester.enterText(find.byKey(const ValueKey('sync-password')), password ?? testPassword);
     await tester.pump();
@@ -136,11 +136,14 @@ void main() {
     await settle(tester);
     expect(find.text('Обязательное поле'), findsWidgets);
 
-    // Plain http to a remote host is refused client-side.
-    await fillSignIn(tester, url: 'http://example.test');
+    // A URL instead of the project id, or a key with spaces, is refused
+    // client-side.
+    await fillSignIn(tester, project: 'https://dreampos.firebaseapp.com', apiKey: 'AIza bad key');
     await tester.tap(find.byKey(const ValueKey('sync-sign-in')));
     await settle(tester);
-    expect(find.text('Адрес сервера должен начинаться с https://.'), findsOneWidget);
+    expect(find.text('Неверный ID проекта: только строчные латинские буквы, цифры и дефис, от 6 до 30 символов.'),
+        findsOneWidget);
+    expect(find.text('Неверный Web API key. Скопируйте его заново из настроек проекта Firebase.'), findsOneWidget);
 
     // Password field is obscured.
     final pw = tester.widget<EditableText>(
@@ -309,9 +312,9 @@ void main() {
     expect(find.byKey(const ValueKey('sync-sign-in-again')), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('sync-sign-in-again')));
     await settle(tester);
-    final url = tester.widget<TextFormField>(find.byKey(const ValueKey('sync-url')));
-    expect(url.enabled, isFalse);
-    expect(find.text('https://fake.example.test'), findsOneWidget);
+    final project = tester.widget<TextFormField>(find.byKey(const ValueKey('sync-project-id')));
+    expect(project.enabled, isFalse);
+    expect(find.text(testEndpoint.projectId), findsOneWidget);
     await tester.enterText(find.byKey(const ValueKey('sync-password')), testPassword);
     await tester.tap(find.byKey(const ValueKey('sync-sign-in')));
     await settle(tester, 12);

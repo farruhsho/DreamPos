@@ -10523,11 +10523,28 @@ class AppLocalizationsKy extends AppLocalizations {
   String get syncErrNotSignedIn => 'Адегенде синхрондоо аккаунтуна кириңиз.';
 
   @override
-  String get syncErrInsecureUrl =>
-      'Сервердин дареги https:// менен башталышы керек.';
+  String get syncErrInvalidProject =>
+      'Долбоордун ID туура эмес: кичине латын тамгалары, сандар жана дефис гана, 6дан 30 белгиге чейин.';
 
   @override
-  String get syncErrInvalidUrl => 'Сервердин дареги туура эмес.';
+  String get syncErrInvalidApiKey =>
+      'Web API key туура эмес. Аны Firebase долбоорунун жөндөөлөрүнөн кайра көчүрүңүз.';
+
+  @override
+  String get syncErrProjectMismatch =>
+      'Web API key башка Firebase долбооруна тиешелүү. Долбоордун ID жана Web API key маанилерин бир эле долбоордун жөндөөлөрүнөн көчүрүңүз.';
+
+  @override
+  String get syncErrSignInDisabled =>
+      'Firebase долбоорунда email жана сырсөз менен кирүү күйгүзүлгөн эмес (Authentication › Sign-in method › Email/Password).';
+
+  @override
+  String get syncErrAccountDisabled =>
+      'Бул аккаунт Firebase долбоорунда өчүрүлгөн.';
+
+  @override
+  String get syncErrTooManyAttempts =>
+      'Кирүү аракеттери өтө көп. Бир нече мүнөт күтүп, кайра аракет кылыңыз.';
 
   @override
   String get syncErrProtocol => 'Синхрондоо серверинен күтүлбөгөн жооп.';
@@ -10697,16 +10714,24 @@ class AppLocalizationsKy extends AppLocalizations {
 
   @override
   String get syncSignInIntro =>
-      'Сервердин дарегин жана дүкөн ээсинин аккаунтун киргизиңиз.';
+      'Firebase долбоорунун ID, Web API key жана дүкөн ээсинин аккаунтун киргизиңиз.';
 
   @override
-  String get syncServerUrl => 'Сервердин дареги *';
+  String get syncProjectId => 'Firebase долбоорунун ID *';
 
   @override
-  String get syncServerUrlHint => 'https://…supabase.co';
+  String get syncProjectIdHint => 'мисалы, dreampos-1a2b3';
 
   @override
-  String get syncAnonKey => 'Кирүү ачкычы (anon key) *';
+  String get syncProjectIdHelp =>
+      'Firebase › Project settings › General › Project ID';
+
+  @override
+  String get syncApiKey => 'Web API key *';
+
+  @override
+  String get syncApiKeyHelp =>
+      'Ошол эле жерде: Web API key (AIza менен башталат)';
 
   @override
   String get syncEmail => 'Email *';

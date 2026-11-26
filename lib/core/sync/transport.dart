@@ -1,7 +1,8 @@
 // Client transport of the multi-register sync (D-025, spec §2, §7, §8).
 //
 // `SyncTransport` is what the engine (`sync_service.dart`) talks to. The real
-// implementation (Supabase: GoTrue + PostgREST RPC over `http`) plugs in via
+// implementation (Firebase: Identity Toolkit + Firestore REST over `http`,
+// D-026, `firebase_transport.dart`) plugs in via
 // `syncTransportFactoryProvider`; tests use `test/support/fake_sync_server.dart`.
 // Every method throws [SyncException] on failure (never a raw http/socket
 // error), so the engine can map it to the status (offline / error).
@@ -24,19 +25,21 @@ enum StoreEnvironment {
       };
 }
 
-/// Server endpoint chosen by the user (Supabase project URL + anon key).
-/// The anon key is a publishable key, not a secret; it is stored locally.
+/// Cloud project chosen by the user: the Firebase project id and its Web API
+/// key (D-026). The Web API key only identifies the project to Firebase (it
+/// is not a secret: access is decided by the account and the Firestore
+/// rules); both are stored locally (`sync_state`), never synced.
 class SyncEndpoint {
-  const SyncEndpoint({required this.url, required this.anonKey});
-  final String url;
-  final String anonKey;
+  const SyncEndpoint({required this.projectId, required this.apiKey});
+  final String projectId;
+  final String apiKey;
 
   @override
-  bool operator ==(Object other) => other is SyncEndpoint && other.url == url && other.anonKey == anonKey;
+  bool operator ==(Object other) => other is SyncEndpoint && other.projectId == projectId && other.apiKey == apiKey;
   @override
-  int get hashCode => Object.hash(url, anonKey);
+  int get hashCode => Object.hash(projectId, apiKey);
   @override
-  String toString() => 'SyncEndpoint($url)';
+  String toString() => 'SyncEndpoint($projectId)';
 }
 
 /// Signed-in account. Only [refreshToken] is persisted (local `sync_state`);
@@ -164,7 +167,24 @@ enum SyncErrorKind {
   /// Wrong credentials, or the refresh token was rejected: sign in again.
   auth,
 
-  /// Not a member of the store (RLS / RPC membership check).
+  /// E-mail/password sign-in is not enabled in the cloud project
+  /// (Firebase: Authentication → Sign-in method → Email/Password).
+  signInDisabled,
+
+  /// The account was disabled in the cloud project.
+  accountDisabled,
+
+  /// Too many failed sign-ins: the cloud blocks the account for a while.
+  tooManyAttempts,
+
+  /// The Web API key is not valid (for this project).
+  invalidApiKey,
+
+  /// The Web API key belongs to a different cloud project than the project
+  /// id (the ID token's audience is another project).
+  projectMismatch,
+
+  /// Not a member of the store (Firestore rules: no member document).
   forbidden,
 
   /// Demo database vs production store (spec §10).
@@ -177,7 +197,7 @@ enum SyncErrorKind {
   /// registers) may not create a production store.
   testData,
 
-  /// 5xx or an RPC error the client cannot interpret further.
+  /// 5xx or a cloud error the client cannot interpret further.
   server,
 
   /// Malformed response.
@@ -189,11 +209,8 @@ enum SyncErrorKind {
   /// No signed-in session for an operation that needs one.
   notSignedIn,
 
-  /// `http://` URL that is not localhost (HTTPS only).
-  insecureUrl,
-
-  /// URL cannot be parsed.
-  invalidUrl,
+  /// The project id is not a valid Firebase project id.
+  invalidProject,
 
   /// Unknown store id.
   storeNotFound,
@@ -219,6 +236,11 @@ class SyncException implements Exception {
     final base = switch (kind) {
       SyncErrorKind.network => l.syncErrNetwork,
       SyncErrorKind.auth => l.syncErrAuth,
+      SyncErrorKind.signInDisabled => l.syncErrSignInDisabled,
+      SyncErrorKind.accountDisabled => l.syncErrAccountDisabled,
+      SyncErrorKind.tooManyAttempts => l.syncErrTooManyAttempts,
+      SyncErrorKind.invalidApiKey => l.syncErrInvalidApiKey,
+      SyncErrorKind.projectMismatch => l.syncErrProjectMismatch,
       SyncErrorKind.forbidden => l.syncErrForbidden,
       SyncErrorKind.environmentMismatch => l.syncErrEnvironmentMismatch,
       SyncErrorKind.notEmpty => l.syncErrNotEmpty,
@@ -227,8 +249,7 @@ class SyncException implements Exception {
       SyncErrorKind.protocol => l.syncErrProtocol,
       SyncErrorKind.notConfigured => l.syncErrNotConfigured,
       SyncErrorKind.notSignedIn => l.syncErrNotSignedIn,
-      SyncErrorKind.insecureUrl => l.syncErrInsecureUrl,
-      SyncErrorKind.invalidUrl => l.syncErrInvalidUrl,
+      SyncErrorKind.invalidProject => l.syncErrInvalidProject,
       SyncErrorKind.storeNotFound => l.syncErrStoreNotFound,
       SyncErrorKind.alreadyConnected => l.syncErrAlreadyConnected,
     };
@@ -245,15 +266,15 @@ class SyncException implements Exception {
   String toString() => message;
 }
 
-/// What the sync engine needs from the server (spec §7 RPCs). One instance
+/// What the sync engine needs from the server (spec §7; Firestore mapping in
+/// docs/specs/firebase-sync.md). One instance
 /// per device/session: it holds the access/refresh tokens of the signed-in
 /// account. All methods throw [SyncException].
 abstract class SyncTransport {
-  /// Email + password sign-in (GoTrue `grant_type=password`). The password is
-  /// not kept.
+  /// Email + password sign-in. The password is not kept.
   Future<SyncSession> signIn({required String email, required String password});
 
-  /// Restores a session from a stored refresh token (`grant_type=refresh_token`).
+  /// Restores a session from a stored refresh token.
   Future<SyncSession> restoreSession(String refreshToken);
 
   /// Current session (its refresh token may rotate after any call; the engine
@@ -267,7 +288,12 @@ abstract class SyncTransport {
   Future<List<StoreInfo>> listStores();
 
   /// `create_store(name, environment)`: the caller becomes the owner.
-  Future<StoreInfo> createStore({required String name, required StoreEnvironment environment});
+  /// [storeId] is chosen (and saved) by the caller so a retry after a lost
+  /// answer is idempotent: the store the same account already created under
+  /// that id with the same name and environment is returned instead of a
+  /// second one; an id that belongs to someone else -> [SyncErrorKind.forbidden].
+  /// Null: the transport picks a new id.
+  Future<StoreInfo> createStore({required String name, required StoreEnvironment environment, String? storeId});
 
   /// `register_device(store_id, device_id, name)`: next free letter code;
   /// idempotent per device id.
@@ -283,12 +309,13 @@ abstract class SyncTransport {
   Future<PullResult> pull({required String storeId, required int since, int max = 500});
 }
 
-/// Creates the transport for an endpoint. The Supabase implementation is
+/// Creates the transport for an endpoint. The Firebase implementation is
 /// provided through `syncTransportFactoryProvider` (core/providers.dart).
 typedef SyncTransportFactory = SyncTransport Function(SyncEndpoint endpoint);
 
 /// Letter code of the [index]-th device (0 → `A`, 25 → `Z`, 26 → `AA`, 27 →
-/// `AB`…), spreadsheet-column style. Shared by the fake server and the SQL.
+/// `AB`…), spreadsheet-column style. Shared by the fake server and the
+/// Firebase transport (`stores/{id}.nextCode`).
 String deviceCodeForIndex(int index) {
   assert(index >= 0);
   var n = index + 1;

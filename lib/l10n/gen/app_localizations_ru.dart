@@ -10524,11 +10524,28 @@ class AppLocalizationsRu extends AppLocalizations {
   String get syncErrNotSignedIn => 'Сначала войдите в аккаунт синхронизации.';
 
   @override
-  String get syncErrInsecureUrl =>
-      'Адрес сервера должен начинаться с https://.';
+  String get syncErrInvalidProject =>
+      'Неверный ID проекта: только строчные латинские буквы, цифры и дефис, от 6 до 30 символов.';
 
   @override
-  String get syncErrInvalidUrl => 'Неверный адрес сервера.';
+  String get syncErrInvalidApiKey =>
+      'Неверный Web API key. Скопируйте его заново из настроек проекта Firebase.';
+
+  @override
+  String get syncErrProjectMismatch =>
+      'Web API key относится к другому проекту Firebase. Скопируйте ID проекта и Web API key из настроек одного и того же проекта.';
+
+  @override
+  String get syncErrSignInDisabled =>
+      'В проекте Firebase не включён вход по email и паролю (Authentication › Sign-in method › Email/Password).';
+
+  @override
+  String get syncErrAccountDisabled =>
+      'Этот аккаунт отключён в проекте Firebase.';
+
+  @override
+  String get syncErrTooManyAttempts =>
+      'Слишком много попыток входа. Подождите несколько минут и попробуйте снова.';
 
   @override
   String get syncErrProtocol => 'Неожиданный ответ сервера синхронизации.';
@@ -10698,16 +10715,23 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get syncSignInIntro =>
-      'Введите адрес сервера и данные аккаунта владельца магазина.';
+      'Введите ID проекта Firebase, Web API key и данные аккаунта владельца магазина.';
 
   @override
-  String get syncServerUrl => 'Адрес сервера *';
+  String get syncProjectId => 'ID проекта Firebase *';
 
   @override
-  String get syncServerUrlHint => 'https://…supabase.co';
+  String get syncProjectIdHint => 'например, dreampos-1a2b3';
 
   @override
-  String get syncAnonKey => 'Ключ доступа (anon key) *';
+  String get syncProjectIdHelp =>
+      'Firebase › Настройки проекта › Общие › ID проекта';
+
+  @override
+  String get syncApiKey => 'Web API key *';
+
+  @override
+  String get syncApiKeyHelp => 'Там же: Web API key (начинается с AIza)';
 
   @override
   String get syncEmail => 'Email *';

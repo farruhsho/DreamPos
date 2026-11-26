@@ -65,8 +65,11 @@ abstract final class SyncKeys {
 
   /// '1' while this database is connected to [storeId].
   static const connected = 'connected';
-  static const endpointUrl = 'endpoint_url';
-  static const anonKey = 'anon_key';
+
+  /// Firebase project id and Web API key of the cloud (D-026). Device-local
+  /// configuration: never synced (sync_state is not a synced table).
+  static const projectId = 'fb_project_id';
+  static const apiKey = 'fb_api_key';
   static const refreshToken = 'refresh_token';
   static const email = 'email';
   static const lastPushAt = 'last_push_at';
@@ -581,14 +584,14 @@ class SyncService {
   // ------------------------------------------------------------ transport
 
   Future<SyncTransport?> _makeTransport({bool silent = false}) async {
-    final url = await _get(SyncKeys.endpointUrl);
-    final key = await _get(SyncKeys.anonKey);
+    final project = await _get(SyncKeys.projectId);
+    final key = await _get(SyncKeys.apiKey);
     final f = _factory;
-    if (url == null || key == null || f == null) {
+    if (project == null || key == null || f == null) {
       if (silent) return null;
       throw SyncException(SyncErrorKind.notConfigured);
     }
-    return f(SyncEndpoint(url: url, anonKey: key));
+    return f(SyncEndpoint(projectId: project, apiKey: key));
   }
 
   /// Transport with a live session (restored from the stored refresh token).
@@ -636,7 +639,7 @@ class SyncService {
   }
 
   /// [_persistSession] that never throws. The transport refreshes an expired
-  /// access token by itself and GoTrue rotates the refresh token: the new one
+  /// access token by itself and the cloud may rotate the refresh token: the new one
   /// must be stored whatever happens next (a push failing after a successful
   /// refresh), or the next app start restores a revoked token and the
   /// register has to sign in to the cloud again.
@@ -658,16 +661,18 @@ class SyncService {
         final f = _factory;
         if (f == null) throw SyncException(SyncErrorKind.notConfigured);
         if (await isConnected()) {
-          final url = await _get(SyncKeys.endpointUrl);
-          final key = await _get(SyncKeys.anonKey);
-          if (url != endpoint.url || key != endpoint.anonKey) throw SyncException(SyncErrorKind.alreadyConnected);
+          final project = await _get(SyncKeys.projectId);
+          final key = await _get(SyncKeys.apiKey);
+          if (project != endpoint.projectId || key != endpoint.apiKey) {
+            throw SyncException(SyncErrorKind.alreadyConnected);
+          }
         }
         final t = f(endpoint);
         final session = await t.signIn(email: email.trim(), password: password);
         _transport = t;
         await db.transaction(() async {
-          await _set(SyncKeys.endpointUrl, endpoint.url);
-          await _set(SyncKeys.anonKey, endpoint.anonKey);
+          await _set(SyncKeys.projectId, endpoint.projectId);
+          await _set(SyncKeys.apiKey, endpoint.apiKey);
           await _set(SyncKeys.email, session.email);
           await _set(SyncKeys.refreshToken, session.refreshToken);
         });
@@ -731,9 +736,8 @@ class SyncService {
         }
         final t = await _ready();
         final trimmed = name.trim();
-        final info = await _reusablePendingStore(t, trimmed, environment) ??
-            await t.createStore(name: trimmed, environment: environment);
-        await _set(SyncKeys.pendingStore, jsonEncode({'id': info.id, 'name': trimmed, 'env': environment.wire}));
+        final pending = await _reusablePendingStore(t, trimmed, environment);
+        final info = pending.info ?? await _createPendingStore(t, trimmed, environment, pending.id ?? _uuid.v4());
         final devId = await deviceId();
         final reg = await t.registerDevice(storeId: info.id, deviceId: devId, name: deviceName);
         await _persistSession();
@@ -779,26 +783,50 @@ class SyncService {
     await db.customStatement('DELETE FROM settings WHERE key = ?', [AppDatabase.ownShiftsSettingKey]);
   }
 
-  /// The store of an interrupted [createStoreAndUpload] (same name and
-  /// environment, still empty), or null.
-  Future<StoreInfo?> _reusablePendingStore(SyncTransport t, String name, StoreEnvironment env) async {
+  /// Creates the store under [id], which is saved BEFORE the request: when
+  /// the create reaches the cloud but its answer is lost, the retry sends the
+  /// same id and gets that store back instead of making a second one.
+  Future<StoreInfo> _createPendingStore(SyncTransport t, String name, StoreEnvironment env, String id) async {
+    await _set(SyncKeys.pendingStore, jsonEncode({'id': id, 'name': name, 'env': env.wire, 'uid': t.session?.userId}));
+    try {
+      return await t.createStore(name: name, environment: env, storeId: id);
+    } on SyncException catch (e) {
+      // The id belongs to someone else: the next attempt takes a new one.
+      if (e.kind == SyncErrorKind.forbidden) await _del(SyncKeys.pendingStore);
+      rethrow;
+    }
+  }
+
+  /// An interrupted [createStoreAndUpload] (same name, environment and
+  /// account): `info` = its store when it exists and is still empty; `id` =
+  /// the id to create the store with when the earlier request never created
+  /// it (or its answer was lost). Both null: start afresh.
+  Future<({StoreInfo? info, String? id})> _reusablePendingStore(
+      SyncTransport t, String name, StoreEnvironment env) async {
+    const none = (info: null, id: null);
     final raw = await _get(SyncKeys.pendingStore);
-    if (raw == null) return null;
+    if (raw == null) return none;
     try {
       final m = jsonDecode(raw) as Map<String, Object?>;
-      if (m['name'] != name || m['env'] != env.wire) return null;
-      final info = await t.storeInfo(m['id']! as String);
-      return info.hasData || info.environment != env ? null : info;
-    } on SyncException catch (e) {
-      if (e.kind == SyncErrorKind.storeNotFound || e.kind == SyncErrorKind.forbidden) {
-        await _del(SyncKeys.pendingStore);
-        return null;
+      if (m['name'] != name || m['env'] != env.wire) return none;
+      final uid = m['uid'];
+      if (uid != null && uid != t.session?.userId) return none;
+      final id = m['id']! as String;
+      try {
+        final info = await t.storeInfo(id);
+        return info.hasData || info.environment != env ? none : (info: info, id: id);
+      } on SyncException catch (e) {
+        if (e.kind == SyncErrorKind.storeNotFound) return (info: null, id: id);
+        if (e.kind == SyncErrorKind.forbidden) {
+          await _del(SyncKeys.pendingStore);
+          return none;
+        }
+        rethrow;
       }
-      rethrow;
     } on FormatException {
-      return null;
+      return none;
     } on TypeError {
-      return null;
+      return none;
     }
   }
 

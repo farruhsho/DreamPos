@@ -1,0 +1,10 @@
+{
+  "indexes": [],
+  "fieldOverrides": [
+    {
+      "collectionGroup": "changes",
+      "fieldPath": "payload",
+      "indexes": []
+    }
+  ]
+}

@@ -1,16 +1,18 @@
-// LIVE smoke test against a real Supabase TEST project (docs/SYNC_SETUP.md).
+// LIVE smoke test against a real Firebase TEST project (D-026,
+// docs/SYNC_SETUP.md). The rules from firebase/firestore.rules must be
+// deployed and Email/Password sign-in enabled.
 //
 // Skipped unless all four environment variables are set in the shell that runs
 // it, so CI and the normal `flutter test` never touch the network:
-//   DREAMPOS_SB_URL       https://<project>.supabase.co
-//   DREAMPOS_SB_ANON_KEY  the project's anon (public) key
-//   DREAMPOS_SB_EMAIL     a cloud account of the TEST project
-//   DREAMPOS_SB_PASSWORD  its password (typed by the owner; never stored)
+//   DREAMPOS_FB_PROJECT   the Firebase project id (e.g. dreampos-test-uz26)
+//   DREAMPOS_FB_API_KEY   the project's Web API key
+//   DREAMPOS_FB_EMAIL     an account of the TEST project (Authentication)
+//   DREAMPOS_FB_PASSWORD  its password (typed by the owner; never stored)
 //
 // Every run creates a NEW store with environment 'test' named
-// «Живой тест <timestamp>». Nothing is deleted (the server never deletes).
+// «Живой тест <timestamp>». Nothing is deleted (the rules forbid deletes).
 //
-// Run:  flutter test test/live/supabase_live_test.dart
+// Run:  flutter test test/live/firebase_live_test.dart
 import 'dart:io';
 
 import 'package:drift/drift.dart' hide isNull, isNotNull;
@@ -18,7 +20,7 @@ import 'package:dreampos/core/db/database.dart';
 import 'package:dreampos/core/doc_number.dart';
 import 'package:dreampos/core/permissions.dart';
 import 'package:dreampos/core/sync/aggregates.dart';
-import 'package:dreampos/core/sync/supabase_transport.dart';
+import 'package:dreampos/core/sync/firebase_transport.dart';
 import 'package:dreampos/core/sync/sync_service.dart';
 import 'package:dreampos/core/sync/transport.dart';
 import 'package:dreampos/domain/services/auth_service.dart';
@@ -36,22 +38,22 @@ String? _env(String k) {
 }
 
 void main() {
-  final url = _env('DREAMPOS_SB_URL');
-  final anon = _env('DREAMPOS_SB_ANON_KEY');
-  final email = _env('DREAMPOS_SB_EMAIL');
-  final password = _env('DREAMPOS_SB_PASSWORD');
+  final project = _env('DREAMPOS_FB_PROJECT');
+  final apiKey = _env('DREAMPOS_FB_API_KEY');
+  final email = _env('DREAMPOS_FB_EMAIL');
+  final password = _env('DREAMPOS_FB_PASSWORD');
   final missing = [
-    if (url == null) 'DREAMPOS_SB_URL',
-    if (anon == null) 'DREAMPOS_SB_ANON_KEY',
-    if (email == null) 'DREAMPOS_SB_EMAIL',
-    if (password == null) 'DREAMPOS_SB_PASSWORD',
+    if (project == null) 'DREAMPOS_FB_PROJECT',
+    if (apiKey == null) 'DREAMPOS_FB_API_KEY',
+    if (email == null) 'DREAMPOS_FB_EMAIL',
+    if (password == null) 'DREAMPOS_FB_PASSWORD',
   ];
-  final skip = missing.isEmpty ? null : 'live Supabase test: set ${missing.join(', ')}';
+  final skip = missing.isEmpty ? null : 'live Firebase test: set ${missing.join(', ')}';
 
-  test('two registers sync through the real Supabase test project', () async {
+  test('two registers sync through the real Firebase test project', () async {
     driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
-    final endpoint = SyncEndpoint(url: url!, anonKey: anon!);
-    SyncTransport factory(SyncEndpoint e) => SupabaseTransport(e);
+    final endpoint = SyncEndpoint(projectId: project!, apiKey: apiKey!);
+    SyncTransport factory(SyncEndpoint e) => FirebaseTransport(e);
 
     final a = memoryDb();
     final b = memoryDb();
@@ -118,6 +120,14 @@ void main() {
     await syncA.syncNow();
     await syncB.syncNow();
     expect(dumpDiff(before, await dump(a)), isNull);
+
+    // A re-push of an already stored change is a no-op on the server.
+    final t = factory(endpoint);
+    await t.signIn(email: email, password: password);
+    final again = await t.pull(storeId: store.id, since: 0, max: 1);
+    final res = await t.push(
+        storeId: store.id, deviceId: again.changes.single.deviceId, changes: [again.changes.single]);
+    expect(res.accepted, 0);
 
     // ignore: avoid_print
     print('LIVE OK: store "${store.name}" (${store.id}), registers $codeA and $codeB');

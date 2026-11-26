@@ -17,7 +17,7 @@ import '../l10n/l10n.dart';
 import 'db/database.dart';
 import 'money.dart';
 import 'permissions.dart';
-import 'sync/supabase_transport.dart';
+import 'sync/firebase_transport.dart';
 import 'sync/sync_tables.dart' show deviceCodeSettingKey;
 import 'sync/sync_service.dart';
 import 'sync/transport.dart';
@@ -39,16 +39,16 @@ final receiptServiceProvider = Provider((ref) => ReceiptService(
 
 final giftCardServiceProvider = Provider((ref) => GiftCardService(ref.watch(databaseProvider)));
 
-// ------------------------------------------------------------------ sync (D-025)
+// ------------------------------------------------------------ sync (D-025, D-026)
 
-/// Creates the server transport for a configured endpoint: the Supabase
-/// transport (GoTrue + PostgREST RPC, `sync/supabase_transport.dart`) in the
-/// app. Null inside `flutter test`, so no test can ever reach a real server
-/// unless it overrides this provider (tests pass a fake server:
+/// Creates the server transport for a configured endpoint: the Firebase
+/// transport (Identity Toolkit + Firestore REST, `sync/firebase_transport.dart`)
+/// in the app. Null inside `flutter test`, so no test can ever reach a real
+/// server unless it overrides this provider (tests pass a fake server:
 /// `(endpoint) => server.client()`, or a MockClient-backed
-/// `SupabaseTransport`).
+/// `FirebaseTransport`).
 final syncTransportFactoryProvider =
-    Provider<SyncTransportFactory?>((ref) => runningInFlutterTest ? null : SupabaseTransport.new);
+    Provider<SyncTransportFactory?>((ref) => runningInFlutterTest ? null : FirebaseTransport.new);
 
 /// Periodic/debounced sync. Off inside `flutter test` unless overridden.
 final syncSchedulerEnabledProvider = Provider<bool>((ref) => !runningInFlutterTest);

@@ -47,9 +47,9 @@ class HookTransport implements SyncTransport {
   @override
   Future<List<StoreInfo>> listStores() => inner.listStores();
   @override
-  Future<StoreInfo> createStore({required String name, required StoreEnvironment environment}) {
+  Future<StoreInfo> createStore({required String name, required StoreEnvironment environment, String? storeId}) {
     createCalls++;
-    return inner.createStore(name: name, environment: environment);
+    return inner.createStore(name: name, environment: environment, storeId: storeId);
   }
 
   @override

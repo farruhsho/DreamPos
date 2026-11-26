@@ -1,5 +1,5 @@
-// In-memory sync server with the semantics of the Supabase SQL (spec §7):
-// global `seq`, idempotent `change_id`, device codes A, B, … Z, AA…, store
+// In-memory sync server with the semantics of the Firestore backend (spec §7,
+// docs/specs/firebase-sync.md): increasing `seq`, idempotent `change_id`, device codes A, B, … Z, AA…, store
 // environment, `has_data`, membership checks. Payloads go through a JSON
 // round-trip, like the real wire.
 //
@@ -190,10 +190,18 @@ class FakeSyncServer implements SyncTransport {
   }
 
   @override
-  Future<StoreInfo> createStore({required String name, required StoreEnvironment environment}) async {
+  Future<StoreInfo> createStore({required String name, required StoreEnvironment environment, String? storeId}) async {
     _net();
     final uid = _user();
-    final st = FakeStore(_uuid.v4(), name, environment, uid);
+    final existing = storeId == null ? null : _s.stores[storeId];
+    if (existing != null) {
+      // Idempotent retry of the same create (its answer was lost).
+      if (existing.createdBy == uid && existing.name == name && existing.environment == environment) {
+        return _info(existing);
+      }
+      throw SyncException(SyncErrorKind.forbidden, detail: 'store_id_taken');
+    }
+    final st = FakeStore(storeId ?? _uuid.v4(), name, environment, uid);
     st.members[uid] = 'owner';
     _s.stores[st.id] = st;
     return _info(st);
@@ -232,8 +240,9 @@ class FakeSyncServer implements SyncTransport {
       _s.failNextPush = null;
       throw SyncException(SyncErrorKind.network, detail: 'injected before accept');
     }
-    // Postgres jsonb refuses U+0000 in text (push_changes fails with HTTP
-    // 400 and nothing is stored): same contract here.
+    // Strictest server contract (the former Postgres backend refused U+0000
+    // in text with HTTP 400, nothing stored): the engine must cope with a
+    // refused batch, so the fake keeps refusing it.
     for (final c in changes) {
       if (c.payload?.values.any((v) => v is String && v.contains('\u0000')) ?? false) {
         throw SyncException(SyncErrorKind.server, detail: 'HTTP 400');

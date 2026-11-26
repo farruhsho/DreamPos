@@ -207,7 +207,7 @@ class _SetupJoinPanelState extends ConsumerState<SetupJoinPanel> {
           const SizedBox(height: Gap.l),
           switch (prefill) {
             AsyncData(:final value) =>
-              SyncSignInForm(prefill: value, lockEndpoint: value.url != null, onSignIn: _signIn),
+              SyncSignInForm(prefill: value, lockEndpoint: value.projectId != null, onSignIn: _signIn),
             AsyncError() => SyncSignInForm(onSignIn: _signIn),
             _ => const Center(child: CircularProgressIndicator()),
           },

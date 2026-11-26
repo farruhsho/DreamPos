@@ -1,0 +1,185 @@
+rules_version = '2';
+
+// DreamPOS multi-register sync: Firestore security rules (D-026,
+// docs/specs/firebase-sync.md). Deploy:
+//   firebase deploy --only firestore --project <project id>
+//
+// Principles
+//   * Only signed-in store members read or write a store. A member has FULL
+//     access to the store's data; who may do what at the till is enforced by
+//     the registers (roles + PINs), not by the cloud account.
+//   * The change log is append-only: nothing is ever updated or deleted.
+//   * `seq` of a change lies in the range the same commit allocates by moving
+//     `stores/{store}.nextSeq` forward (the transport does this in a
+//     transaction), and `nextSeq` / `nextCode` only grow.
+//   * A store's environment ('test' / 'production') is fixed at creation.
+//   * Nothing may be deleted. Members other than the creator are added by the
+//     project owner in the Firebase console (docs/SYNC_SETUP.md).
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null && request.auth.uid != null;
+    }
+
+    function storePath(storeId) {
+      return /databases/$(database)/documents/stores/$(storeId);
+    }
+
+    function memberPath(storeId, uid) {
+      return /databases/$(database)/documents/stores/$(storeId)/members/$(uid);
+    }
+
+    function isMember(storeId) {
+      return signedIn() && exists(memberPath(storeId, request.auth.uid));
+    }
+
+    function validId(id) {
+      return id is string && id.matches('^[A-Za-z0-9_-]{1,128}$');
+    }
+
+    function validEnv(env) {
+      return env in ['test', 'production'];
+    }
+
+    // Highest change version (2200-01-01 in ms), see maxSyncVersion in
+    // lib/core/sync/sync_service.dart.
+    function maxSyncVersion() {
+      return 7258118400000;
+    }
+
+    match /stores/{storeId} {
+      // A missing store may be "read" (404) so the client can tell
+      // «not found» from «not a member».
+      allow get: if signedIn() && (resource == null || isMember(storeId));
+      allow list: if false;
+
+      // Created together with the creator's member document and their
+      // store index entry (one commit).
+      allow create: if signedIn()
+        && validId(storeId)
+        && request.resource.data.keys().hasOnly(
+             ['name', 'environment', 'createdBy', 'createdAt', 'nextSeq', 'nextCode', 'hasData'])
+        && request.resource.data.keys().hasAll(
+             ['name', 'environment', 'createdBy', 'createdAt', 'nextSeq', 'nextCode', 'hasData'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 1
+        && request.resource.data.name.size() <= 200
+        && validEnv(request.resource.data.environment)
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.nextSeq == 0
+        && request.resource.data.nextCode == 0
+        && request.resource.data.hasData == false
+        && existsAfter(memberPath(storeId, request.auth.uid))
+        && existsAfter(/databases/$(database)/documents/users/$(request.auth.uid)/stores/$(storeId));
+
+      // Only the counters and the has-data flag change; they only grow.
+      allow update: if isMember(storeId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nextSeq', 'nextCode', 'hasData'])
+        && request.resource.data.nextSeq is int
+        && request.resource.data.nextSeq >= resource.data.nextSeq
+        && request.resource.data.nextCode is int
+        && request.resource.data.nextCode >= resource.data.nextCode
+        && request.resource.data.hasData is bool
+        && (request.resource.data.hasData == true || resource.data.hasData == false);
+
+      allow delete: if false;
+
+      match /members/{uid} {
+        allow read: if isMember(storeId);
+        // Only the creator's own owner entry, in the store-creating commit.
+        allow create: if signedIn()
+          && uid == request.auth.uid
+          && !exists(storePath(storeId))
+          && getAfter(storePath(storeId)).data.createdBy == request.auth.uid
+          && request.resource.data.keys().hasOnly(['role', 'addedAt'])
+          && request.resource.data.role == 'owner'
+          && request.resource.data.addedAt == request.time;
+        allow update, delete: if false;
+      }
+
+      match /devices/{deviceId} {
+        allow read: if isMember(storeId);
+        // The code is reserved in codes/{code} by the same commit, which
+        // also moves nextCode forward.
+        allow create: if isMember(storeId)
+          && validId(deviceId)
+          && request.resource.data.keys().hasOnly(['code', 'name', 'createdAt', 'lastSeenAt'])
+          && request.resource.data.code is string
+          && request.resource.data.code.matches('^[A-Z]{1,4}$')
+          && request.resource.data.name is string
+          && request.resource.data.name.size() <= 200
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.lastSeenAt == request.time
+          && getAfter(/databases/$(database)/documents/stores/$(storeId)/codes/$(request.resource.data.code)).data.deviceId == deviceId;
+        // lastSeenAt is informational (the register's clock).
+        allow update: if isMember(storeId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastSeenAt'])
+          && request.resource.data.lastSeenAt is timestamp;
+        allow delete: if false;
+      }
+
+      match /codes/{code} {
+        allow read: if isMember(storeId);
+        allow create: if isMember(storeId)
+          && code.matches('^[A-Z]{1,4}$')
+          && request.resource.data.keys().hasOnly(['deviceId'])
+          && validId(request.resource.data.deviceId)
+          && getAfter(/databases/$(database)/documents/stores/$(storeId)/devices/$(request.resource.data.deviceId)).data.code == code
+          && getAfter(storePath(storeId)).data.nextCode == get(storePath(storeId)).data.nextCode + 1;
+        allow update, delete: if false;
+      }
+
+      match /changes/{changeId} {
+        allow read: if isMember(storeId);
+        // Append-only. seq lies in the range this commit allocated:
+        // old nextSeq < seq <= new nextSeq.
+        allow create: if isMember(storeId)
+          && validId(changeId)
+          && request.resource.data.keys().hasOnly(
+               ['seq', 'deviceId', 'entity', 'entityId', 'op', 'version', 'payload', 'receivedAt'])
+          && request.resource.data.keys().hasAll(
+               ['seq', 'deviceId', 'entity', 'entityId', 'op', 'version', 'payload', 'receivedAt'])
+          && request.resource.data.seq is int
+          && request.resource.data.seq > get(storePath(storeId)).data.nextSeq
+          && request.resource.data.seq <= getAfter(storePath(storeId)).data.nextSeq
+          && validId(request.resource.data.deviceId)
+          && exists(/databases/$(database)/documents/stores/$(storeId)/devices/$(request.resource.data.deviceId))
+          && request.resource.data.entity is string
+          && request.resource.data.entity.size() >= 1
+          && request.resource.data.entity.size() <= 100
+          && request.resource.data.entityId is string
+          && request.resource.data.entityId.size() >= 1
+          && request.resource.data.entityId.size() <= 200
+          && request.resource.data.version is int
+          && request.resource.data.version >= 0
+          && request.resource.data.version <= maxSyncVersion()
+          && ((request.resource.data.op == 'upsert' && request.resource.data.payload is string)
+              || (request.resource.data.op == 'delete' && request.resource.data.payload == null))
+          && request.resource.data.receivedAt == request.time;
+        allow update, delete: if false;
+      }
+    }
+
+    // Index for the store list of an account: written by that account only
+    // (with its membership), or by the project owner in the console.
+    match /users/{uid}/stores/{storeId} {
+      allow read: if signedIn() && uid == request.auth.uid;
+      allow create: if signedIn()
+        && uid == request.auth.uid
+        && existsAfter(memberPath(storeId, uid))
+        && request.resource.data.keys().hasOnly(['name', 'environment'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() <= 200
+        && validEnv(request.resource.data.environment)
+        && request.resource.data.environment == getAfter(storePath(storeId)).data.environment;
+      allow update, delete: if false;
+    }
+
+    // Everything else: no access.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

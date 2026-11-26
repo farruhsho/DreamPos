@@ -50,8 +50,8 @@ class _FailNthPush implements SyncTransport {
   @override
   Future<List<StoreInfo>> listStores() => inner.listStores();
   @override
-  Future<StoreInfo> createStore({required String name, required StoreEnvironment environment}) =>
-      inner.createStore(name: name, environment: environment);
+  Future<StoreInfo> createStore({required String name, required StoreEnvironment environment, String? storeId}) =>
+      inner.createStore(name: name, environment: environment, storeId: storeId);
   @override
   Future<DeviceRegistration> registerDevice({required String storeId, required String deviceId, required String name}) =>
       inner.registerDevice(storeId: storeId, deviceId: deviceId, name: name);

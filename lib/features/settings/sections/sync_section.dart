@@ -764,7 +764,7 @@ class _ConnectDialogState extends ConsumerState<_ConnectDialog> {
                           switch (prefill) {
                             AsyncData(:final value) => SyncSignInForm(
                                 prefill: value,
-                                lockEndpoint: widget.reauthOnly && value.url != null,
+                                lockEndpoint: widget.reauthOnly && value.projectId != null,
                                 onSignIn: _signIn,
                               ),
                             AsyncError() => SyncSignInForm(onSignIn: _signIn),

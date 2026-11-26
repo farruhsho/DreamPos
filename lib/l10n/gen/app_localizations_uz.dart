@@ -10544,11 +10544,28 @@ class AppLocalizationsUz extends AppLocalizations {
   String get syncErrNotSignedIn => 'Avval sinxronlash hisobiga kiring.';
 
   @override
-  String get syncErrInsecureUrl =>
-      'Server manzili https:// bilan boshlanishi kerak.';
+  String get syncErrInvalidProject =>
+      'Loyiha ID si notoʻgʻri: faqat kichik lotin harflari, raqamlar va chiziqcha, 6 dan 30 tagacha belgi.';
 
   @override
-  String get syncErrInvalidUrl => 'Server manzili notoʻgʻri.';
+  String get syncErrInvalidApiKey =>
+      'Web API key notoʻgʻri. Uni Firebase loyihasi sozlamalaridan qaytadan nusxalang.';
+
+  @override
+  String get syncErrProjectMismatch =>
+      'Web API key boshqa Firebase loyihasiga tegishli. Loyiha ID si va Web API key ni bitta loyihaning sozlamalaridan nusxalang.';
+
+  @override
+  String get syncErrSignInDisabled =>
+      'Firebase loyihasida email va parol bilan kirish yoqilmagan (Authentication › Sign-in method › Email/Password).';
+
+  @override
+  String get syncErrAccountDisabled =>
+      'Bu hisob Firebase loyihasida oʻchirilgan.';
+
+  @override
+  String get syncErrTooManyAttempts =>
+      'Kirishga urinishlar juda koʻp. Bir necha daqiqa kutib, qaytadan urinib koʻring.';
 
   @override
   String get syncErrProtocol => 'Sinxronlash serveridan kutilmagan javob.';
@@ -10718,16 +10735,24 @@ class AppLocalizationsUz extends AppLocalizations {
 
   @override
   String get syncSignInIntro =>
-      'Server manzili va doʻkon egasining hisob maʼlumotlarini kiriting.';
+      'Firebase loyihasi ID si, Web API key va doʻkon egasining hisob maʼlumotlarini kiriting.';
 
   @override
-  String get syncServerUrl => 'Server manzili *';
+  String get syncProjectId => 'Firebase loyihasi ID si *';
 
   @override
-  String get syncServerUrlHint => 'https://…supabase.co';
+  String get syncProjectIdHint => 'masalan, dreampos-1a2b3';
 
   @override
-  String get syncAnonKey => 'Kirish kaliti (anon key) *';
+  String get syncProjectIdHelp =>
+      'Firebase › Project settings › General › Project ID';
+
+  @override
+  String get syncApiKey => 'Web API key *';
+
+  @override
+  String get syncApiKeyHelp =>
+      'Oʻsha sahifada: Web API key (AIza bilan boshlanadi)';
 
   @override
   String get syncEmail => 'Email *';

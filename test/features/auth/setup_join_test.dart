@@ -64,8 +64,8 @@ void main() {
   }
 
   Future<void> fillSignIn(WidgetTester tester, {String? password}) async {
-    await tester.enterText(find.byKey(const ValueKey('sync-url')), testEndpoint.url);
-    await tester.enterText(find.byKey(const ValueKey('sync-anon-key')), testEndpoint.anonKey);
+    await tester.enterText(find.byKey(const ValueKey('sync-project-id')), testEndpoint.projectId);
+    await tester.enterText(find.byKey(const ValueKey('sync-api-key')), testEndpoint.apiKey);
     await tester.enterText(find.byKey(const ValueKey('sync-email')), testEmail);
     await tester.enterText(find.byKey(const ValueKey('sync-password')), password ?? testPassword);
     await tester.pump();
