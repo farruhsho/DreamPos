@@ -12,7 +12,13 @@
 // Every run creates a NEW store with environment 'test' named
 // «Живой тест <timestamp>». Nothing is deleted (the rules forbid deletes).
 //
+// Anonymous mode (no password anywhere): set DREAMPOS_FB_ANON=1 instead of
+// EMAIL/PASSWORD. Requires the Anonymous provider to be enabled temporarily;
+// the test gets a refresh token from accounts:signUp and puts it into each
+// register's sync_state, exactly where a password sign-in would store it.
+//
 // Run:  flutter test test/live/firebase_live_test.dart
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:drift/drift.dart' hide isNull, isNotNull;
@@ -42,11 +48,12 @@ void main() {
   final apiKey = _env('DREAMPOS_FB_API_KEY');
   final email = _env('DREAMPOS_FB_EMAIL');
   final password = _env('DREAMPOS_FB_PASSWORD');
+  final anon = _env('DREAMPOS_FB_ANON') == '1';
   final missing = [
     if (project == null) 'DREAMPOS_FB_PROJECT',
     if (apiKey == null) 'DREAMPOS_FB_API_KEY',
-    if (email == null) 'DREAMPOS_FB_EMAIL',
-    if (password == null) 'DREAMPOS_FB_PASSWORD',
+    if (!anon && email == null) 'DREAMPOS_FB_EMAIL',
+    if (!anon && password == null) 'DREAMPOS_FB_PASSWORD',
   ];
   final skip = missing.isEmpty ? null : 'live Firebase test: set ${missing.join(', ')}';
 
@@ -72,13 +79,34 @@ void main() {
     await a.into(a.products).insert(ProductsCompanion.insert(id: productId, name: 'Живой тест товар', price: 1000));
     await StockService(a).receive(productId: productId, qty: 20, unitCost: 600, userId: owner.id);
 
-    await syncA.signIn(endpoint: endpoint, email: email!, password: password!);
+    // Anonymous: one cloud identity used by both registers (like one owner account).
+    String? anonToken;
+    if (anon) {
+      final client = HttpClient();
+      final req = await client.postUrl(Uri.parse(
+          'https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=$apiKey'));
+      req.headers.contentType = ContentType.json;
+      req.write(jsonEncode({'returnSecureToken': true}));
+      final resp = await req.close();
+      final body = jsonDecode(await resp.transform(utf8.decoder).join()) as Map<String, dynamic>;
+      client.close();
+      expect(resp.statusCode, 200, reason: 'anonymous sign-up: $body');
+      anonToken = body['refreshToken'] as String;
+    }
+    Future<void> signIn(SyncService s, AppDatabase db) async {
+      if (!anon) return s.signIn(endpoint: endpoint, email: email!, password: password!).then((_) {});
+      for (final e in {SyncKeys.projectId: project, SyncKeys.apiKey: apiKey, SyncKeys.refreshToken: anonToken!}.entries) {
+        await db.into(db.syncState).insertOnConflictUpdate(SyncStateCompanion.insert(key: e.key, value: e.value));
+      }
+    }
+
+    await signIn(syncA, a);
     final stamp = DateTime.now().toIso8601String().substring(0, 19);
     final store = await syncA.createStoreAndUpload(name: 'Живой тест $stamp', environment: StoreEnvironment.test);
     expect(store.environment, StoreEnvironment.test);
 
     // Register B: empty database joins and downloads everything.
-    await syncB.signIn(endpoint: endpoint, email: email, password: password);
+    await signIn(syncB, b);
     await syncB.joinStore(store.id);
     final codeA = await a.deviceCode();
     final codeB = await b.deviceCode();
@@ -123,7 +151,11 @@ void main() {
 
     // A re-push of an already stored change is a no-op on the server.
     final t = factory(endpoint);
-    await t.signIn(email: email, password: password);
+    if (anon) {
+      await t.restoreSession(anonToken!);
+    } else {
+      await t.signIn(email: email!, password: password!);
+    }
     final again = await t.pull(storeId: store.id, since: 0, max: 1);
     final res = await t.push(
         storeId: store.id, deviceId: again.changes.single.deviceId, changes: [again.changes.single]);
