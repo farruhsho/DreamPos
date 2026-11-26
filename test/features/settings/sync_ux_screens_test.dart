@@ -1,7 +1,7 @@
 // UX screenshots of the sync UI (D-025, D-026, spec §11): settings section
 // (disconnected, connect dialog with the Firebase fields, connected idle, error, conflicts), the shell
-// indicator, the login «Тестовый магазин» badge and the setup wizard's join
-// step, at 390/1024/1440. Uses the in-memory FakeSyncServer.
+// indicator, the login «Тестовый магазин» badge, the setup wizard's join
+// step and the «Создать аккаунт владельца» register form, at 390/1024/1440. Uses the in-memory FakeSyncServer.
 //
 //   SCREENSHOTS=1 SCREENSHOTS_LOCALE=uz SCREENSHOTS_DIR=build/screens_sync_uz \
 //     flutter test test/features/settings/sync_ux_screens_test.dart
@@ -338,6 +338,97 @@ void main() {
       await h.settle(2);
       await h.shot('setup_join_pick_store');
       await h.tap(find.byKey(const ValueKey('setup-join-back')));
+    }
+    await h.finish();
+    expect(h.errors, isEmpty);
+    await tester.runAsync(db.close);
+  });
+  testWidgets('register owner account ux screens', skip: !screenshotsEnabled, timeout: const Timeout(Duration(minutes: 6)),
+      (tester) async {
+    SharedPreferences.setMockInitialValues({'ui_locale': screenshotsLocale});
+    L.reset();
+    final server = FakeSyncServer()..addUser(testEmail, testPassword);
+    final db = memoryDb();
+    final owner = (await tester.runAsync(() => seedDemoStore(db)))!;
+    final h = await _Ux.start(tester, db, server, login: owner);
+
+    Future<void> fill({required String email, required String password, required String repeat}) async {
+      await tester.enterText(find.byKey(const ValueKey('sync-project-id')), testEndpoint.projectId);
+      await tester.enterText(find.byKey(const ValueKey('sync-api-key')), testEndpoint.apiKey);
+      await tester.enterText(find.byKey(const ValueKey('sync-email')), email);
+      await tester.enterText(find.byKey(const ValueKey('sync-password')), password);
+      await tester.enterText(find.byKey(const ValueKey('sync-password-repeat')), repeat);
+      await tester.pump();
+    }
+
+    Future<void> showButton() async {
+      await tester.ensureVisible(find.byKey(const ValueKey('sync-sign-up')));
+      await h.settle(2);
+    }
+
+    var n = 0;
+    for (final size in ['desktop', 'tablet', 'phone']) {
+      h.setSize(size);
+      await h.go('/settings');
+      await h.tap(find.byKey(const ValueKey('nav-sync')));
+      await h.settle(6);
+      await h.tap(find.byKey(const ValueKey('sync-connect')));
+      await h.tap(find.byKey(const ValueKey('sync-auth-sign-up')));
+      await h.shot('sync_register_form');
+      await h.tap(find.byKey(const ValueKey('sync-sign-up'))); // required messages
+      await h.shot('sync_register_validation');
+      await fill(email: 'boss@', password: 'short', repeat: 'other');
+      await h.tap(find.byKey(const ValueKey('sync-sign-up')));
+      await showButton();
+      await h.shot('sync_register_invalid');
+      await fill(email: testEmail, password: 'Owner-pass-2026', repeat: 'Owner-pass-2026');
+      await h.tap(find.byKey(const ValueKey('sync-sign-up')));
+      await h.settle(4);
+      await showButton();
+      await h.shot('sync_register_email_exists');
+      await fill(email: 'boss${n++}@example.test', password: 'Owner-pass-2026', repeat: 'Owner-pass-2026');
+      await h.tap(find.byKey(const ValueKey('sync-sign-up')));
+      await h.settle(6);
+      await h.shot('sync_register_done');
+      await h.closeDialogs();
+      if (size == 'phone') {
+        await Navigator.of(h.tester.element(find.byType(Scaffold).last)).maybePop();
+        await h.settle();
+      }
+    }
+    await h.finish();
+    expect(h.errors, isEmpty);
+    await tester.runAsync(db.close);
+  });
+
+  testWidgets('setup wizard register ux screens', skip: !screenshotsEnabled, timeout: const Timeout(Duration(minutes: 5)),
+      (tester) async {
+    SharedPreferences.setMockInitialValues({'ui_locale': screenshotsLocale});
+    L.reset();
+    final server = FakeSyncServer()..addUser(testEmail, testPassword);
+    final db = memoryDb();
+    final h = await _Ux.start(tester, db, server);
+    var n = 0;
+    for (final size in ['desktop', 'tablet', 'phone']) {
+      h.setSize(size);
+      await h.settle(4);
+      await h.tap(find.byKey(const ValueKey('setup-join')));
+      await tester.ensureVisible(find.byKey(const ValueKey('sync-auth-to-sign-up')));
+      await h.settle(2);
+      await h.shot('setup_join_sign_up_link');
+      await h.tap(find.byKey(const ValueKey('sync-auth-to-sign-up')));
+      await h.shot('setup_join_register');
+      await tester.enterText(find.byKey(const ValueKey('sync-project-id')), testEndpoint.projectId);
+      await tester.enterText(find.byKey(const ValueKey('sync-api-key')), testEndpoint.apiKey);
+      await tester.enterText(find.byKey(const ValueKey('sync-email')), 'owner${n++}@example.test');
+      await tester.enterText(find.byKey(const ValueKey('sync-password')), 'Owner-pass-2026');
+      await tester.enterText(find.byKey(const ValueKey('sync-password-repeat')), 'Owner-pass-2026');
+      await h.tap(find.byKey(const ValueKey('sync-sign-up')));
+      await h.settle(6);
+      await h.shot('setup_join_register_done');
+      // Signed in now: leave for the local store and come back to a fresh
+      // join panel next round.
+      await h.tap(find.byKey(const ValueKey('setup-join-new-store')));
     }
     await h.finish();
     expect(h.errors, isEmpty);

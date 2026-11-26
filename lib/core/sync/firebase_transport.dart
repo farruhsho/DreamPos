@@ -2,7 +2,8 @@
 //
 // Plain HTTP (package:http, no FlutterFire: the same code on Windows and
 // Android) against three Google REST APIs:
-//   * Identity Toolkit `accounts:signInWithPassword` (e-mail + password),
+//   * Identity Toolkit `accounts:signInWithPassword` (e-mail + password) and
+//     `accounts:signUp` (registering the owner account from the app),
 //   * Secure Token `token` (refresh token -> new ID token),
 //   * Cloud Firestore REST v1 (documents, transactions, queries) with
 //     `Authorization: Bearer <ID token>`; access is decided by the security
@@ -244,6 +245,40 @@ class FirebaseTransport implements SyncTransport {
     return SyncException(SyncErrorKind.server, detail: 'HTTP $s$what (auth)');
   }
 
+  /// Maps an `accounts:signUp` error; codes that sign-up shares with
+  /// sign-in (API key, 5xx, USER_DISABLED, …) go through [_authError].
+  static SyncException _signUpError(http.Response r) {
+    final s = r.statusCode;
+    final e = _googleError(r);
+    if (s >= 500 || _apiKeyProblem(e.message, e.reasons)) return _authError(r);
+    // "WEAK_PASSWORD : Password should be at least 6 characters" -> code only.
+    final code = RegExp(r'^[A-Z_]+').stringMatch(e.message) ?? '';
+    switch (code) {
+      case 'EMAIL_EXISTS':
+        return SyncException(SyncErrorKind.emailExists);
+      case 'WEAK_PASSWORD':
+      case 'MISSING_PASSWORD':
+        return SyncException(SyncErrorKind.weakPassword);
+      case 'PASSWORD_DOES_NOT_MEET_REQUIREMENTS':
+        // The project's own password policy (Authentication › Settings ›
+        // Password policy) — not just the length. Its requirement list is
+        // free English text and is not passed on.
+        return SyncException(SyncErrorKind.passwordPolicy, detail: code);
+      case 'INVALID_EMAIL':
+      case 'MISSING_EMAIL':
+        return SyncException(SyncErrorKind.invalidEmail);
+      case 'ADMIN_ONLY_OPERATION':
+        // «Enable create (sign-up)» is off. OPERATION_NOT_ALLOWED /
+        // PASSWORD_LOGIN_DISABLED / CONFIGURATION_NOT_FOUND mean the
+        // Email/Password provider itself is off: [_authError] maps them to
+        // signInDisabled, which names the real cause.
+        return SyncException(SyncErrorKind.signUpDisabled, detail: code);
+      case 'TOO_MANY_ATTEMPTS_TRY_LATER':
+        return SyncException(SyncErrorKind.signUpTooManyAttempts);
+    }
+    return _authError(r);
+  }
+
   /// Claims of an ID token (a JWT), or null. The token is not verified here
   /// (Firebase verifies it on every request); it is only read.
   static Map<Object?, Object?>? _jwtClaims(String token) {
@@ -310,6 +345,48 @@ class FirebaseTransport implements SyncTransport {
       expiresIn: j['expiresIn'],
       email: j['email'] is String ? j['email'] as String : email.trim(),
     );
+  }
+
+  /// Registers the account (`accounts:signUp`). Like [signIn], the project
+  /// id and key are checked before the password leaves the device, and the
+  /// ID token's audience must be the project (a key of another project
+  /// creates the account there and then fails with
+  /// [SyncErrorKind.projectMismatch]; that stray account is deleted again
+  /// with its fresh ID token, best effort, and nothing is stored locally).
+  @override
+  Future<SyncSession> signUp({required String email, required String password}) async {
+    final key = _key;
+    validateProjectId(endpoint.projectId);
+    final r = await _send('POST', Uri.parse('$_identity/accounts:signUp?key=$key'),
+        body: {'email': email.trim(), 'password': password, 'returnSecureToken': true});
+    if (r.statusCode < 200 || r.statusCode >= 300) throw _signUpError(r);
+    final j = _json(r);
+    if (j is! Map) throw SyncException(SyncErrorKind.protocol, detail: 'token');
+    final idToken = j['idToken'];
+    try {
+      return _start(
+        idToken: idToken,
+        refreshToken: j['refreshToken'],
+        userId: j['localId'],
+        expiresIn: j['expiresIn'],
+        email: j['email'] is String ? j['email'] as String : email.trim(),
+      );
+    } on SyncException catch (e) {
+      if (e.kind == SyncErrorKind.projectMismatch && idToken is String) {
+        await _deleteStrayAccount(key, idToken);
+      }
+      rethrow;
+    }
+  }
+
+  /// `accounts:delete` of the account an ID token belongs to. Used only for
+  /// an account [signUp] just created in the wrong project (the key belongs
+  /// to another project than the project id): it must not stay behind.
+  /// Best effort: any failure is ignored (the original error is what counts).
+  Future<void> _deleteStrayAccount(String key, String idToken) async {
+    try {
+      await _send('POST', Uri.parse('$_identity/accounts:delete?key=$key'), body: {'idToken': idToken});
+    } catch (_) {}
   }
 
   @override

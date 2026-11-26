@@ -1164,6 +1164,10 @@ class AppLocalizationsKy extends AppLocalizations {
   String get setupJoinRetry => 'Жүктөөнү кайталоо';
 
   @override
+  String get setupJoinSignUpIntro =>
+      'Firebase долбооруңузда ээнин аккаунтун түзүңүз. Андан кийин бул кассада жаңы дүкөн түзүп, аны булутка өткөрүү үчүн Жөндөөлөр › Синхрондоо бөлүмүндө «Булутта дүкөн түзүү» тандаңыз.';
+
+  @override
   String get custCreated => 'Кардар түзүлдү';
 
   @override
@@ -11033,6 +11037,78 @@ class AppLocalizationsKy extends AppLocalizations {
   String syncConflictRejectedBody(String entity, String id) {
     return '$entity жазуусунун ($id) өзгөртүүсү булуттан бузулган же шайкеш келбеген программа версиясынан келди, ошондуктан ал өткөрүлүп жиберилди. Калган маалыматтар кадимкидей синхрондолот. Бардык кассаларда DreamPOSтун бир эле версиясы орнотулганын текшериңиз.';
   }
+
+  @override
+  String get syncErrEmailExists =>
+      'Бул email менен аккаунт мурунтан бар. Аны менен кириңиз («Кирүү») же башка email көрсөтүңүз.';
+
+  @override
+  String get syncErrWeakPassword =>
+      'Булут сырсөздү кабыл алган жок: ал өтө жөнөкөй. Узунураак сырсөз ойлоп табыңыз (кеминде 8 белги, тамгалар жана сандар).';
+
+  @override
+  String get syncErrInvalidEmail =>
+      'Булут бул email дарегин кабыл алган жок. Даректи текшериңиз.';
+
+  @override
+  String get syncErrSignUpDisabled =>
+      'Firebase долбоорунда жаңы аккаунттарды каттоо өчүрүлгөн (Authentication › Settings › User actions › Enable create (sign-up)). Аккаунтту Firebase консолунда түзүп (Authentication › Users › Add user), аны менен кириңиз же каттоону убактылуу күйгүзүңүз.';
+
+  @override
+  String get syncErrSignUpTooManyAttempts =>
+      'Бул түзмөктөн катталуу аракеттери өтө көп. Бир нече мүнөт күтүп, кайра аракет кылыңыз.';
+
+  @override
+  String get syncAuthModeSignIn => 'Кирүү';
+
+  @override
+  String get syncAuthModeSignUp => 'Ээнин аккаунтун түзүү';
+
+  @override
+  String get syncSignUpIntro =>
+      'Firebase долбооруңузда дүкөн ээсинин жаңы аккаунту түзүлөт. Андан кийин булутта дүкөн түзөсүз же бар дүкөнгө туташасыз.';
+
+  @override
+  String get syncPasswordNewHelp =>
+      'Кеминде 8 белги. Сырсөз кассада сакталбайт.';
+
+  @override
+  String get syncPasswordRepeat => 'Сырсөздү кайталаңыз *';
+
+  @override
+  String get syncPasswordTooShort => 'Кеминде 8 белги';
+
+  @override
+  String get syncPasswordMismatch => 'Сырсөздөр дал келбейт';
+
+  @override
+  String get syncSignUpSubmit => 'Аккаунт түзүү';
+
+  @override
+  String get syncNoAccountSignUp => 'Аккаунтуңуз жокпу? Катталуу';
+
+  @override
+  String get syncHaveAccountSignIn => 'Аккаунтуңуз барбы? Кирүү';
+
+  @override
+  String syncAccountCreated(String email) {
+    return 'Аккаунт түзүлдү: $email';
+  }
+
+  @override
+  String get syncNewAccountNoStores =>
+      'Жаңы аккаунтта азырынча дүкөндөр жок. «Жаңы дүкөн түзүү» баскычын басып, дүкөндү жөндөңүз, андан кийин Жөндөөлөр › Синхрондоо бөлүмүндө ушул аккаунт менен кирип, «Булутта дүкөн түзүү» тандаңыз.';
+
+  @override
+  String get syncErrPasswordPolicy =>
+      'Сырсөз Firebase долбооруңуздун сырсөз талаптарына туура келбейт (Authentication › Settings › Password policy): мисалы, баш тамгалар, сандар же белгилер керек. Ошол талаптарга туура келген сырсөз ойлоп табыңыз.';
+
+  @override
+  String get syncSignUpDisableHint =>
+      'Ээнин аккаунту түзүлдү. Эми Firebase консолунда өз алдынча катталууну жабыңыз: Authentication › Settings › User actions — «Enable create (sign-up)» белгисин алып салыңыз. Болбосо Web API key ачкычын билген ар ким аккаунт ача алат.';
+
+  @override
+  String get syncSignInWithThisEmail => 'Ушул email менен кирүү';
 
   @override
   String get warrantyTitle => 'Кепилдик';

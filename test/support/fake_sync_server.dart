@@ -42,6 +42,11 @@ class _State {
   final changeIds = <String>{};
   var seq = 0;
 
+  /// Public sign-up is off (Firebase answers ADMIN_ONLY_OPERATION).
+  bool signUpDisabled = false;
+  int signUpCalls = 0;
+  Future<void>? signUpGate;
+
   FakeFailure? failNextPush;
   bool failNextPull = false;
   bool offline = false;
@@ -87,6 +92,19 @@ class FakeSyncServer implements SyncTransport {
   /// All changes of [storeId] in seq order.
   List<SyncChange> changesOf(String storeId) =>
       [for (final c in _s.changes) if (_s.changeStore[c.seq] == storeId) c];
+
+  /// Refuses [signUp] with [SyncErrorKind.signUpDisabled] (a project whose
+  /// «Enable create (sign-up)» is off: ADMIN_ONLY_OPERATION; a disabled
+  /// Email/Password provider would be signInDisabled instead).
+  set signUpDisabled(bool v) => _s.signUpDisabled = v;
+  int get signUpCalls => _s.signUpCalls;
+
+  /// [signUp] waits for this future before answering (loading state,
+  /// double-tap tests). Null: answers at once.
+  set signUpGate(Future<void>? f) => _s.signUpGate = f;
+
+  /// Password of [email] as the server holds it (null: no such account).
+  String? passwordOf(String email) => _s.users[email.toLowerCase()]?.password;
 
   set failNextPush(FakeFailure? f) => _s.failNextPush = f;
   set failNextPull(bool v) => _s.failNextPull = v;
@@ -164,6 +182,23 @@ class FakeSyncServer implements SyncTransport {
     final u = _s.users[email.toLowerCase()];
     if (u == null || u.password != password) throw SyncException(SyncErrorKind.auth, detail: '400');
     return _issue(u.id, email);
+  }
+
+  /// Same semantics as Firebase `accounts:signUp`: e-mail syntax, at least
+  /// 6 characters, unique e-mail (case-insensitive), optional sign-up off.
+  @override
+  Future<SyncSession> signUp({required String email, required String password}) async {
+    _net();
+    _s.signUpCalls++;
+    final gate = _s.signUpGate;
+    if (gate != null) await gate;
+    if (_s.signUpDisabled) throw SyncException(SyncErrorKind.signUpDisabled, detail: 'ADMIN_ONLY_OPERATION');
+    final e = email.trim();
+    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(e)) throw SyncException(SyncErrorKind.invalidEmail);
+    if (password.length < 6) throw SyncException(SyncErrorKind.weakPassword);
+    if (_s.users.containsKey(e.toLowerCase())) throw SyncException(SyncErrorKind.emailExists);
+    addUser(e, password);
+    return _issue(userIdOf(e), e.toLowerCase());
   }
 
   @override

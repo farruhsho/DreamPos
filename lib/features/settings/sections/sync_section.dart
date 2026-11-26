@@ -1,8 +1,8 @@
 // Settings → «Синхронизация» (D-025, spec §10, §11): status card, «Синхронизировать
-// сейчас», connect wizard (sign in → create a cloud store or join an existing
-// one), disconnect, integrity check (SyncAggregates.verifyAll) and the list of
-// sync conflicts (`sync_conflicts`). Behind Perm.manageSettings (the settings
-// screen checks it).
+// сейчас», connect wizard (sign in, or register the owner account → create a
+// cloud store or join an existing one), disconnect, integrity check
+// (SyncAggregates.verifyAll) and the list of sync conflicts (`sync_conflicts`).
+// Behind Perm.manageSettings (the settings screen checks it).
 import 'dart:async';
 
 import 'package:drift/drift.dart' show Value, Variable;
@@ -618,6 +618,9 @@ class _ConnectDialogState extends ConsumerState<_ConnectDialog> {
   final _name = TextEditingController();
   int _step = 0;
   String? _email;
+
+  /// The account was just registered here (it has no stores yet).
+  bool _newAccount = false;
   _Mode _mode = _Mode.create;
   StoreEnvironment _env = StoreEnvironment.test;
   /// Why production cannot be chosen (demo database / test data), or null.
@@ -631,7 +634,18 @@ class _ConnectDialogState extends ConsumerState<_ConnectDialog> {
   bool _busy = false;
   Object? _error;
 
+  /// The sign-in form is signing in or registering: the dialog must not be
+  /// closed then (a slow `accounts:signUp` would create and store the
+  /// account behind a closed dialog).
+  bool _authBusy = false;
+
+  /// The sign-in form shows «Создать аккаунт владельца» (its own banner
+  /// replaces the sign-in intro).
+  bool _registerMode = false;
+
   SyncService get _svc => ref.read(syncServiceProvider);
+
+  bool get _canClose => !_busy && !_authBusy;
 
   @override
   void initState() {
@@ -647,6 +661,17 @@ class _ConnectDialogState extends ConsumerState<_ConnectDialog> {
 
   Future<void> _signIn(SyncEndpoint endpoint, String email, String password) async {
     final session = await _svc.signIn(endpoint: endpoint, email: email, password: password);
+    await _signedIn(session);
+  }
+
+  /// «Создать аккаунт владельца»: then the same next step as after sign-in,
+  /// with «Создать магазин в облаке» preselected (a new account has no stores).
+  Future<void> _signUp(SyncEndpoint endpoint, String email, String password) async {
+    final session = await _svc.signUp(endpoint: endpoint, email: email, password: password);
+    await _signedIn(session, newAccount: true);
+  }
+
+  Future<void> _signedIn(SyncSession session, {bool newAccount = false}) async {
     if (!mounted) return;
     if (widget.reauthOnly) {
       Navigator.of(context).pop(const SyncConnectOutcome());
@@ -660,12 +685,13 @@ class _ConnectDialogState extends ConsumerState<_ConnectDialog> {
     final l = context.l10n;
     setState(() {
       _email = session.email;
+      _newAccount = newAccount;
       // Reconnecting to the store this register was disconnected from is
       // allowed with data (only that store is offered then).
       _rejoin = rejoin != null && block == SyncException(SyncErrorKind.notEmpty).message ? rejoin : null;
       _joinBlock = _rejoin == null ? block : null;
       _prodBlock = demo ? l.syncEnvProductionDemo : (testData ? l.syncErrTestData : null);
-      _mode = _joinBlock == null ? _Mode.join : _Mode.create;
+      _mode = _joinBlock == null && !newAccount ? _Mode.join : _Mode.create;
       _step = 1;
     });
     unawaited(_loadStores());
@@ -722,63 +748,88 @@ class _ConnectDialogState extends ConsumerState<_ConnectDialog> {
     final l = context.l10n;
     final t = Theme.of(context);
     final prefill = ref.watch(syncPrefillProvider);
-    return Dialog(
-      insetPadding: const EdgeInsets.all(Gap.l),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 540),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(Gap.xl, Gap.l, Gap.s, 0),
-              child: Row(
-                children: [
-                  const Icon(Icons.cloud_outlined),
-                  const SizedBox(width: Gap.m),
-                  Expanded(
-                    child: Text(
-                      widget.reauthOnly ? l.syncSignInAgain : l.syncConnectTitle,
-                      style: t.textTheme.titleLarge,
+    return PopScope(
+      canPop: _canClose,
+      child: Dialog(
+        insetPadding: const EdgeInsets.all(Gap.l),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 540),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(Gap.xl, Gap.l, Gap.s, 0),
+                child: Row(
+                  children: [
+                    const Icon(Icons.cloud_outlined),
+                    const SizedBox(width: Gap.m),
+                    Expanded(
+                      child: Text(
+                        widget.reauthOnly ? l.syncSignInAgain : l.syncConnectTitle,
+                        style: t.textTheme.titleLarge,
+                      ),
                     ),
-                  ),
-                  IconButton(
-                    tooltip: l.commonClose,
-                    onPressed: _busy ? null : () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
+                    IconButton(
+                      key: const ValueKey('sync-connect-close'),
+                      tooltip: l.commonClose,
+                      onPressed: _canClose ? () => Navigator.of(context).pop() : null,
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            Flexible(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(Gap.xl, Gap.m, Gap.xl, Gap.xl),
-                child: _step == 0
-                    ? Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(l.syncSignInIntro,
-                              style: t.textTheme.bodyMedium?.copyWith(color: t.colorScheme.onSurfaceVariant)),
-                          const SizedBox(height: Gap.l),
-                          switch (prefill) {
-                            AsyncData(:final value) => SyncSignInForm(
-                                prefill: value,
-                                lockEndpoint: widget.reauthOnly && value.projectId != null,
-                                onSignIn: _signIn,
-                              ),
-                            AsyncError() => SyncSignInForm(onSignIn: _signIn),
-                            _ => const Center(child: CircularProgressIndicator()),
-                          },
-                        ],
-                      )
-                    : _chooseStep(context),
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(Gap.xl, Gap.m, Gap.xl, Gap.xl),
+                  child: _step == 0
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Register mode has its own banner with the same content.
+                            if (!_registerMode) ...[
+                              Text(l.syncSignInIntro,
+                                  key: const ValueKey('sync-sign-in-intro'),
+                                  style: t.textTheme.bodyMedium?.copyWith(color: t.colorScheme.onSurfaceVariant)),
+                              const SizedBox(height: Gap.l),
+                            ],
+                            switch (prefill) {
+                              AsyncData(:final value) => SyncSignInForm(
+                                  prefill: value,
+                                  lockEndpoint: widget.reauthOnly && value.projectId != null,
+                                  onSignIn: _signIn,
+                                  // Re-sign-in keeps the store's account.
+                                  onSignUp: widget.reauthOnly ? null : _signUp,
+                                  onBusyChanged: _onAuthBusy,
+                                  onRegisterChanged: _onRegisterMode,
+                                ),
+                              AsyncError() => SyncSignInForm(
+                                  onSignIn: _signIn,
+                                  onSignUp: widget.reauthOnly ? null : _signUp,
+                                  onBusyChanged: _onAuthBusy,
+                                  onRegisterChanged: _onRegisterMode,
+                                ),
+                              _ => const Center(child: CircularProgressIndicator()),
+                            },
+                          ],
+                        )
+                      : _chooseStep(context),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  void _onAuthBusy(bool v) {
+    if (mounted && v != _authBusy) setState(() => _authBusy = v);
+  }
+
+  void _onRegisterMode(bool v) {
+    if (mounted && v != _registerMode) setState(() => _registerMode = v);
   }
 
   Widget _chooseStep(BuildContext context) {
@@ -792,9 +843,23 @@ class _ConnectDialogState extends ConsumerState<_ConnectDialog> {
           children: [
             const Icon(Icons.check_circle, color: AppColors.success, size: 20),
             const SizedBox(width: Gap.s),
-            Expanded(child: Text(l.syncSignedInAs(_email ?? ''))),
+            Expanded(
+              child: Text(
+                _newAccount ? l.syncAccountCreated(_email ?? '') : l.syncSignedInAs(_email ?? ''),
+                key: const ValueKey('sync-signed-in-as'),
+              ),
+            ),
           ],
         ),
+        if (_newAccount) ...[
+          const SizedBox(height: Gap.m),
+          InfoBanner(
+            key: const ValueKey('sync-sign-up-disable-hint'),
+            icon: Icons.lock_outline,
+            color: AppColors.warning,
+            text: l.syncSignUpDisableHint,
+          ),
+        ],
         const SizedBox(height: Gap.l),
         Text(l.syncChooseAction, style: t.textTheme.titleSmall),
         RadioGroup<_Mode>(

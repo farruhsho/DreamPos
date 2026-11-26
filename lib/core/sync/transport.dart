@@ -177,6 +177,29 @@ enum SyncErrorKind {
   /// Too many failed sign-ins: the cloud blocks the account for a while.
   tooManyAttempts,
 
+  /// Registration: an account with this e-mail already exists.
+  emailExists,
+
+  /// Registration: the cloud refused the password as too weak.
+  weakPassword,
+
+  /// Registration: the password does not meet the cloud project's own
+  /// password policy (Firebase: PASSWORD_DOES_NOT_MEET_REQUIREMENTS; e.g.
+  /// upper case letters or symbols required).
+  passwordPolicy,
+
+  /// Registration: the cloud refused the e-mail address.
+  invalidEmail,
+
+  /// Registration of new accounts is not allowed in the cloud project
+  /// (Firebase: ADMIN_ONLY_OPERATION, «Enable create (sign-up)» is off; the
+  /// owner account is then added in the console). A disabled Email/Password
+  /// provider is [signInDisabled] for sign-up too.
+  signUpDisabled,
+
+  /// Registration: too many requests from this device, try later.
+  signUpTooManyAttempts,
+
   /// The Web API key is not valid (for this project).
   invalidApiKey,
 
@@ -239,6 +262,12 @@ class SyncException implements Exception {
       SyncErrorKind.signInDisabled => l.syncErrSignInDisabled,
       SyncErrorKind.accountDisabled => l.syncErrAccountDisabled,
       SyncErrorKind.tooManyAttempts => l.syncErrTooManyAttempts,
+      SyncErrorKind.emailExists => l.syncErrEmailExists,
+      SyncErrorKind.weakPassword => l.syncErrWeakPassword,
+      SyncErrorKind.passwordPolicy => l.syncErrPasswordPolicy,
+      SyncErrorKind.invalidEmail => l.syncErrInvalidEmail,
+      SyncErrorKind.signUpDisabled => l.syncErrSignUpDisabled,
+      SyncErrorKind.signUpTooManyAttempts => l.syncErrSignUpTooManyAttempts,
       SyncErrorKind.invalidApiKey => l.syncErrInvalidApiKey,
       SyncErrorKind.projectMismatch => l.syncErrProjectMismatch,
       SyncErrorKind.forbidden => l.syncErrForbidden,
@@ -273,6 +302,15 @@ class SyncException implements Exception {
 abstract class SyncTransport {
   /// Email + password sign-in. The password is not kept.
   Future<SyncSession> signIn({required String email, required String password});
+
+  /// Registers a new e-mail + password account in the cloud project (the
+  /// store owner's account) and signs it in. The password is not kept.
+  /// Errors: [SyncErrorKind.emailExists], [SyncErrorKind.weakPassword],
+  /// [SyncErrorKind.passwordPolicy], [SyncErrorKind.invalidEmail],
+  /// [SyncErrorKind.signUpDisabled] (sign-up off; a disabled Email/Password
+  /// provider is [SyncErrorKind.signInDisabled]),
+  /// [SyncErrorKind.signUpTooManyAttempts], and those of [signIn].
+  Future<SyncSession> signUp({required String email, required String password});
 
   /// Restores a session from a stored refresh token.
   Future<SyncSession> restoreSession(String refreshToken);

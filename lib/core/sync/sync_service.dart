@@ -657,10 +657,22 @@ class SyncService {
   /// refresh token — never the password. On a connected database only the
   /// same endpoint is accepted (re-sign-in after «session expired»).
   Future<SyncSession> signIn({required SyncEndpoint endpoint, required String email, required String password}) =>
+      _authenticate(endpoint, (t) => t.signIn(email: email.trim(), password: password));
+
+  /// «Создать аккаунт владельца»: registers a new account in [endpoint]'s
+  /// cloud project and signs it in. Stored exactly like [signIn] (endpoint,
+  /// e-mail, refresh token — never the password). Only on a database that is
+  /// not connected: a new account is not a member of the connected store.
+  Future<SyncSession> signUp({required SyncEndpoint endpoint, required String email, required String password}) =>
+      _authenticate(endpoint, (t) => t.signUp(email: email.trim(), password: password), signUp: true);
+
+  Future<SyncSession> _authenticate(SyncEndpoint endpoint, Future<SyncSession> Function(SyncTransport t) auth,
+          {bool signUp = false}) =>
       _exclusive(() async {
         final f = _factory;
         if (f == null) throw SyncException(SyncErrorKind.notConfigured);
         if (await isConnected()) {
+          if (signUp) throw SyncException(SyncErrorKind.alreadyConnected);
           final project = await _get(SyncKeys.projectId);
           final key = await _get(SyncKeys.apiKey);
           if (project != endpoint.projectId || key != endpoint.apiKey) {
@@ -668,7 +680,7 @@ class SyncService {
           }
         }
         final t = f(endpoint);
-        final session = await t.signIn(email: email.trim(), password: password);
+        final session = await auth(t);
         _transport = t;
         await db.transaction(() async {
           await _set(SyncKeys.projectId, endpoint.projectId);

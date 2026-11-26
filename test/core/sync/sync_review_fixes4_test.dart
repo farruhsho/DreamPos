@@ -42,6 +42,9 @@ class _FailNthPush implements SyncTransport {
   Future<SyncSession> signIn({required String email, required String password}) =>
       inner.signIn(email: email, password: password);
   @override
+  Future<SyncSession> signUp({required String email, required String password}) =>
+      inner.signUp(email: email, password: password);
+  @override
   Future<SyncSession> restoreSession(String refreshToken) => inner.restoreSession(refreshToken);
   @override
   SyncSession? get session => inner.session;

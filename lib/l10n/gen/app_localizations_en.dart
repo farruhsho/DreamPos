@@ -1170,6 +1170,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get setupJoinRetry => 'Retry download';
 
   @override
+  String get setupJoinSignUpIntro =>
+      'Create the owner account in your Firebase project. Then create a new store on this till; to put it in the cloud, choose “Create a cloud store” in Settings › Sync.';
+
+  @override
   String get custCreated => 'Customer created';
 
   @override
@@ -11019,6 +11023,78 @@ class AppLocalizationsEn extends AppLocalizations {
   String syncConflictRejectedBody(String entity, String id) {
     return 'A change of record $entity ($id) came from the cloud damaged or from an incompatible app version, so it was skipped. Everything else syncs as usual. Make sure every register runs the same DreamPOS version.';
   }
+
+  @override
+  String get syncErrEmailExists =>
+      'An account with this email already exists. Sign in with it or use another email.';
+
+  @override
+  String get syncErrWeakPassword =>
+      'The cloud refused the password as too weak. Choose a longer one (at least 8 characters, letters and digits).';
+
+  @override
+  String get syncErrInvalidEmail =>
+      'The cloud refused this email. Check the address.';
+
+  @override
+  String get syncErrSignUpDisabled =>
+      'Registering new accounts is turned off in the Firebase project (Authentication › Settings › User actions › Enable create (sign-up)). Create the account in the Firebase console (Authentication › Users › Add user) and sign in with it, or turn sign-up on for a while.';
+
+  @override
+  String get syncErrSignUpTooManyAttempts =>
+      'Too many sign-up attempts from this device. Wait a few minutes and try again.';
+
+  @override
+  String get syncAuthModeSignIn => 'Sign in';
+
+  @override
+  String get syncAuthModeSignUp => 'Create owner account';
+
+  @override
+  String get syncSignUpIntro =>
+      'A new store owner account will be created in your Firebase project. Then you create the store in the cloud or join an existing one.';
+
+  @override
+  String get syncPasswordNewHelp =>
+      'At least 8 characters. The password is not saved on this device.';
+
+  @override
+  String get syncPasswordRepeat => 'Repeat password *';
+
+  @override
+  String get syncPasswordTooShort => 'At least 8 characters';
+
+  @override
+  String get syncPasswordMismatch => 'Passwords do not match';
+
+  @override
+  String get syncSignUpSubmit => 'Create account';
+
+  @override
+  String get syncNoAccountSignUp => 'No account? Create one';
+
+  @override
+  String get syncHaveAccountSignIn => 'Have an account? Sign in';
+
+  @override
+  String syncAccountCreated(String email) {
+    return 'Account created: $email';
+  }
+
+  @override
+  String get syncNewAccountNoStores =>
+      'The new account has no stores yet. Tap “Create a new store”, set it up, then in Settings › Sync sign in with this account and choose “Create a cloud store”.';
+
+  @override
+  String get syncErrPasswordPolicy =>
+      'The password does not meet your Firebase project’s password policy (Authentication › Settings › Password policy): for example, it may require upper case letters, digits or symbols. Choose a password that meets it.';
+
+  @override
+  String get syncSignUpDisableHint =>
+      'The owner account is created. Now turn off public sign-up in the Firebase console: Authentication › Settings › User actions — clear “Enable create (sign-up)”. Otherwise anyone who knows the Web API key can create accounts.';
+
+  @override
+  String get syncSignInWithThisEmail => 'Sign in with this email';
 
   @override
   String get warrantyTitle => 'Warranty';

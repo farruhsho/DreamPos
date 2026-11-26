@@ -1167,6 +1167,10 @@ class AppLocalizationsUz extends AppLocalizations {
   String get setupJoinRetry => 'Yuklashni takrorlash';
 
   @override
+  String get setupJoinSignUpIntro =>
+      'Firebase loyihangizda ega hisobini yarating. Soʻng bu kassada yangi doʻkon yarating, uni bulutga oʻtkazish uchun Sozlamalar › Sinxronlash boʻlimida «Bulutda doʻkon yaratish»ni tanlang.';
+
+  @override
   String get custCreated => 'Mijoz yaratildi';
 
   @override
@@ -11054,6 +11058,78 @@ class AppLocalizationsUz extends AppLocalizations {
   String syncConflictRejectedBody(String entity, String id) {
     return '$entity yozuvining ($id) oʻzgarishi bulutdan buzilgan holda yoki mos kelmaydigan dastur versiyasidan keldi, shuning uchun u oʻtkazib yuborildi. Qolgan maʼlumotlar odatdagidek sinxronlanadi. Barcha kassalarda DreamPOSning bir xil versiyasi oʻrnatilganini tekshiring.';
   }
+
+  @override
+  String get syncErrEmailExists =>
+      'Bu email bilan hisob allaqachon mavjud. U bilan kiring («Kirish») yoki boshqa email kiriting.';
+
+  @override
+  String get syncErrWeakPassword =>
+      'Bulut parolni qabul qilmadi: u juda oddiy. Uzunroq parol oʻylab toping (kamida 8 ta belgi, harflar va raqamlar).';
+
+  @override
+  String get syncErrInvalidEmail =>
+      'Bulut bu emailni qabul qilmadi. Manzilni tekshiring.';
+
+  @override
+  String get syncErrSignUpDisabled =>
+      'Firebase loyihasida yangi hisoblarni roʻyxatdan oʻtkazish oʻchirilgan (Authentication › Settings › User actions › Enable create (sign-up)). Hisobni Firebase konsolida yarating (Authentication › Users › Add user) va u bilan kiring yoki roʻyxatdan oʻtishni vaqtincha yoqing.';
+
+  @override
+  String get syncErrSignUpTooManyAttempts =>
+      'Bu qurilmadan roʻyxatdan oʻtishga urinishlar juda koʻp. Bir necha daqiqa kutib, qaytadan urinib koʻring.';
+
+  @override
+  String get syncAuthModeSignIn => 'Kirish';
+
+  @override
+  String get syncAuthModeSignUp => 'Ega hisobini yaratish';
+
+  @override
+  String get syncSignUpIntro =>
+      'Firebase loyihangizda doʻkon egasining yangi hisobi yaratiladi. Soʻng bulutda doʻkon yaratasiz yoki mavjud doʻkonga ulanasiz.';
+
+  @override
+  String get syncPasswordNewHelp =>
+      'Kamida 8 ta belgi. Parol kassada saqlanmaydi.';
+
+  @override
+  String get syncPasswordRepeat => 'Parolni takrorlang *';
+
+  @override
+  String get syncPasswordTooShort => 'Kamida 8 ta belgi';
+
+  @override
+  String get syncPasswordMismatch => 'Parollar mos kelmaydi';
+
+  @override
+  String get syncSignUpSubmit => 'Hisob yaratish';
+
+  @override
+  String get syncNoAccountSignUp => 'Hisobingiz yoʻqmi? Roʻyxatdan oʻtish';
+
+  @override
+  String get syncHaveAccountSignIn => 'Hisobingiz bormi? Kirish';
+
+  @override
+  String syncAccountCreated(String email) {
+    return 'Hisob yaratildi: $email';
+  }
+
+  @override
+  String get syncNewAccountNoStores =>
+      'Yangi hisobda hali doʻkonlar yoʻq. «Yangi doʻkon yaratish» tugmasini bosing, doʻkonni sozlang, soʻng Sozlamalar › Sinxronlash boʻlimida shu hisob bilan kirib, «Bulutda doʻkon yaratish»ni tanlang.';
+
+  @override
+  String get syncErrPasswordPolicy =>
+      'Parol Firebase loyihangizning parol talablariga mos kelmaydi (Authentication › Settings › Password policy): masalan, bosh harflar, raqamlar yoki belgilar kerak. Shu talablarga mos parol oʻylab toping.';
+
+  @override
+  String get syncSignUpDisableHint =>
+      'Ega hisobi yaratildi. Endi Firebase konsolida mustaqil roʻyxatdan oʻtishni yoping: Authentication › Settings › User actions — «Enable create (sign-up)» belgisini olib tashlang. Aks holda Web API key kalitini bilgan har kim hisob ochishi mumkin.';
+
+  @override
+  String get syncSignInWithThisEmail => 'Shu email bilan kirish';
 
   @override
   String get warrantyTitle => 'Kafolat';

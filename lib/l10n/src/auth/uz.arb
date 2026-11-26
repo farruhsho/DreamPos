@@ -28,5 +28,6 @@
   "setupJoinNewStore": "Yangi doʻkon yaratish",
   "setupJoinDone": "Doʻkon maʼlumotlari yuklandi. PIN-kod bilan kiring.",
   "setupJoinPartial": "Kassa ulandi, lekin maʼlumotlarni yuklash tugamadi. Aloqani tekshirib, qayta urinib koʻring.",
-  "setupJoinRetry": "Yuklashni takrorlash"
+  "setupJoinRetry": "Yuklashni takrorlash",
+  "setupJoinSignUpIntro": "Firebase loyihangizda ega hisobini yarating. Soʻng bu kassada yangi doʻkon yarating, uni bulutga oʻtkazish uchun Sozlamalar › Sinxronlash boʻlimida «Bulutda doʻkon yaratish»ni tanlang."
 }

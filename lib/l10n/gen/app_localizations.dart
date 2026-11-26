@@ -2040,6 +2040,12 @@ abstract class AppLocalizations {
   /// **'Повторить загрузку'**
   String get setupJoinRetry;
 
+  /// No description provided for @setupJoinSignUpIntro.
+  ///
+  /// In ru, this message translates to:
+  /// **'Создайте аккаунт владельца в вашем проекте Firebase. Затем создайте на этой кассе новый магазин, а чтобы перенести его в облако, выберите в разделе Настройки › Синхронизация «Создать магазин в облаке».'**
+  String get setupJoinSignUpIntro;
+
   /// No description provided for @custCreated.
   ///
   /// In ru, this message translates to:
@@ -18569,6 +18575,126 @@ abstract class AppLocalizations {
   /// In ru, this message translates to:
   /// **'Изменение записи {entity} ({id}) пришло из облака повреждённым или от несовместимой версии программы, поэтому оно пропущено. Остальные данные синхронизируются как обычно. Проверьте, что на всех кассах установлена одна версия DreamPOS.'**
   String syncConflictRejectedBody(String entity, String id);
+
+  /// No description provided for @syncErrEmailExists.
+  ///
+  /// In ru, this message translates to:
+  /// **'Аккаунт с этим email уже есть. Войдите с ним («Войти») или укажите другой email.'**
+  String get syncErrEmailExists;
+
+  /// No description provided for @syncErrWeakPassword.
+  ///
+  /// In ru, this message translates to:
+  /// **'Облако не приняло пароль: он слишком простой. Придумайте пароль длиннее (не менее 8 символов, буквы и цифры).'**
+  String get syncErrWeakPassword;
+
+  /// No description provided for @syncErrInvalidEmail.
+  ///
+  /// In ru, this message translates to:
+  /// **'Облако не приняло этот email. Проверьте адрес.'**
+  String get syncErrInvalidEmail;
+
+  /// No description provided for @syncErrSignUpDisabled.
+  ///
+  /// In ru, this message translates to:
+  /// **'В проекте Firebase отключена регистрация новых аккаунтов (Authentication › Settings › User actions › Enable create (sign-up)). Создайте аккаунт в консоли Firebase (Authentication › Users › Add user) и войдите с ним или временно включите регистрацию.'**
+  String get syncErrSignUpDisabled;
+
+  /// No description provided for @syncErrSignUpTooManyAttempts.
+  ///
+  /// In ru, this message translates to:
+  /// **'Слишком много попыток регистрации с этого устройства. Подождите несколько минут и попробуйте снова.'**
+  String get syncErrSignUpTooManyAttempts;
+
+  /// No description provided for @syncAuthModeSignIn.
+  ///
+  /// In ru, this message translates to:
+  /// **'Войти'**
+  String get syncAuthModeSignIn;
+
+  /// No description provided for @syncAuthModeSignUp.
+  ///
+  /// In ru, this message translates to:
+  /// **'Создать аккаунт владельца'**
+  String get syncAuthModeSignUp;
+
+  /// No description provided for @syncSignUpIntro.
+  ///
+  /// In ru, this message translates to:
+  /// **'В вашем проекте Firebase будет создан новый аккаунт владельца магазина. Затем вы создадите магазин в облаке или подключитесь к существующему.'**
+  String get syncSignUpIntro;
+
+  /// No description provided for @syncPasswordNewHelp.
+  ///
+  /// In ru, this message translates to:
+  /// **'Не менее 8 символов. Пароль не сохраняется на кассе.'**
+  String get syncPasswordNewHelp;
+
+  /// No description provided for @syncPasswordRepeat.
+  ///
+  /// In ru, this message translates to:
+  /// **'Повторите пароль *'**
+  String get syncPasswordRepeat;
+
+  /// No description provided for @syncPasswordTooShort.
+  ///
+  /// In ru, this message translates to:
+  /// **'Не менее 8 символов'**
+  String get syncPasswordTooShort;
+
+  /// No description provided for @syncPasswordMismatch.
+  ///
+  /// In ru, this message translates to:
+  /// **'Пароли не совпадают'**
+  String get syncPasswordMismatch;
+
+  /// No description provided for @syncSignUpSubmit.
+  ///
+  /// In ru, this message translates to:
+  /// **'Создать аккаунт'**
+  String get syncSignUpSubmit;
+
+  /// No description provided for @syncNoAccountSignUp.
+  ///
+  /// In ru, this message translates to:
+  /// **'Нет аккаунта? Зарегистрироваться'**
+  String get syncNoAccountSignUp;
+
+  /// No description provided for @syncHaveAccountSignIn.
+  ///
+  /// In ru, this message translates to:
+  /// **'Уже есть аккаунт? Войти'**
+  String get syncHaveAccountSignIn;
+
+  /// No description provided for @syncAccountCreated.
+  ///
+  /// In ru, this message translates to:
+  /// **'Аккаунт создан: {email}'**
+  String syncAccountCreated(String email);
+
+  /// No description provided for @syncNewAccountNoStores.
+  ///
+  /// In ru, this message translates to:
+  /// **'У нового аккаунта пока нет магазинов. Нажмите «Создать новый магазин», настройте его, затем в разделе Настройки › Синхронизация войдите этим аккаунтом и выберите «Создать магазин в облаке».'**
+  String get syncNewAccountNoStores;
+
+  /// No description provided for @syncErrPasswordPolicy.
+  ///
+  /// In ru, this message translates to:
+  /// **'Пароль не подходит под требования к паролям вашего проекта Firebase (Authentication › Settings › Password policy): например, нужны заглавные буквы, цифры или символы. Придумайте пароль, который им соответствует.'**
+  String get syncErrPasswordPolicy;
+
+  /// No description provided for @syncSignUpDisableHint.
+  ///
+  /// In ru, this message translates to:
+  /// **'Аккаунт владельца создан. Теперь закройте самостоятельную регистрацию в консоли Firebase: Authentication › Settings › User actions — снимите «Enable create (sign-up)». Иначе любой, кто знает Web API key, сможет заводить аккаунты.'**
+  String get syncSignUpDisableHint;
+
+  /// No description provided for @syncSignInWithThisEmail.
+  ///
+  /// In ru, this message translates to:
+  /// **'Войти с этим email'**
+  String get syncSignInWithThisEmail;
 
   /// No description provided for @warrantyTitle.
   ///

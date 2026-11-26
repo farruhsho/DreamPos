@@ -1181,6 +1181,10 @@ class AppLocalizationsRu extends AppLocalizations {
   String get setupJoinRetry => 'Повторить загрузку';
 
   @override
+  String get setupJoinSignUpIntro =>
+      'Создайте аккаунт владельца в вашем проекте Firebase. Затем создайте на этой кассе новый магазин, а чтобы перенести его в облако, выберите в разделе Настройки › Синхронизация «Создать магазин в облаке».';
+
+  @override
   String get custCreated => 'Клиент создан';
 
   @override
@@ -11029,6 +11033,78 @@ class AppLocalizationsRu extends AppLocalizations {
   String syncConflictRejectedBody(String entity, String id) {
     return 'Изменение записи $entity ($id) пришло из облака повреждённым или от несовместимой версии программы, поэтому оно пропущено. Остальные данные синхронизируются как обычно. Проверьте, что на всех кассах установлена одна версия DreamPOS.';
   }
+
+  @override
+  String get syncErrEmailExists =>
+      'Аккаунт с этим email уже есть. Войдите с ним («Войти») или укажите другой email.';
+
+  @override
+  String get syncErrWeakPassword =>
+      'Облако не приняло пароль: он слишком простой. Придумайте пароль длиннее (не менее 8 символов, буквы и цифры).';
+
+  @override
+  String get syncErrInvalidEmail =>
+      'Облако не приняло этот email. Проверьте адрес.';
+
+  @override
+  String get syncErrSignUpDisabled =>
+      'В проекте Firebase отключена регистрация новых аккаунтов (Authentication › Settings › User actions › Enable create (sign-up)). Создайте аккаунт в консоли Firebase (Authentication › Users › Add user) и войдите с ним или временно включите регистрацию.';
+
+  @override
+  String get syncErrSignUpTooManyAttempts =>
+      'Слишком много попыток регистрации с этого устройства. Подождите несколько минут и попробуйте снова.';
+
+  @override
+  String get syncAuthModeSignIn => 'Войти';
+
+  @override
+  String get syncAuthModeSignUp => 'Создать аккаунт владельца';
+
+  @override
+  String get syncSignUpIntro =>
+      'В вашем проекте Firebase будет создан новый аккаунт владельца магазина. Затем вы создадите магазин в облаке или подключитесь к существующему.';
+
+  @override
+  String get syncPasswordNewHelp =>
+      'Не менее 8 символов. Пароль не сохраняется на кассе.';
+
+  @override
+  String get syncPasswordRepeat => 'Повторите пароль *';
+
+  @override
+  String get syncPasswordTooShort => 'Не менее 8 символов';
+
+  @override
+  String get syncPasswordMismatch => 'Пароли не совпадают';
+
+  @override
+  String get syncSignUpSubmit => 'Создать аккаунт';
+
+  @override
+  String get syncNoAccountSignUp => 'Нет аккаунта? Зарегистрироваться';
+
+  @override
+  String get syncHaveAccountSignIn => 'Уже есть аккаунт? Войти';
+
+  @override
+  String syncAccountCreated(String email) {
+    return 'Аккаунт создан: $email';
+  }
+
+  @override
+  String get syncNewAccountNoStores =>
+      'У нового аккаунта пока нет магазинов. Нажмите «Создать новый магазин», настройте его, затем в разделе Настройки › Синхронизация войдите этим аккаунтом и выберите «Создать магазин в облаке».';
+
+  @override
+  String get syncErrPasswordPolicy =>
+      'Пароль не подходит под требования к паролям вашего проекта Firebase (Authentication › Settings › Password policy): например, нужны заглавные буквы, цифры или символы. Придумайте пароль, который им соответствует.';
+
+  @override
+  String get syncSignUpDisableHint =>
+      'Аккаунт владельца создан. Теперь закройте самостоятельную регистрацию в консоли Firebase: Authentication › Settings › User actions — снимите «Enable create (sign-up)». Иначе любой, кто знает Web API key, сможет заводить аккаунты.';
+
+  @override
+  String get syncSignInWithThisEmail => 'Войти с этим email';
 
   @override
   String get warrantyTitle => 'Гарантия';

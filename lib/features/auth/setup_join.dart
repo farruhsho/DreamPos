@@ -1,5 +1,6 @@
 // Setup wizard, first step: «Подключиться к существующему магазину» (D-025,
-// spec §10). A fresh install signs in to the cloud, picks a store, registers
+// spec §10). A fresh install signs in to the cloud (or registers the owner
+// account there: «Нет аккаунта? Зарегистрироваться»), picks a store, registers
 // as the next register, pulls everything (users included) and lands on the
 // login screen. Only offered for an empty database. When a join was
 // interrupted (network, app closed) the wizard reopens this panel in its
@@ -35,6 +36,9 @@ class SetupJoinPanel extends ConsumerStatefulWidget {
 
 class _SetupJoinPanelState extends ConsumerState<SetupJoinPanel> {
   String? _email;
+
+  /// The account was just registered here (it has no stores yet).
+  bool _newAccount = false;
   AsyncValue<List<StoreInfo>> _stores = const AsyncLoading();
   String? _storeId;
   bool _busy = false;
@@ -46,13 +50,45 @@ class _SetupJoinPanelState extends ConsumerState<SetupJoinPanel> {
   /// Resuming needs a new sign-in (the stored session was rejected).
   bool _needSignIn = false;
 
+  /// The sign-in form is signing in or registering (no way back meanwhile:
+  /// the account would be created behind the closed panel).
+  bool _authBusy = false;
+
+  /// The sign-in form shows registration (its banner replaces the intro).
+  bool _registerMode = false;
+
+  /// Just registered and the account has no stores: nothing to join, the
+  /// only way on is a new local store.
+  bool get _newAccountWithoutStores {
+    if (_stores case AsyncData(:final value)) return _newAccount && value.isEmpty;
+    return false;
+  }
+
+  void _onAuthBusy(bool v) {
+    if (mounted && v != _authBusy) setState(() => _authBusy = v);
+  }
+
+  void _onRegisterMode(bool v) {
+    if (mounted && v != _registerMode) setState(() => _registerMode = v);
+  }
+
   SyncService get _svc => ref.read(syncServiceProvider);
 
   Future<void> _signIn(SyncEndpoint endpoint, String email, String password) async {
     final s = await _svc.signIn(endpoint: endpoint, email: email, password: password);
+    await _signedIn(s);
+  }
+
+  Future<void> _signUp(SyncEndpoint endpoint, String email, String password) async {
+    final s = await _svc.signUp(endpoint: endpoint, email: email, password: password);
+    await _signedIn(s, newAccount: true);
+  }
+
+  Future<void> _signedIn(SyncSession s, {bool newAccount = false}) async {
     if (!mounted) return;
     setState(() {
       _email = s.email;
+      _newAccount = newAccount;
       _needSignIn = false;
     });
     if (_partial) {
@@ -114,6 +150,7 @@ class _SetupJoinPanelState extends ConsumerState<SetupJoinPanel> {
     final prefill = ref.watch(syncPrefillProvider);
     final signedIn = _email != null;
     if (_partial && (widget.resume || _needSignIn)) return _resumeView(context, prefill);
+    final noStores = signedIn && _newAccountWithoutStores;
     return Column(
       key: const ValueKey('setup-join-panel'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -125,12 +162,33 @@ class _SetupJoinPanelState extends ConsumerState<SetupJoinPanel> {
         const SizedBox(height: Gap.l),
         Text(l.setupJoinTitle, style: t.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
         const SizedBox(height: Gap.xs),
-        Text(l.setupJoinIntro, style: t.textTheme.bodyMedium?.copyWith(color: t.colorScheme.onSurfaceVariant)),
+        // Registration has its own intro (what the wizard does next); the
+        // join intro («войдите и выберите магазин») would contradict it.
+        // (also after the registration: the new account has nothing to pick).
+        if (!_registerMode && !noStores)
+          Text(l.setupJoinIntro,
+              key: const ValueKey('setup-join-intro'),
+              style: t.textTheme.bodyMedium?.copyWith(color: t.colorScheme.onSurfaceVariant)),
         const SizedBox(height: Gap.l),
         if (!signedIn)
           switch (prefill) {
-            AsyncData(:final value) => SyncSignInForm(prefill: value, onSignIn: _signIn),
-            AsyncError() => SyncSignInForm(onSignIn: _signIn),
+            AsyncData(:final value) => SyncSignInForm(
+                prefill: value,
+                onSignIn: _signIn,
+                onSignUp: _signUp,
+                authSwitch: SyncAuthSwitch.link,
+                signUpIntro: l.setupJoinSignUpIntro,
+                onBusyChanged: _onAuthBusy,
+                onRegisterChanged: _onRegisterMode,
+              ),
+            AsyncError() => SyncSignInForm(
+                onSignIn: _signIn,
+                onSignUp: _signUp,
+                authSwitch: SyncAuthSwitch.link,
+                signUpIntro: l.setupJoinSignUpIntro,
+                onBusyChanged: _onAuthBusy,
+                onRegisterChanged: _onRegisterMode,
+              ),
             _ => const Center(child: CircularProgressIndicator()),
           }
         else ...[
@@ -138,50 +196,84 @@ class _SetupJoinPanelState extends ConsumerState<SetupJoinPanel> {
             children: [
               const Icon(Icons.check_circle, color: AppColors.success, size: 20),
               const SizedBox(width: Gap.s),
-              Expanded(child: Text(l.syncSignedInAs(_email!))),
+              Expanded(
+                child: Text(
+                  _newAccount ? l.syncAccountCreated(_email!) : l.syncSignedInAs(_email!),
+                  key: const ValueKey('sync-signed-in-as'),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: Gap.m),
-          Text(l.syncChooseStore, style: t.textTheme.titleSmall),
-          const SizedBox(height: Gap.s),
-          SyncStorePicker(
-            stores: _stores,
-            selected: _storeId,
-            enabled: !_busy && !_partial,
-            onSelected: (id) => setState(() => _storeId = id),
-            onRetry: _loadStores,
-          ),
-          if (_busy) SyncProgress(l.syncDownloading),
-          if (_partial && !_busy) ...[
-            const SizedBox(height: Gap.m),
-            InfoBanner(icon: Icons.cloud_off_outlined, color: AppColors.warning, text: l.setupJoinPartial),
+          if (noStores) ...[
+            // Nothing to choose or join: the next step is a new local store.
+            InfoBanner(
+              key: const ValueKey('setup-join-new-account'),
+              icon: Icons.storefront_outlined,
+              text: l.syncNewAccountNoStores,
+            ),
+            const SizedBox(height: Gap.l),
+            Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: FilledButton.icon(
+                key: const ValueKey('setup-join-new-store'),
+                onPressed: widget.onBack,
+                icon: const Icon(Icons.add_business_outlined),
+                label: Text(l.setupJoinNewStore),
+              ),
+            ),
+            const SizedBox(height: Gap.l),
+            InfoBanner(
+              key: const ValueKey('sync-sign-up-disable-hint'),
+              icon: Icons.lock_outline,
+              color: AppColors.warning,
+              text: l.syncSignUpDisableHint,
+            ),
+          ] else ...[
+            Text(l.syncChooseStore, style: t.textTheme.titleSmall),
+            const SizedBox(height: Gap.s),
+            SyncStorePicker(
+              stores: _stores,
+              selected: _storeId,
+              enabled: !_busy && !_partial,
+              onSelected: (id) => setState(() => _storeId = id),
+              onRetry: _loadStores,
+            ),
+            if (_busy) SyncProgress(l.syncDownloading),
+            if (_partial && !_busy) ...[
+              const SizedBox(height: Gap.m),
+              InfoBanner(icon: Icons.cloud_off_outlined, color: AppColors.warning, text: l.setupJoinPartial),
+            ],
+            if (_error != null) ...[
+              const SizedBox(height: Gap.m),
+              SyncErrorBox(_error!),
+            ],
+            const SizedBox(height: Gap.l),
+            Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: FilledButton.icon(
+                key: const ValueKey('setup-join-submit'),
+                onPressed: _busy || _storeId == null || !_stores.hasValue ? null : _join,
+                icon: const Icon(Icons.cloud_download_outlined),
+                label: Text(_partial ? l.setupJoinRetry : l.syncConnect),
+              ),
+            ),
           ],
-          if (_error != null) ...[
-            const SizedBox(height: Gap.m),
-            SyncErrorBox(_error!),
-          ],
-          const SizedBox(height: Gap.l),
+        ],
+        if (!noStores) ...[
+          const SizedBox(height: Gap.m),
           Align(
-            alignment: AlignmentDirectional.centerEnd,
-            child: FilledButton.icon(
-              key: const ValueKey('setup-join-submit'),
-              onPressed: _busy || _storeId == null || !_stores.hasValue ? null : _join,
-              icon: const Icon(Icons.cloud_download_outlined),
-              label: Text(_partial ? l.setupJoinRetry : l.syncConnect),
+            alignment: AlignmentDirectional.centerStart,
+            child: TextButton.icon(
+              key: const ValueKey('setup-join-back'),
+              // Once connected the database belongs to the store: no way back.
+              // Not while signing in / registering either.
+              onPressed: _busy || _partial || _authBusy ? null : widget.onBack,
+              icon: const Icon(Icons.arrow_back),
+              label: Text(l.setupJoinNewStore),
             ),
           ),
         ],
-        const SizedBox(height: Gap.m),
-        Align(
-          alignment: AlignmentDirectional.centerStart,
-          child: TextButton.icon(
-            key: const ValueKey('setup-join-back'),
-            // Once connected the database belongs to the store: no way back.
-            onPressed: _busy || _partial ? null : widget.onBack,
-            icon: const Icon(Icons.arrow_back),
-            label: Text(l.setupJoinNewStore),
-          ),
-        ),
       ],
     );
   }
